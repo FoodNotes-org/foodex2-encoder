@@ -1,0 +1,332 @@
+# End-to-end encode eval — full pipeline (lexical → traversal → selection).
+# Requires OPENROUTER_API_KEY. Run: npm run encode-eval
+#
+# Fields per case:
+#   expected              base term code the pick must equal
+#   method                lexical | traversal — optional path check
+#   forbid_pick           comma-separated codes — pick must not be any of these
+#   forbid_facets         comma-separated Fxx.CODE — added facets must not include these
+#   require_facets        comma-separated Fxx.CODE — all must appear as added facets
+#   require_f04_under     comma-separated F04.CODE — for each, at least one added F04 must be under it
+#   free_text_includes    substring of formatted freeText (label=value; …) must contain (case-insensitive)
+#   tags                  comma-separated labels for the report (soft = non-blocking for exit)
+
+cases:
+  # --- Lexical auto-accept ---
+  - id: encode-orange-juice
+    input: orange juice
+    expected: A03AM
+    method: lexical
+    tags: positive, lexical
+    note: Juice, orange
+
+  - id: encode-juice-orange
+    input: juice orange
+    expected: A03AM
+    method: lexical
+    tags: positive, lexical, reorder
+
+  - id: encode-apple-juice
+    input: apple juice
+    expected: A039M
+    method: lexical
+    tags: positive, lexical, crafted
+
+  - id: encode-nectar-orange
+    input: nectar orange
+    expected: A03BG
+    method: lexical
+    tags: positive, lexical, reorder
+
+  - id: encode-orange-peach-juice
+    input: orange peach juice
+    expected: A03AZ
+    method: lexical
+    tags: positive, lexical, blend
+
+  - id: encode-wheat-germ-oil
+    input: Wheat germ oil
+    expected: A037Q
+    method: lexical
+    tags: positive, lexical, gold, ciqual
+
+  - id: encode-jelly-candy
+    input: Jelly candy
+    expected: A035L
+    method: lexical
+    tags: positive, lexical, gold, ciqual
+
+  - id: encode-dill-seeds
+    input: Dill seeds
+    expected: A018F
+    method: lexical
+    tags: positive, lexical, gold, cofid
+
+  - id: encode-sardine-oil
+    input: Sardine oil
+    expected: A038P
+    method: lexical
+    tags: positive, lexical, gold, ciqual
+
+  - id: encode-molasses
+    input: Molasses
+    expected: A033S
+    method: lexical
+    tags: positive, lexical, gold, cofid
+
+  - id: encode-anise-seeds
+    input: Anise seeds
+    expected: A017Y
+    method: lexical
+    tags: positive, lexical, gold, cofid
+
+  - id: encode-kangaroo-fresh-meat-exact
+    input: Kangaroo fresh meat
+    expected: A01RS
+    method: lexical
+    tags: positive, lexical, exact_wording
+
+  # --- Traversal + selection ---
+  - id: encode-eggplant
+    input: eggplant
+    expected: A00JD
+    method: traversal
+    tags: positive, traversal, synonym
+    note: Aubergines — synonym via traversal
+
+  - id: encode-ice-cream-topping
+    input: chocolate ice cream with amarena cherries
+    expected: A02QA
+    method: traversal
+    require_f04_under: F04.A01GH
+    forbid_facets: F04.A01KJ,F04.A06MF,F04.A06MG,F04.A06MH,F04.A06JV
+    free_text_includes: ingredient=chocolate
+    tags: positive, traversal, facets, f04, residuals
+    note: Ice cream, milk-based + sour-cherry F04; chocolate via input-vs-base → F04 refuse → ingredient= free text (not dish= dump; forbid Chocolate *flavour* / invented cocoa)
+
+  - id: encode-yogurt-strawberries
+    input: yogurt with strawberries
+    expected: A02NH
+    method: traversal
+    require_facets: F27.A01EA
+    forbid_facets: F04.A01EA
+    tags: positive, traversal, residuals, f27
+    note: Whole-string select → Yoghurt, cow milk, flavoured; strawberries as F27 source-commodity (derivative base), not F04
+
+  - id: encode-boeuf-bourguignon
+    input: boeuf bourguignon
+    expected: A03VY
+    method: traversal
+    require_f04_under: F04.A0EYH
+    forbid_facets: F04.A0EYH
+    free_text_includes: dish=boeuf bourguignon
+    tags: positive, traversal, dish, facets, f04, residuals
+    note: Meat stew + F04 more specific than mammals meat; dish=boeuf bourguignon — exact ingredient codes are soft
+
+  - id: encode-boeuf-bourguignon-mash
+    input: boeuf bourguignon with sweet potato mash
+    expected: A03VY
+    method: traversal
+    require_f04_under: F04.A0EYH
+    free_text_includes: side=sweet potato mash
+    tags: positive, traversal, dish, side, facets, f04, residuals
+    note: Dish route + essence on bourguignon; side free text for mash (not F04); dish=boeuf bourguignon also expected in free text
+
+  - id: encode-dried-kangaroo
+    input: Dried kangaroo meat
+    expected: A04MP
+    method: traversal
+    tags: positive, traversal, handcheck, process
+    note: Mammals or birds dried meat — drying process supported by input
+
+  - id: encode-kangaroo-meat
+    input: kangaroo meat
+    expected: A0EYF
+    method: traversal
+    forbid_pick: A01RS
+    tags: negative, traversal, extra_word
+    note: Must not pick Kangaroo fresh meat — extra fresh not in input
+
+  - id: encode-smoked-sprats-canned
+    input: smoked sprats in a can
+    expected: A0FBY
+    method: traversal
+    forbid_pick: A0EYS
+    tags: positive, traversal, characterising, efsa_3_1_3
+    note: EFSA §3.1.3 — smoking is facet-level; base is canned sprats not Smoked fish
+
+  # --- EFSA handcheck (base term only) ---
+  - id: encode-orange-nectar-long
+    input: Orange nectar, fortified with calcium, sugar free, organic
+    expected: A03BG
+    method: traversal
+    tags: positive, traversal, handcheck, efsa
+    note: Nectar, orange — fortification etc. are facets later
+
+  - id: encode-mixed-milk
+    input: Mixed milk from goat, sheep and camel
+    expected: A02LT
+    method: traversal
+    tags: positive, traversal, handcheck, efsa
+    note: Milk (generic) — species sources are facets later
+
+  - id: encode-kangaroo-fat-tissue
+    input: Kangaroo fresh fat tissue
+    expected: A0F3G
+    method: traversal
+    tags: positive, traversal, handcheck, efsa
+    note: Mammals fat tissue
+
+  - id: encode-adriatic-sturgeon
+    input: Adriatic sturgeon (fresh)
+    expected: A029E
+    method: traversal
+    tags: positive, traversal, handcheck, efsa
+    note: Sturgeon — fresh is not an extra catalogue word here
+
+  - id: encode-glutinous-rice-flour
+    input: Flour obtained from glutinous rice
+    expected: A003F
+    method: traversal
+    tags: positive, traversal, handcheck, efsa
+    note: Rice flour
+
+  - id: encode-eagle-eggs
+    input: Eagle eggs
+    expected: A0CVL
+    method: traversal
+    forbid_pick: A031F,A031E,A031L
+    tags: positive, traversal, handcheck, efsa
+    note: Eggs from other not listed eggs producer birds — eagle has no catalogue leaf
+
+  - id: encode-quinoa-flour
+    input: Quinoa flour
+    expected: A04KT
+    method: traversal
+    forbid_pick: A04KS
+    tags: positive, traversal, handcheck, efsa
+    note: Cereal flours not separately listed — quinoa has no dedicated leaf
+
+  - id: encode-mixed-leafy-salad
+    input: Mixed leafy vegetables salad (radicchio, Italian corn salad, lollo rosso, Roman rocket)
+    expected: A042C
+    method: traversal
+    tags: positive, traversal, handcheck, efsa
+    note: Mixed green salad — listed varieties are facets, not the base name
+
+  - id: encode-risotto-asparagus
+    input: Risotto with asparagus
+    expected: A041F
+    method: traversal
+    forbid_pick: A00RT
+    tags: positive, traversal, handcheck, efsa
+    note: Dish name wins over characterising ingredient
+
+  # --- Residuals A/B ---
+  - id: encode-sandwich-bare
+    input: sandwich
+    expected: A03YZ
+    method: traversal
+    forbid_facets: F04.A02QE,F04.A0EYM,F04.A026V,F04.A07XJ
+    tags: positive, traversal, named_dish, detect, residuals
+    note: Base already expresses sandwich — detect must not invent cheese/meat/fish/veg fillings as F04
+
+  - id: encode-egg-fu-yung
+    input: egg fu yung
+    expected: A03YJ
+    method: traversal
+    require_facets: F26.A07XE
+    forbid_facets: F04.A031F,F04.A07XJ
+    free_text_includes: fu yung
+    tags: positive, traversal, dish, residuals, implicits
+    note: Egg based dishes — no named omelette is a strict cover; F26 Other marks the missing sibling; dish= in free text; do not restate egg/vegetables implicits
+
+  - id: encode-venison
+    input: venison
+    expected: A01SA
+    method: traversal
+    forbid_facets: F26.A07XE
+    tags: soft, traversal, synonym, residuals
+    note: 'Soft — catalogue-default qualifier gap (see classify-ladder.ts): venison is deer meat, not literally "deer fresh meat"; accept A01SA. Classify may wobble exact/related; must not add F26 Other on the leaf.'
+
+  - id: encode-yakitori
+    input: yakitori
+    expected: A03VV
+    method: traversal
+    free_text_includes: yakitori
+    require_f04_under: F04.A0EYH
+    tags: positive, traversal, dish, residuals, f04
+    note: Meat based dishes + dish=yakitori; F04 chicken (or other meat) under mammals/birds meat — not chicken as base
+
+  - id: encode-homemade-yakitori
+    input: homemade yakitori
+    expected: A03VV
+    method: traversal
+    free_text_includes: yakitori
+    tags: positive, traversal, named_dish, residuals, case_b
+    note: Named-dish span owned; uncovered "homemade" may be note= — must not invent dish-definition free text
+
+  - id: encode-heather-ale
+    input: heather ale
+    expected: A03MH
+    method: traversal
+    free_text_includes: heather
+    tags: soft, traversal, residuals
+    note: Soft — Ale beer (input says ale); heather as free text. Not F01 Heather (as plant) — ale is not from that organism. Not F04 Heather infusion leaves/flowers — those are infusion RPCs, not a brew adjunct. Hop-replacement role has no honest facet.
+
+  - id: encode-buffalo-mozzarella
+    input: buffalo mozzarella
+    expected: A02QJ
+    method: traversal
+    require_facets: F27.A02MD
+    tags: positive, traversal, residuals, origin, f27
+    note: Mozzarella + F27 Water buffalo milk via origin role made_from
+
+  - id: encode-camel-liver
+    input: camel liver
+    expected: A0F3J
+    method: traversal
+    require_facets: F01.A057L
+    tags: soft, traversal, residuals, origin, f01
+    note: Soft — Mammals liver (non-specific) + F01 Camel (as animal) when case B extracts camel
+
+  - id: encode-canned-organic-orange-juice
+    input: canned organic orange juice
+    expected: A03AM
+    method: traversal
+    require_facets: F21.A07SE,F28.A0BYP
+    tags: positive, traversal, residuals, case_b, f21, f28
+    note: Juice, orange + Organic production + Canning/jarring
+
+  - id: encode-organic-canned-cucumber-lemon-juice
+    input: organic canned cucumber-lemon juice
+    expected: A03DB
+    method: traversal
+    forbid_pick: A03CQ,A03AH,A03DE
+    require_facets: F27.A00JM,F27.A01BY,F21.A07SE,F26.A07XE,F28.A0BYP
+    forbid_facets: F04.A00JM,F04.A01BY
+    tags: positive, traversal, blend, residuals, f27, f21, f26, f28
+    note: Mixed fruit and vegetable juices (derivative) — F27 source-commodities for cucumber/lemon, not F04; F26 Other for missing blend sibling; organic + canned
+
+  - id: encode-semi-skimmed-milk
+    input: semi-skimmed milk
+    expected: A02LZ
+    method: traversal
+    tags: soft, traversal, residuals, base_density
+    note: Soft — denser milk leaf absorbs semi-skimmed; Facets F10 path not needed when base already carries it
+
+  - id: encode-sugar-free-orange-juice
+    input: sugar-free orange juice
+    expected: A03AM
+    method: traversal
+    require_facets: F10.A077L
+    tags: positive, traversal, residuals, other, f10
+    note: Juice, orange + Qualitative Sugar free via other → Facets Qualitative-info
+
+  - id: encode-organic-yogurt
+    input: organic yogurt
+    expected: A02NE
+    method: traversal
+    require_facets: F21.A07SE
+    tags: positive, traversal, residuals, other, f21
+    note: Yoghurt + Organic production via other → Production-method

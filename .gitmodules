@@ -1,0 +1,3 @@
+[submodule "vendor/efsa-catalogues"]
+	path = vendor/efsa-catalogues
+	url = https://github.com/openefsa/efsa-catalogues.git

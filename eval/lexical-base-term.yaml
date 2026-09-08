@@ -1,0 +1,201 @@
+# Lexical eval — mostly **search recall@K**. Identical-word acceptance is a
+# deterministic rule (see lexical-accept.ts); cases here check it does not
+# fire on near-siblings or synonyms.
+#
+# Inputs drawn from:
+#   - dataset/foodex2-gold.yaml on experiment/alternative-encoding-workflow
+#     (CoFID UK + CIQUAL France pool rows, base term only)
+#   - EFSA hand-check / guide examples on this branch
+#   - Crafted reorder and near-sibling negatives
+#
+# Fields per case:
+#   expected       base term code (omit when testing "no accept" only)
+#   recall_top     expected must appear in top K (default 10)
+#   auto_accept    true = should auto-accept to expected; false = must not accept
+#   forbid_accept  comma-separated codes — auto-accept to any of these is failure
+#   tags           comma-separated labels for grouping in the report
+
+cases:
+  # --- Reorder / token-set positives (crafted) ---
+  - id: lex-reorder-orange-juice
+    input: orange juice
+    expected: A03AM
+    tags: positive, reorder, crafted
+    auto_accept: true
+    note: Juice, orange
+
+  - id: lex-reorder-juice-orange
+    input: juice orange
+    expected: A03AM
+    tags: positive, reorder, crafted
+    auto_accept: true
+
+  - id: lex-reorder-apple-juice
+    input: apple juice
+    expected: A039M
+    tags: positive, reorder, crafted
+    auto_accept: true
+    note: Juice, apple
+
+  - id: lex-reorder-nectar-orange
+    input: nectar orange
+    expected: A03BG
+    tags: positive, reorder, crafted
+    auto_accept: true
+    note: Nectar, orange
+
+  - id: lex-reorder-kangaroo-fresh-meat
+    input: Kangaroo fresh meat
+    expected: A01RS
+    tags: positive, reorder, crafted
+    auto_accept: true
+    note: Exact catalogue wording; token_set accept
+
+  # --- Gold pool positives (CoFID / CIQUAL) ---
+  - id: gold-ciqual-wheat-germ-oil
+    input: Wheat germ oil
+    expected: A037Q
+    source: ciqual pool-05775
+    tags: positive, gold, token_set
+    auto_accept: true
+
+  - id: gold-ciqual-jelly-candy
+    input: Jelly candy
+    expected: A035L
+    source: ciqual pool-05470
+    tags: positive, gold, token_set
+    auto_accept: true
+
+  - id: gold-cofid-dill-seeds
+    input: Dill seeds
+    expected: A018F
+    source: cofid pool-01036
+    tags: positive, gold, token_set
+    auto_accept: true
+    note: Catalogue leaf is Dill seed
+
+  - id: gold-ciqual-sardine-oil
+    input: Sardine oil
+    expected: A038P
+    source: ciqual pool-05813
+    tags: positive, gold, token_set
+    auto_accept: true
+
+  - id: gold-cofid-molasses
+    input: Molasses
+    expected: A033S
+    source: cofid pool-01695
+    tags: positive, gold, token_set
+    auto_accept: true
+
+  - id: gold-cofid-anise-seeds
+    input: Anise seeds
+    expected: A017Y
+    source: cofid pool-00014
+    tags: positive, gold, token_set
+    auto_accept: true
+    note: Catalogue leaf is Anise seeds
+
+  - id: gold-cofid-spirits
+    input: Spirits, 40% volume
+    expected: A03PD
+    source: cofid pool-02588
+    tags: positive, recall_only, gold
+    auto_accept: false
+    note: Rank 1 but input has extra tokens vs catalogue name
+
+  - id: gold-cofid-cream-clotted
+    input: Cream, fresh, clotted
+    expected: A02QR
+    source: cofid pool-00882
+    tags: positive, recall_only, gold
+    auto_accept: false
+    note: Rank 1; extra tokens vs catalogue name block token_set
+
+  # --- Recall-only positives (surfaced but should not auto-accept yet) ---
+  - id: gold-cofid-liquorice
+    input: Liquorice allsorts
+    expected: A035J
+    source: cofid pool-01563
+    tags: positive, recall_only, gold
+    auto_accept: false
+    note: Top hit is Liquorice candies — synonym tokens, no token_set
+
+  - id: gold-cofid-lard
+    input: Lard
+    expected: A037V
+    source: cofid pool-01509
+    tags: positive, recall_only, gold
+    auto_accept: false
+    note: Rank-1 is Pork lard — extra token blocks token_set
+
+  - id: handcheck-orange-nectar-long
+    input: Orange nectar, fortified with calcium, sugar free, organic
+    expected: A03BG
+    source: efsa handcheck
+    tags: positive, recall_only, handcheck
+    auto_accept: false
+    note: Extra words in input vs Nectar, orange
+
+  - id: handcheck-dried-kangaroo
+    input: Dried kangaroo meat
+    expected: A04MP
+    source: efsa handcheck
+    tags: positive, recall_only, handcheck
+    auto_accept: false
+    note: Expected term ranks low; traversal territory
+
+  - id: handcheck-quinoa-flour
+    input: Quinoa flour
+    expected: A04KT
+    source: efsa handcheck
+    tags: negative, recall_miss, handcheck
+    recall_expect: miss
+    auto_accept: false
+    note: Named flour siblings dominate; not-separately-listed expected not in top 10 today
+
+  # --- Auto-accept negatives (precision) ---
+  - id: neg-kangaroo-meat-extra-fresh
+    input: kangaroo meat
+    expected: A01RS
+    tags: negative, extra_word, crafted
+    recall_top: 10
+    auto_accept: false
+    forbid_accept: A01RS
+    note: Top hit is Kangaroo fresh meat — extra fresh must block token_set
+
+  - id: neg-chicken-fat-processed
+    input: Chicken fat
+    expected: A01VR
+    source: ciqual pool-05818
+    tags: negative, extra_word, gold
+    auto_accept: false
+    forbid_accept: A038F
+    note: Top hit adds processed — must not match identical wording
+
+  - id: neg-boeuf-bourguignon
+    input: boeuf bourguignon
+    tags: negative, dish, crafted
+    auto_accept: false
+    note: Named dish — no lexical auto-accept
+
+  - id: neg-eggplant-synonym
+    input: eggplant
+    tags: negative, synonym, crafted
+    auto_accept: false
+    note: Aubergines is a different token set
+
+  - id: neg-orange-juice-blend
+    input: orange juice
+    expected: A03AM
+    tags: negative, sibling, crafted
+    auto_accept: true
+    forbid_accept: A03AZ
+    note: Control — must accept A03AM not orange-peach sibling
+
+  - id: neg-peach-orange-juice-blend
+    input: orange peach juice
+    expected: A03AZ
+    tags: positive, reorder, crafted
+    auto_accept: true
+    note: Juice, orange-peach — three-token blend is a positive, not orange juice

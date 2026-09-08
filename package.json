@@ -1,0 +1,35 @@
+{
+  "name": "foodex2-encoder",
+  "version": "0.2.0",
+  "description": "FoodEx2 encoder: library and stdio MCP server that turns English food descriptions into EFSA MTX codes",
+  "type": "module",
+  "scripts": {
+    "build:catalogue": "python3 scripts/build-catalogue.py",
+    "build:embeddings": "tsx scripts/build-embeddings.ts",
+    "cli": "tsx src/cli.ts",
+    "server": "tsx src/server.ts",
+    "lexical-eval": "tsx scripts/lexical-eval.ts",
+    "encode-eval": "tsx scripts/encode-eval.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FoodNotes-org/foodex2-encoder.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.7.2",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "yaml": "^2.9.0"
+  }
+}
