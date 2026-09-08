@@ -5,7 +5,7 @@
 import { Catalogue } from "../catalogue.js";
 import { encodeBaseTerm } from "../encode/base-term.js";
 import { formatFreeText } from "../encode/free-text.js";
-import { isProviderInfraReason } from "../llm.js";
+import { diffUsage, isProviderInfraReason, llmUsageTotals, type LlmUsage } from "../llm.js";
 
 const INGRED_HIERARCHY = "ingred";
 
@@ -45,6 +45,8 @@ export interface EncodeCaseResult {
   infra: boolean;
   /** Wall-clock time for encodeBaseTerm + scoring, in milliseconds. */
   elapsedMs: number;
+  /** Model calls, tokens and cost of this case (cases run one at a time). */
+  usage: LlmUsage;
   facets: string[];
   freeText: string | null;
   code: string | null;
@@ -60,8 +62,10 @@ function facetKey(header: string, code: string): string {
 
 export async function evaluateEncodeCase(c: EncodeEvalCase): Promise<EncodeCaseResult> {
   const started = performance.now();
+  const usageBefore = llmUsageTotals();
   const result = await encodeBaseTerm(c.input);
   const elapsedMs = Math.round(performance.now() - started);
+  const usage = diffUsage(usageBefore, llmUsageTotals());
   const pick = result.status === "ok" ? (result.baseTerm?.code ?? null) : null;
   const pickName = result.status === "ok" ? (result.baseTerm?.name ?? null) : null;
   const method = result.status === "ok" ? (result.method ?? null) : null;
@@ -152,6 +156,7 @@ export async function evaluateEncodeCase(c: EncodeEvalCase): Promise<EncodeCaseR
       freeTextPass,
     infra,
     elapsedMs,
+    usage,
     facets,
     freeText,
     code,

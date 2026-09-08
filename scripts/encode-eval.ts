@@ -37,13 +37,19 @@ function isSoft(r: EncodeCaseResult): boolean {
   return r.tags.includes("soft");
 }
 
+const RULE = "-".repeat(100);
+
+function usd(cost: number | null): string {
+  return cost === null ? "—" : cost.toFixed(3);
+}
+
 function printTable(results: EncodeCaseResult[]): void {
   console.log(
-    ["id", "pass", "ms", "pick", "method", "expected"]
-      .map((h) => h.padEnd(h === "id" ? 28 : h === "ms" ? 8 : 10))
+    ["id", "pass", "ms", "calls", "usd", "pick", "method", "expected"]
+      .map((h) => h.padEnd(h === "id" ? 28 : h === "ms" ? 8 : h === "calls" ? 6 : h === "usd" ? 7 : 10))
       .join("")
   );
-  console.log("-".repeat(86));
+  console.log(RULE);
   for (const r of results) {
     const soft = isSoft(r);
     const mark = r.infra
@@ -58,6 +64,8 @@ function printTable(results: EncodeCaseResult[]): void {
         r.id.padEnd(28),
         mark.padEnd(10),
         String(r.elapsedMs).padEnd(8),
+        String(r.usage.calls).padEnd(6),
+        usd(r.usage.costUsd).padEnd(7),
         String(r.pick ?? r.status).padEnd(10),
         String(r.method ?? "—").padEnd(10),
         r.expected.padEnd(10),
@@ -93,7 +101,7 @@ function summarize(results: EncodeCaseResult[]): void {
   const soft = quality.filter(isSoft);
   const hardPass = hard.filter((r) => r.pass).length;
   const softPass = soft.filter((r) => r.pass).length;
-  console.log("-".repeat(86));
+  console.log(RULE);
   console.log(
     `Hard: ${hardPass}/${hard.length} pass` +
       (soft.length > 0 ? `; soft: ${softPass}/${soft.length} pass (non-blocking)` : "") +
@@ -133,6 +141,50 @@ function summarize(results: EncodeCaseResult[]): void {
           ` max ${Math.max(...ms)} ms`
       );
     }
+    summarizeCost(quality);
+  }
+}
+
+/** Model calls, tokens and dollars per encode — the number the hosted pricing rests on. */
+function summarizeCost(quality: EncodeCaseResult[]): void {
+  const calls = quality.reduce((a, r) => a + r.usage.calls, 0);
+  const prompt = quality.reduce((a, r) => a + r.usage.promptTokens, 0);
+  const completion = quality.reduce((a, r) => a + r.usage.completionTokens, 0);
+  console.log(
+    `Model: ${calls} calls; ${prompt} prompt + ${completion} completion tokens` +
+      ` (mean ${Math.round(calls / quality.length)} calls, ${Math.round((prompt + completion) / quality.length)} tokens per encode)`
+  );
+
+  const priced = quality.filter((r) => r.usage.costUsd !== null);
+  if (priced.length === 0) {
+    console.log("Cost: endpoint reports no per-call cost (OpenRouter does)");
+    return;
+  }
+  const costs = priced.map((r) => r.usage.costUsd as number).sort((a, b) => a - b);
+  const total = costs.reduce((a, b) => a + b, 0);
+  const p50 = costs[Math.floor((costs.length - 1) * 0.5)] ?? 0;
+  const p90 = costs[Math.floor((costs.length - 1) * 0.9)] ?? 0;
+  const dearest = priced.reduce((a, b) =>
+    (b.usage.costUsd as number) > (a.usage.costUsd as number) ? b : a
+  );
+  console.log(
+    `Cost: total $${total.toFixed(2)} over ${priced.length} encodes;` +
+      ` median $${usd(p50)}; p90 $${usd(p90)}; max $${usd(costs[costs.length - 1] ?? 0)} (${dearest.id});` +
+      ` mean $${usd(total / priced.length)}`
+  );
+  const byMethod = new Map<string, number[]>();
+  for (const r of priced) {
+    const key = r.method ?? r.status;
+    const list = byMethod.get(key) ?? [];
+    list.push(r.usage.costUsd as number);
+    byMethod.set(key, list);
+  }
+  for (const [method, cs] of [...byMethod.entries()].sort()) {
+    const sum = cs.reduce((a, b) => a + b, 0);
+    console.log(
+      `  ${method}: n=${cs.length}; mean $${usd(sum / cs.length)}; max $${usd(Math.max(...cs))};` +
+        ` per 1,000 encodes $${(1000 * sum / cs.length).toFixed(0)}`
+    );
   }
 }
 
@@ -158,7 +210,7 @@ async function main(): Promise<void> {
     console.log(`${c.id}…`);
     const result = await evaluateEncodeCase(c);
     results.push(result);
-    console.log(`  → ${result.elapsedMs} ms`);
+    console.log(`  → ${result.elapsedMs} ms; ${result.usage.calls} calls; $${usd(result.usage.costUsd)}`);
     if (result.infra) {
       console.log(`  → ${result.reason ?? "provider error"}; stopping eval early`);
       stoppedForInfra = true;

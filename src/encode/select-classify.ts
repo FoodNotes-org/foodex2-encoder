@@ -4,7 +4,6 @@
  * one comparative pass that ranks candidates and supplies residual fit.
  */
 
-import { Catalogue } from "../catalogue.js";
 import { chatJson, defaultModel } from "../llm.js";
 import { parseClassifications, pickAllowedCode } from "./answers.js";
 import {
@@ -30,22 +29,16 @@ function systemSelectClassify(descriptionKind: DescriptionKind | null): string {
   });
 }
 
-function candidatePayload(cat: Catalogue, candidate: BaseTermCandidate) {
-  const term = cat.term(candidate.code);
+function candidatePayload(candidate: BaseTermCandidate) {
   return {
     code: candidate.code,
     name: candidate.name,
-    ...(term?.scopeNote ? { scopeNote: term.scopeNote } : {}),
   };
 }
 
-function classifyCandidatePayload(
-  cat: Catalogue,
-  food: string,
-  candidate: BaseTermCandidate
-) {
+function classifyCandidatePayload(food: string, candidate: BaseTermCandidate) {
   return {
-    ...candidatePayload(cat, candidate),
+    ...candidatePayload(candidate),
     questions: classifyQuestions(quote(food), quote(candidate.name), null),
   };
 }
@@ -66,12 +59,11 @@ export async function assessSelectClassify(
     return { byCode: new Map(), audit };
   }
 
-  const cat = Catalogue.load();
   const descriptionKind = options.descriptionKind ?? null;
   const payload = {
     item: food,
     ...(descriptionKind !== null ? { descriptionKind } : {}),
-    terms: pool.map((c) => classifyCandidatePayload(cat, food, c)),
+    terms: pool.map((c) => classifyCandidatePayload(food, c)),
   };
 
   const { content, model } = await chatJson({
@@ -129,11 +121,10 @@ export async function pickClosestParent(
     return { code: parents[0]!.code, audit };
   }
 
-  const cat = Catalogue.load();
   const allowed = new Set(parents.map((c) => c.code));
   const payload = {
     food,
-    candidates: parents.map((c) => candidatePayload(cat, c)),
+    candidates: parents.map((c) => candidatePayload(c)),
   };
 
   const { content, model } = await chatJson({

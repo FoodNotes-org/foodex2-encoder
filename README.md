@@ -37,7 +37,7 @@ Copy `.env` (or export the same variables). OpenRouter needs only a key:
 FOODEX2_LLM_API_KEY=sk-or-…          # or OPENROUTER_API_KEY
 # optional:
 # FOODEX2_LLM_BASE_URL=https://openrouter.ai/api/v1
-# FOODEX2_MODEL=openai/gpt-5.4
+# FOODEX2_MODEL=openai/gpt-5.6-terra
 ```
 
 Any other OpenAI-compatible endpoint works the same way (`FOODEX2_LLM_BASE_URL`,

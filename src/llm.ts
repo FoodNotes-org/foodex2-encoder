@@ -10,7 +10,8 @@
  *
  * Caps max_tokens so thin credit balances are usable. Classifies provider
  * failures so callers/eval can stop or degrade instead of treating them as
- * bad picks.
+ * bad picks. Reports each call's tokens and cost (`usage`) and keeps a
+ * process-wide running total.
  */
 
 export type LlmErrorKind =
@@ -49,15 +50,69 @@ export interface ChatJsonOptions {
   maxTokens?: number;
 }
 
+/** Tokens and cost of one or more model calls. Cost is null where the endpoint does not price responses (OpenRouter does). */
+export interface LlmUsage {
+  calls: number;
+  promptTokens: number;
+  completionTokens: number;
+  costUsd: number | null;
+}
+
 export interface ChatJsonResult {
   model: string;
   content: unknown;
   rawText: string;
+  /** Usage of this call as the endpoint reported it; null when it reported none. */
+  usage: LlmUsage | null;
+}
+
+const totals: LlmUsage = { calls: 0, promptTokens: 0, completionTokens: 0, costUsd: 0 };
+
+/**
+ * Running total of every call made in this process. Callers that own a
+ * sequential stretch of work (the eval runs one case at a time) diff two
+ * snapshots to attribute usage to it.
+ */
+export function llmUsageTotals(): LlmUsage {
+  return { ...totals };
+}
+
+/** Usage between two snapshots of `llmUsageTotals()`. */
+export function diffUsage(before: LlmUsage, after: LlmUsage): LlmUsage {
+  return {
+    calls: after.calls - before.calls,
+    promptTokens: after.promptTokens - before.promptTokens,
+    completionTokens: after.completionTokens - before.completionTokens,
+    costUsd:
+      before.costUsd === null || after.costUsd === null ? null : after.costUsd - before.costUsd,
+  };
+}
+
+/** The `usage` object of a chat-completion response, or null when absent or malformed. */
+export function parseUsage(usage: unknown): LlmUsage | null {
+  if (typeof usage !== "object" || usage === null) return null;
+  const u = usage as Record<string, unknown>;
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const promptTokens = num(u.prompt_tokens);
+  const completionTokens = num(u.completion_tokens);
+  if (promptTokens === null || completionTokens === null) return null;
+  return { calls: 1, promptTokens, completionTokens, costUsd: num(u.cost) };
+}
+
+function recordUsage(usage: LlmUsage | null): void {
+  totals.calls += 1;
+  if (usage === null) return;
+  totals.promptTokens += usage.promptTokens;
+  totals.completionTokens += usage.completionTokens;
+  // One unpriced call makes the process total unknowable.
+  if (totals.costUsd !== null) {
+    totals.costUsd = usage.costUsd === null ? null : totals.costUsd + usage.costUsd;
+  }
 }
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 /** Only meaningful on OpenRouter; other endpoints name models differently. */
-const OPENROUTER_DEFAULT_MODEL = "openai/gpt-5.4";
+const OPENROUTER_DEFAULT_MODEL = "openai/gpt-5.6-terra";
 const DEFAULT_MAX_TOKENS = 2048;
 const CREDITS_RETRY_MAX_TOKENS = 1024;
 const RATE_LIMIT_RETRIES = 2;
@@ -206,7 +261,10 @@ export async function chatJson(options: ChatJsonOptions): Promise<ChatJsonResult
 
     const payload = (await response.json()) as {
       choices?: Array<{ message?: { content?: string | null } }>;
+      usage?: unknown;
     };
+    const usage = parseUsage(payload.usage);
+    recordUsage(usage);
     const rawText = payload.choices?.[0]?.message?.content?.trim() ?? "";
     if (rawText === "") {
       throw new LlmError(
@@ -227,6 +285,6 @@ export async function chatJson(options: ChatJsonOptions): Promise<ChatJsonResult
       );
     }
 
-    return { model, content, rawText };
+    return { model, content, rawText, usage };
   }
 }
