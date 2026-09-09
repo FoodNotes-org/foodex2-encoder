@@ -227,7 +227,6 @@ async function cmdTraverse(argv: string[]): Promise<void> {
   const body: Record<string, unknown> = {
     elapsedMs,
     input,
-    wholeItem: collected.wholeItem,
     descriptionKind: collected.descriptionKind,
     walks: collected.walks,
     candidateCount: collected.candidates.length,

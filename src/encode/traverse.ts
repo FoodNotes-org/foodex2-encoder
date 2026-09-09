@@ -1,16 +1,17 @@
 /**
  * Top-down exposure-tree traversal for base-term candidate recall.
  *
- * The router decides how to read the whole description (wholeItem, descriptionKind).
- * descriptionKind is asked once on the route and reused for multi-item ladder
- * wording and for selection. Every input is traversed as a whole — the base term
- * is chosen against that full string (no densify-onto-a-part walk).
+ * The router picks one descriptionKind for the whole description. That kind is
+ * reused for classify / select wording and for residuals. Every input is
+ * traversed as a whole — the base term is chosen against that full string.
  *
  * Embeddings tip the walk toward opaque branches: a few high cosine hits contribute
  * their expo parents as extra seeds. Neither mints pool candidates with a preset
  * match — only the classify ladder assigns exact/broad/narrow/related. Related is
- * collected and descended when it has children. A broad parent with only
- * none/related-leaf children is still collected (dead-end shelf → F26 Other later).
+ * collected and descended when it has children. Broad is always collected (the
+ * shelf judgment); children are enqueued only if that node was not already
+ * visited. A broad parent with only none/related-leaf children is still collected
+ * (dead-end shelf → F26 Other later).
  *
  * Scoring the pool and picking a base term is select.ts.
  */
@@ -40,7 +41,6 @@ import type {
   WalkKind,
   WalkStep,
   WalkSummary,
-  WholeItemKind,
 } from "./types.js";
 
 /** Default how many embedding hits may contribute walk seeds. */
@@ -71,26 +71,15 @@ interface RawCandidate {
   match: CandidateMatch;
 }
 
-const SYSTEM_ROUTE = `You are reading a food description.
+const SYSTEM_ROUTE = `Assign exactly one descriptionKind to the input:
 
-Classify wholeItem and descriptionKind.
-
-**wholeItem**:
-- "single": the description names one item
-- "multi": the description names several separable parts
-
-**descriptionKind** (exactly one):
-- If wholeItem is "single": foodstuff | dish
-- If wholeItem is "multi": dish | dish_type | mix | ingredients
-  - "dish": a prepared dish or meal, including a named dish with sides or accompaniments
-  - "dish_type": a type of dish, without a specific dish name
-  - "mix": peer foods from one food group combined into one item
-  - "ingredients": a list of ingredients, not a finished food
-
-Do not densify onto a part of the string — the base term is chosen against the whole description later.
+- "foodstuff": one food or drink
+- "dish": a prepared dish or meal, including a named dish with sides or accompaniments
+- "dish_type": a type of dish, without a specific dish name
+- "mix": mixed foods predominantly from the same food group
 
 Reply with JSON only:
-{"wholeItem":"single|multi","descriptionKind":"foodstuff|dish|dish_type|mix|ingredients"}
+{"descriptionKind":"foodstuff|dish|dish_type|mix"}
 `;
 
 /** Display name for the classify parent (quoted later via quote()). */
@@ -144,7 +133,6 @@ const DESCRIPTION_KINDS = new Set<string>([
   "dish",
   "dish_type",
   "mix",
-  "ingredients",
 ]);
 
 export function parseDescriptionKind(raw: unknown): DescriptionKind | null {
@@ -158,18 +146,10 @@ function walkSystemPrompt(framing: string): string {
   return classifySystemPrompt({ framing, answerKey: "match", readSubcategories: true });
 }
 
-function wholeItemWalkSystem(
-  wholeItem: WholeItemKind,
-  descriptionKind: DescriptionKind | null
-): string {
-  if (wholeItem === "single" && descriptionKind !== "dish") {
+function routeWalkSystem(descriptionKind: DescriptionKind | null): string {
+  if (descriptionKind === null || descriptionKind === "foodstuff") {
     return walkSystemPrompt(
       "You are matching one food or drink against terms in a food catalogue."
-    );
-  }
-  if (descriptionKind === null) {
-    return walkSystemPrompt(
-      "You are matching a multi-part food description against terms in a food catalogue."
     );
   }
   const noun = descriptionKindNoun(descriptionKind);
@@ -260,20 +240,13 @@ export function parseRoute(
   content: unknown,
   _input: string
 ): {
-  wholeItem: WholeItemKind;
   descriptionKind: DescriptionKind | null;
 } {
   if (content === null || typeof content !== "object") {
     throw new Error("Router model returned a non-object");
   }
-  const body = content as {
-    wholeItem?: unknown;
-    descriptionKind?: unknown;
-  };
-  const wholeRaw = body.wholeItem;
-  const wholeItem: WholeItemKind = wholeRaw === "multi" ? "multi" : "single";
-  const descriptionKind = parseDescriptionKind(body.descriptionKind);
-  return { wholeItem, descriptionKind };
+  const body = content as { descriptionKind?: unknown };
+  return { descriptionKind: parseDescriptionKind(body.descriptionKind) };
 }
 
 function seedParentForHit(cat: Catalogue, code: string): string | null {
@@ -629,9 +602,18 @@ async function walkFromSeeds(
           continue;
         }
 
-        if (match === "broad" && hasChildren(cat, child.code)) {
-          descended = true;
-          queue.push(child.code);
+        // Broad shelf judgment is kept even when we do not (re)walk children —
+        // e.g. an embedding seed later marked broad under a higher parent.
+        if (match === "broad") {
+          addCandidate(collected, child.code, match);
+          if (hasChildren(cat, child.code)) {
+            descended = true;
+            if (!visited.has(child.code)) {
+              queue.push(child.code);
+            }
+          } else {
+            stopped = true;
+          }
           continue;
         }
 
@@ -674,19 +656,18 @@ export async function collectTraversalCandidates(
     user: JSON.stringify({ input }, null, 2),
   });
   const route = parseRoute(routed.content, input);
-  const { wholeItem, descriptionKind } = route;
+  const { descriptionKind } = route;
 
   audit.push({
     step: "route",
     detail: {
       input,
       model: routed.model,
-      wholeItem,
       descriptionKind,
     },
   });
 
-  const wholeSystem = wholeItemWalkSystem(wholeItem, descriptionKind);
+  const wholeSystem = routeWalkSystem(descriptionKind);
   const seedLimit = options.embeddingSeedLimit ?? DEFAULT_EMBEDDING_SEED_LIMIT;
   const embeddingSeeds = await embeddingWalkSeeds(input, seedLimit, audit);
   const wholeSeeds = [EXPO_ROOT, ...embeddingSeeds.filter((s) => s !== EXPO_ROOT)];
@@ -728,7 +709,6 @@ export async function collectTraversalCandidates(
 
   return {
     candidates,
-    wholeItem,
     descriptionKind,
     walks: state.walks,
     steps: state.steps,

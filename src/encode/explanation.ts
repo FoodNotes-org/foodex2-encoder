@@ -21,8 +21,6 @@ function kindPhrase(kind: DescriptionKind): string {
       return "a dish type";
     case "mix":
       return "a mix";
-    case "ingredients":
-      return "a list of ingredients";
   }
 }
 

@@ -35,14 +35,12 @@ export type CandidateMatch = "exact" | "broad" | "narrow" | "related";
 
 /**
  * How to read the whole description (routed once; reused in traversal + residuals).
- * Asked for every input — single foodstuff and multi-part alike.
  */
 export type DescriptionKind =
   | "foodstuff"
   | "dish"
   | "dish_type"
-  | "mix"
-  | "ingredients";
+  | "mix";
 
 export interface BaseTermCandidate {
   code: string;
@@ -157,9 +155,6 @@ export interface EncodeUserRejected {
 
 export type EncodeUserResult = EncodeUserOk | EncodeUserRejected;
 
-/** Route verdict: one food, or a multi-part description (dish with parts, item + qualifiers). */
-export type WholeItemKind = "single" | "multi";
-
 /** Recall walk: the whole input against the exposure tree. */
 export type WalkKind = "whole_item";
 
@@ -183,7 +178,6 @@ export interface WalkSummary {
 
 export interface TraverseCollectResult {
   candidates: BaseTermCandidate[];
-  wholeItem: WholeItemKind;
   /** From the route; null if the model omitted or returned an unknown value. */
   descriptionKind: DescriptionKind | null;
   walks: WalkSummary[];

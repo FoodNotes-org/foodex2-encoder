@@ -17,6 +17,7 @@ import {
   findDishSpan,
   headerForFacetDimension,
   originRolesForBaseType,
+  parseGapOmitted,
   parseGapProperties,
   parseOriginRole,
   promptF26Other,
@@ -223,6 +224,31 @@ describe("parseGapProperties", () => {
   });
 });
 
+describe("parseGapOmitted", () => {
+  it("reads phrase+reason and bare strings", () => {
+    assert.deepEqual(
+      parseGapOmitted({
+        omitted: [
+          { phrase: "mixed", reason: "implied by listing the nuts" },
+          "assortment",
+          { phrase: "  ", reason: "empty" },
+          { phrase: "plain", reason: "  " },
+        ],
+      }),
+      [
+        { phrase: "mixed", reason: "implied by listing the nuts" },
+        { phrase: "assortment", reason: null },
+        { phrase: "plain", reason: null },
+      ]
+    );
+  });
+
+  it("returns empty when absent", () => {
+    assert.deepEqual(parseGapOmitted({ properties: [] }), []);
+    assert.deepEqual(parseGapOmitted(null), []);
+  });
+});
+
 describe("parseOriginRole / F01 / F27 lexical alignment", () => {
   it("parses origin roles", () => {
     assert.equal(parseOriginRole({ role: "organism" }), "organism");
@@ -245,6 +271,22 @@ describe("parseOriginRole / F01 / F27 lexical alignment", () => {
     assert.equal(originRolesForBaseType("g"), null);
     assert.equal(originRolesForBaseType("n"), null);
     assert.equal(originRolesForBaseType(null), null);
+  });
+
+  it("same-nature mix overrides RPC/derivative to F27 then F04 (§3.1.10)", () => {
+    assert.deepEqual(originRolesForBaseType("r", "mix"), ["made_from", "contains"]);
+    assert.deepEqual(originRolesForBaseType("d", "mix"), ["made_from", "contains"]);
+    // Composite mixes stay on F04; dish / foodstuff do not change Table 8.
+    assert.deepEqual(originRolesForBaseType("c", "mix"), ["contains"]);
+    assert.deepEqual(originRolesForBaseType("r", "foodstuff"), ["organism", "contains"]);
+    assert.deepEqual(originRolesForBaseType("r", "dish"), ["organism", "contains"]);
+  });
+
+  it("mix component phrases resolve as F27 commodities", () => {
+    assert.equal(firstAligned("almonds", "F27"), "A014D");
+    assert.equal(firstAligned("walnuts", "F27"), "A014R");
+    // Bare "cashews" aligns to Cashew apples (A01JE); the nut term needs the headword.
+    assert.equal(firstAligned("cashew nuts", "F27"), "A014H");
   });
 
   it("derivative sources resolve mechanically in F27", () => {

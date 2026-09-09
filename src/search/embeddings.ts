@@ -1,8 +1,13 @@
 /**
- * Local embedding backend for semantic term retrieval (transformers.js).
+ * Embedding backend for semantic term retrieval.
  *
- * Default model is bge-small-en-v1.5. Alternatives stay in the registry for
- * later recall checks (`npm run build:embeddings -- --model e5-small`).
+ * Default model is bge-small-en-v1.5 (same weights Workers AI serves as
+ * `@cf/baai/bge-small-en-v1.5`). Local inference uses transformers.js;
+ * the hosted Worker swaps in Workers AI via setQueryEmbedder at isolate
+ * startup so transformers.js never enters the Worker bundle.
+ *
+ * Alternatives stay in the registry for recall checks
+ * (`npm run build:embeddings -- --model e5-small`).
  */
 
 import type { FeatureExtractionPipeline } from "@huggingface/transformers";
@@ -12,6 +17,8 @@ export interface EmbeddingModelSpec {
   id: string;
   /** transformers.js (Hugging Face) model id for local inference. */
   hfModel: string;
+  /** Workers AI model serving the same weights, if any. */
+  workersAiModel: string | null;
   dim: number;
   queryPrefix: string;
   passagePrefix: string;
@@ -21,6 +28,7 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelSpec> = {
   "e5-small": {
     id: "e5-small",
     hfModel: "intfloat/multilingual-e5-small",
+    workersAiModel: null,
     dim: 384,
     queryPrefix: "query: ",
     passagePrefix: "passage: ",
@@ -28,6 +36,7 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModelSpec> = {
   "bge-small-en": {
     id: "bge-small-en",
     hfModel: "Xenova/bge-small-en-v1.5",
+    workersAiModel: "@cf/baai/bge-small-en-v1.5",
     dim: 384,
     queryPrefix: "Represent this sentence for searching relevant passages: ",
     passagePrefix: "",
@@ -38,13 +47,30 @@ export const DEFAULT_EMBEDDING_MODEL_ID = "bge-small-en";
 
 const defaultSpec = EMBEDDING_MODELS[DEFAULT_EMBEDDING_MODEL_ID]!;
 
+/**
+ * Pluggable query embedder. Receives the already-prefixed query text and must
+ * return an L2-normalized vector from the same model as the corpus index.
+ * Default: local transformers.js. Workers: Workers AI (set at startup).
+ */
+export type QueryEmbedder = (prefixedText: string) => Promise<Float32Array>;
+
+let queryEmbedder: QueryEmbedder | null = null;
+
+/** Install a query embedder, or pass `null` to restore the local default. */
+export function setQueryEmbedder(fn: QueryEmbedder | null): void {
+  queryEmbedder = fn;
+}
+
 const extractors = new Map<string, Promise<FeatureExtractionPipeline>>();
 
 function getExtractor(hfModel: string): Promise<FeatureExtractionPipeline> {
   let p = extractors.get(hfModel);
   if (p === undefined) {
-    // transformers.js pipeline typing is too wide for tsc; cast the factory.
-    p = import("@huggingface/transformers").then((m) =>
+    // Computed specifier so bundlers (wrangler/esbuild) cannot statically
+    // resolve it: transformers.js is local-only and must not enter the
+    // Workers bundle, where setQueryEmbedder(Workers AI) is used.
+    const specifier = "@huggingface/transformers";
+    p = import(specifier).then((m: typeof import("@huggingface/transformers")) =>
       (m.pipeline as (
         task: string,
         model: string,
@@ -72,10 +98,20 @@ export async function embedPassagesWith(
   return embed(model, texts.map((t) => `${model.passagePrefix}${t}`));
 }
 
+export async function embedQueryWith(
+  model: EmbeddingModelSpec,
+  text: string
+): Promise<Float32Array> {
+  const [vector] = await embed(model, [`${model.queryPrefix}${text}`]);
+  return vector as Float32Array;
+}
+
 /** Embed a search query with the default model (the one the indices are built with). */
 export async function embedQuery(text: string): Promise<Float32Array> {
-  const [vector] = await embed(defaultSpec, [`${defaultSpec.queryPrefix}${text}`]);
-  return vector as Float32Array;
+  if (queryEmbedder !== null) {
+    return queryEmbedder(`${defaultSpec.queryPrefix}${text}`);
+  }
+  return embedQueryWith(defaultSpec, text);
 }
 
 /** Cosine similarity of two L2-normalized vectors (dot product). */

@@ -9,8 +9,9 @@
  *     what the common name conventionally means that the locked base does not
  *     capture → same property shape, miss → drop (no not_in_input filter).
  * 2. Input vs base — what the input still expresses; covered includes step 1;
- *    `side` → free text; ingredient/source → origin role → F01/F27/F04;
- *    `other` → Facets (A0B8V) dimension pick → closed place in that header.
+ *    `side` → free text; ingredient/source → origin role → F01/F27/F04
+ *    (`mix` on an RPC/derivative base prefers F27 over F01); `other` → Facets
+ *    (A0B8V) dimension pick → closed place in that header. Mix skips F26 Other.
  * For dish/dish_type, defining span is for essence grounding + dish= identity;
  * step 2 always sees the full input (attributes in the dish wording stay claimable).
  * Other route kinds: wording denseness goes through input vs base like any leftover.
@@ -60,12 +61,23 @@ export type OriginRole = "organism" | "made_from" | "contains";
 /**
  * The base term's type fixes which origin facet its components take (guidance
  * Table 8): raw commodity → source (F01), derivative → source-commodities (F27),
- * composite → ingredients (F04). Returned in try-order: a phrase that does not
- * resolve as the prescribed origin is by definition an addition (§3.1.9), so F04
- * is the fallback. Null when the type does not settle it (broad, natural source,
+ * composite → ingredients (F04). Same-nature mixes (§3.1.10 / §5.4.3) override:
+ * components of an RPC or derivative mix are source-commodities (F27), not live
+ * sources (F01). Returned in try-order: a phrase that does not resolve as the
+ * prescribed origin is by definition an addition (§3.1.9), so F04 is the
+ * fallback. Null when the type does not settle it (broad, natural source,
  * unknown) and the model must be asked.
  */
-export function originRolesForBaseType(baseTermType: string | null): OriginRole[] | null {
+export function originRolesForBaseType(
+  baseTermType: string | null,
+  descriptionKind: DescriptionKind | null = null
+): OriginRole[] | null {
+  if (
+    descriptionKind === "mix" &&
+    (baseTermType === "r" || baseTermType === "d")
+  ) {
+    return ["made_from", "contains"];
+  }
   switch (baseTermType) {
     case "r":
       return ["organism", "contains"];
@@ -186,15 +198,15 @@ function systemInputVsBase(allowSide: boolean): string {
 
 You are given a food description (\`input\`) and what is already captured (\`baseTerm\`, \`implicits\`, \`covered\`).
 
-List only the properties that \`input\` still expresses and that are not yet captured. For each: a short \`phrase\` and a \`kind\`.
+List only the properties that \`input\` still expresses and that are not yet captured. Omit wording that do not materially change the food. For each kept property: a short \`phrase\` and a \`kind\`. Put omitted candidates in \`omitted\` with a short \`reason\` so the omission is explicit.
 
 Kinds:
 ${kinds}
 
-If nothing is left, return an empty list.
+If nothing is left to keep, return an empty properties list.
 
 Reply with JSON only:
-{"properties":[{"phrase":"<text>","kind":${kindEnum}},...]}
+{"properties":[{"phrase":"<text>","kind":${kindEnum}},...],"omitted":[{"phrase":"<text>","reason":"<text>"},...]}
 `;
 }
 
@@ -277,7 +289,8 @@ export interface AssignResidualsOptions {
   /**
    * From the traversal route. Dish essence runs for `dish` / `dish_type`.
    * Foodstuff name meaning runs for `foodstuff` when fit is `broad`.
-   * Lexical auto-accept and missing route → skip both.
+   * `mix` places components as F27 on an RPC/derivative base and skips F26 Other.
+   * Lexical auto-accept and missing route → skip dish / foodstuff essence.
    */
   descriptionKind?: DescriptionKind | null;
 }
@@ -307,6 +320,8 @@ interface PlaceContext {
   baseName: string;
   /** MTX termType of the locked base (r/d/c/…). */
   baseTermType: string | null;
+  /** From the traversal route; drives mix → F27 and dish essence. */
+  descriptionKind: DescriptionKind | null;
   implied: Set<string>;
   impliedF04: string[];
   facets: FacetDescriptorRef[];
@@ -355,7 +370,7 @@ async function originRolesFor(
   ctx: PlaceContext,
   phrase: string
 ): Promise<{ roles: OriginRole[]; detail: Record<string, unknown> }> {
-  const fixed = originRolesForBaseType(ctx.baseTermType);
+  const fixed = originRolesForBaseType(ctx.baseTermType, ctx.descriptionKind);
   if (fixed !== null) {
     return {
       roles: fixed,
@@ -364,8 +379,13 @@ async function originRolesFor(
         phrase,
         food: ctx.baseName,
         baseTermType: ctx.baseTermType,
+        descriptionKind: ctx.descriptionKind,
         roles: fixed,
-        decidedBy: "base_term_type",
+        decidedBy:
+          ctx.descriptionKind === "mix" &&
+          (ctx.baseTermType === "r" || ctx.baseTermType === "d")
+            ? "mix"
+            : "base_term_type",
       },
     };
   }
@@ -726,6 +746,36 @@ export function parseGapProperties(content: unknown): GapProperty[] {
       ? (kindRaw as GapPropertyKind)
       : "other";
     out.push({ phrase, kind });
+  }
+  return out;
+}
+
+export interface GapOmitted {
+  phrase: string;
+  reason: string | null;
+}
+
+/** Phrases the input-gap model considered but chose not to keep. */
+export function parseGapOmitted(content: unknown): GapOmitted[] {
+  if (content === null || typeof content !== "object") return [];
+  const raw = (content as { omitted?: unknown }).omitted;
+  if (!Array.isArray(raw)) return [];
+  const out: GapOmitted[] = [];
+  for (const item of raw) {
+    if (typeof item === "string") {
+      const phrase = item.trim();
+      if (phrase !== "") out.push({ phrase, reason: null });
+      continue;
+    }
+    if (item === null || typeof item !== "object") continue;
+    const body = item as { phrase?: unknown; reason?: unknown };
+    const phrase = typeof body.phrase === "string" ? body.phrase.trim() : "";
+    if (phrase === "") continue;
+    const reason =
+      typeof body.reason === "string" && body.reason.trim() !== ""
+        ? body.reason.trim()
+        : null;
+    out.push({ phrase, reason });
   }
   return out;
 }
@@ -2021,36 +2071,50 @@ async function finishResiduals(
   audit: AuditEntry[],
   extra: Record<string, unknown> = {}
 ): Promise<AssignResidualsOk> {
-  const unspecified = chooseF26Unspecified(ctx.cat, ctx.baseCode);
-  if (unspecified !== null) {
-    const added = addFacet(ctx, unspecified);
+  // Same-nature mix: the generic base is intentional (§3.1.10); F26 Other would
+  // mis-flag it as a missing sibling.
+  if (ctx.descriptionKind === "mix") {
     audit.push({
       step: "residuals_f26",
       detail: {
-        kind: "unspecified",
-        applied: added,
-        facet: unspecified,
+        skipped: "mix",
+        applied: false,
+        facet: null,
         fit: ctx.fit,
-        baseDetailLevel: ctx.cat.term(ctx.baseCode)?.detailLevel ?? null,
       },
     });
   } else {
-    const other = await chooseF26Other(ctx.cat, ctx.input, ctx.baseCode, {
-      model: ctx.model,
-      fit: ctx.fit,
-    });
-    audit.push({
-      step: "residuals_f26",
-      detail: {
-        kind: "other",
-        ...other.detail,
-        applied: other.facet !== null,
-        facet: other.facet,
+    const unspecified = chooseF26Unspecified(ctx.cat, ctx.baseCode);
+    if (unspecified !== null) {
+      const added = addFacet(ctx, unspecified);
+      audit.push({
+        step: "residuals_f26",
+        detail: {
+          kind: "unspecified",
+          applied: added,
+          facet: unspecified,
+          fit: ctx.fit,
+          baseDetailLevel: ctx.cat.term(ctx.baseCode)?.detailLevel ?? null,
+        },
+      });
+    } else {
+      const other = await chooseF26Other(ctx.cat, ctx.input, ctx.baseCode, {
+        model: ctx.model,
         fit: ctx.fit,
-      },
-    });
-    if (other.facet !== null) {
-      addFacet(ctx, other.facet);
+      });
+      audit.push({
+        step: "residuals_f26",
+        detail: {
+          kind: "other",
+          ...other.detail,
+          applied: other.facet !== null,
+          facet: other.facet,
+          fit: ctx.fit,
+        },
+      });
+      if (other.facet !== null) {
+        addFacet(ctx, other.facet);
+      }
     }
   }
 
@@ -2116,6 +2180,7 @@ export async function assignResiduals(
     baseCode: baseTerm.code,
     baseName: cat.term(baseTerm.code)?.name ?? baseTerm.code,
     baseTermType: cat.term(baseTerm.code)?.termType ?? null,
+    descriptionKind: options.descriptionKind ?? null,
     implied,
     impliedF04,
     facets: [],
@@ -2128,7 +2193,7 @@ export async function assignResiduals(
   };
 
   // --- 1. Unstated essence (dish / dish type from route) ---
-  const descriptionKind = options.descriptionKind ?? null;
+  const descriptionKind = ctx.descriptionKind;
   const essenceKinds = descriptionKind === "dish" || descriptionKind === "dish_type";
 
   /** Dish / dish_type only: grounded span for essence + dish= identity. */
@@ -2326,6 +2391,7 @@ export async function assignResiduals(
     ),
   });
   const listedRaw = parseGapProperties(listed.content);
+  const omitted = parseGapOmitted(listed.content);
   const forFilter = allowSide
     ? listedRaw
     : listedRaw.map((p) =>
@@ -2338,6 +2404,7 @@ export async function assignResiduals(
       model: listed.model,
       gapInput,
       properties,
+      ...(omitted.length > 0 ? { omitted } : {}),
       ...(allowSide ? {} : { sideKind: "disallowed" }),
       ...(listedRaw.some((p) => p.kind === "side") && !allowSide
         ? {

@@ -112,7 +112,7 @@ function recordUsage(usage: LlmUsage | null): void {
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 /** Only meaningful on OpenRouter; other endpoints name models differently. */
-const OPENROUTER_DEFAULT_MODEL = "openai/gpt-5.6-terra";
+const OPENROUTER_DEFAULT_MODEL = "openai/gpt-5.4";
 const DEFAULT_MAX_TOKENS = 2048;
 const CREDITS_RETRY_MAX_TOKENS = 1024;
 const RATE_LIMIT_RETRIES = 2;

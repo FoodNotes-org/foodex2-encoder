@@ -163,12 +163,14 @@ cases:
     tags: positive, traversal, handcheck, efsa
     note: Nectar, orange — fortification etc. are facets later
 
-  - id: encode-mixed-milk
-    input: Mixed milk from goat, sheep and camel
-    expected: A02LT
+  - id: encode-mixed-nuts
+    input: mixed nuts (almonds, walnuts and hazelnuts)
+    expected: A014C
     method: traversal
-    tags: positive, traversal, handcheck, efsa
-    note: Milk (generic) — species sources are facets later
+    require_facets: F27.A014D,F27.A014R,F27.A014L
+    forbid_facets: F26.A07XE,F28.A0CRL
+    tags: positive, traversal, mix, residuals, f27
+    note: Same-nature RPC mix — Tree nuts + F27 almonds/walnuts/hazelnuts (not F01/F26; "mixed" is not F28 Mixing)
 
   - id: encode-kangaroo-fat-tissue
     input: Kangaroo fresh fat tissue

@@ -15,34 +15,39 @@ import {
 } from "../src/encode/traverse.js";
 
 describe("parseRoute", () => {
-  it("reads wholeItem and descriptionKind", () => {
+  it("reads descriptionKind", () => {
     const route = parseRoute(
       {
-        wholeItem: "multi",
         descriptionKind: "dish",
-        // Legacy densify fields — ignored
+        // Legacy densify / wholeItem fields — ignored
+        wholeItem: "multi",
         heterogenous: true,
         baseItem: "fried rice",
       },
       "fried rice with chicken"
     );
-    assert.equal(route.wholeItem, "multi");
     assert.equal(route.descriptionKind, "dish");
   });
 
-  it("defaults unknown wholeItem to single", () => {
+  it("accepts foodstuff", () => {
     const route = parseRoute(
-      { wholeItem: "single", descriptionKind: "foodstuff" },
+      { descriptionKind: "foodstuff" },
       "apple"
     );
-    assert.equal(route.wholeItem, "single");
     assert.equal(route.descriptionKind, "foodstuff");
+  });
+
+  it("accepts mix for a peer blend", () => {
+    const route = parseRoute(
+      { descriptionKind: "mix" },
+      "mixed nuts (almonds, walnuts and hazelnuts)"
+    );
+    assert.equal(route.descriptionKind, "mix");
   });
 
   it("rejects food_with_additions as a descriptionKind", () => {
     const route = parseRoute(
       {
-        wholeItem: "multi",
         descriptionKind: "food_with_additions",
         baseItem: "yogurt",
       },
@@ -53,12 +58,8 @@ describe("parseRoute", () => {
 });
 
 describe("parseDescriptionKind", () => {
-  it("accepts foodstuff for single-item inputs", () => {
-    assert.equal(parseDescriptionKind("foodstuff"), "foodstuff");
-  });
-
-  it("accepts all multi-item kinds", () => {
-    for (const kind of ["dish", "dish_type", "mix", "ingredients"]) {
+  it("accepts all description kinds", () => {
+    for (const kind of ["foodstuff", "dish", "dish_type", "mix"]) {
       assert.equal(parseDescriptionKind(kind), kind);
     }
   });
