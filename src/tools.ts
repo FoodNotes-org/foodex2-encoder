@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 import { Catalogue } from "./catalogue.js";
-import { encodeBaseTerm } from "./encode/base-term.js";
+import { encodeBaseTerm, MAX_ENCODE_INPUT_CHARS } from "./encode/base-term.js";
 import { toUserEncodeResult } from "./encode/user-result.js";
 import { searchTerms } from "./search/lexical.js";
 
@@ -40,7 +40,11 @@ export const encodeTool = tool({
   description:
     "Turn one English food description (a food, drink, dish or meal) into a FoodEx2 code from the EFSA MTX catalogue: base term, facet descriptors for stated attributes the term does not imply, and labelled free text for what the code cannot express. Returns a short explanation of how the code was reached. Takes a few seconds for a direct name match, typically 15–25 seconds when the catalogue must be walked.",
   inputSchema: {
-    description: z.string().describe("The food description, e.g. 'fried rice with chicken'"),
+    description: z
+      .string()
+      .describe(
+        `The food description, e.g. 'fried rice with chicken' (at most ${MAX_ENCODE_INPUT_CHARS} characters)`
+      ),
   },
   readOnly: true,
   handler: async ({ description }) => {

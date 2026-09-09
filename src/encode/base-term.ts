@@ -15,6 +15,12 @@ import { scoreTraversalCandidates } from "./select.js";
 import { collectTraversalCandidates } from "./traverse.js";
 import type { AuditEntry, BaseTermRef, EncodeOk, EncodeResult } from "./types.js";
 
+/**
+ * Upper bound on a trimmed food description. Longer pastes ride along in
+ * every model call and multiply cost; eval cases top out well under this.
+ */
+export const MAX_ENCODE_INPUT_CHARS = 300;
+
 function rejectFromError(err: unknown, audit: AuditEntry[]): EncodeResult {
   const raw = err instanceof Error ? err.message : String(err);
   const reason = err instanceof LlmError ? err.kind : "traversal_error";
@@ -117,6 +123,15 @@ export async function encodeBaseTerm(
       status: "rejected",
       reason: "empty_input",
       message: "Input is empty",
+      audit,
+    };
+  }
+
+  if (input.length > MAX_ENCODE_INPUT_CHARS) {
+    return {
+      status: "rejected",
+      reason: "input_too_long",
+      message: `Food descriptions must be at most ${MAX_ENCODE_INPUT_CHARS} characters (got ${input.length}).`,
       audit,
     };
   }
