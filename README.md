@@ -84,9 +84,18 @@ base term, facets, free text, fit, method, and a short `explanation`.
 
 ```bash
 npm test                 # unit tests (no model)
-npm run lexical-eval     # lexical base-term cases
-npm run encode-eval      # end-to-end (needs a model key)
+npm run lexical-eval     # lexical base-term cases (no model)
+npm run encode-eval      # end-to-end gold set (needs a model key)
 ```
+
+`eval/encode-base-term.yaml` is a small, focused regression set: one realistic
+case per capability (catalogue synonym, model synonym, named dish, restraint,
+and so on). Gold rules can require or forbid facets and free-text fragments;
+`expected` may list several acceptable base codes (any-of).
+
+`npm run encode-eval` records the model and MTX version, and on a complete run
+writes `eval/results/encode-base-term.json` for publishing or sharing with the
+public core repo. Always cite the model named in that file’s `_provenance`.
 
 ## Layout
 
@@ -96,7 +105,7 @@ src/search/     lexical + embedding retrieval
 src/server.ts   stdio MCP
 src/tools.ts    tool handlers (shared surface for a future Worker wrapper)
 data/           generated catalogue + embeddings (local)
-eval/           gold cases
+eval/           gold cases + results artifact
 vendor/         EFSA catalogues (submodule)
 ```
 

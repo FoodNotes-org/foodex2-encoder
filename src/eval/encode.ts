@@ -12,7 +12,9 @@ const INGRED_HIERARCHY = "ingred";
 export interface EncodeEvalCase {
   id: string;
   input: string;
-  expected: string;
+  /** Acceptable base-term codes (any-of); first entry is preferred. */
+  expected: string[];
+  capability: string;
   method?: "lexical" | "traversal";
   forbid_pick?: string[];
   /** Facet keys Fxx.CODE that must not appear. */
@@ -30,7 +32,11 @@ export interface EncodeEvalCase {
 export interface EncodeCaseResult {
   id: string;
   input: string;
+  /** Preferred (first) expected code for display. */
   expected: string;
+  /** Full any-of set used for scoring. */
+  expectedSet: string[];
+  capability: string;
   pick: string | null;
   pickName: string | null;
   method: string | null;
@@ -60,6 +66,11 @@ function facetKey(header: string, code: string): string {
   return `${header}.${code}`.toUpperCase();
 }
 
+/** Display form for an any-of expected list: A02LZ|A02LV */
+export function formatExpected(codes: string[]): string {
+  return codes.join("|");
+}
+
 export async function evaluateEncodeCase(c: EncodeEvalCase): Promise<EncodeCaseResult> {
   const started = performance.now();
   const usageBefore = llmUsageTotals();
@@ -80,11 +91,12 @@ export async function evaluateEncodeCase(c: EncodeEvalCase): Promise<EncodeCaseR
     result.status !== "ok" && "reason" in result ? result.reason : undefined;
   const infra = reason !== undefined && isProviderInfraReason(reason);
 
+  const expectedSet = c.expected.map((x) => x.toUpperCase());
   const forbid = new Set((c.forbid_pick ?? []).map((x) => x.toUpperCase()));
   const forbidHit = pick !== null && forbid.has(pick);
 
   const methodPass = c.method === undefined || method === c.method;
-  const pickPass = pick === c.expected && !forbidHit;
+  const pickPass = pick !== null && expectedSet.includes(pick) && !forbidHit;
 
   let facetsPass = true;
   let facetDetail: string | undefined;
@@ -136,7 +148,9 @@ export async function evaluateEncodeCase(c: EncodeEvalCase): Promise<EncodeCaseR
   return {
     id: c.id,
     input: c.input,
-    expected: c.expected,
+    expected: expectedSet[0] ?? "",
+    expectedSet,
+    capability: c.capability,
     pick,
     pickName,
     method,

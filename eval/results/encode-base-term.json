@@ -1,0 +1,382 @@
+{
+  "_provenance": {
+    "generated_by": "scripts/encode-eval.ts",
+    "generated_at": "2026-09-10T06:14:37.509Z",
+    "model": "openai/gpt-5.4",
+    "mtx_version": "17.1",
+    "git_commit": "ccf760a"
+  },
+  "summary": {
+    "hard_pass": 16,
+    "hard_total": 16,
+    "soft_pass": 0,
+    "soft_total": 2,
+    "total_cost_usd": 2.2744,
+    "median_ms": 18526
+  },
+  "cases": [
+    {
+      "id": "encode-orange-juice",
+      "capability": "Matches a catalogue term when word order differs from the preferred name.",
+      "input": "orange juice",
+      "expected": [
+        "A03AM"
+      ],
+      "pick": "A03AM",
+      "pick_name": "Juice, orange",
+      "code": "A03AM",
+      "facets": [],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 277,
+      "calls": 0,
+      "cost_usd": 0
+    },
+    {
+      "id": "encode-dill-seeds",
+      "capability": "Matches a real nutrient-database label using catalogue vocabulary alone.",
+      "input": "Dill seeds",
+      "expected": [
+        "A018F"
+      ],
+      "pick": "A018F",
+      "pick_name": "Dill seed",
+      "code": "A018F",
+      "facets": [],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 6,
+      "calls": 0,
+      "cost_usd": 0
+    },
+    {
+      "id": "encode-eggplant",
+      "capability": "Resolves a synonym the catalogue already lists as an alternate name.",
+      "input": "eggplant",
+      "expected": [
+        "A00JD"
+      ],
+      "pick": "A00JD",
+      "pick_name": "Aubergines",
+      "code": "A00JD",
+      "facets": [],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 14060,
+      "calls": 11,
+      "cost_usd": 0.070765
+    },
+    {
+      "id": "encode-arugula",
+      "capability": "Resolves a synonym absent from the catalogue entirely (model bridges it).",
+      "input": "arugula",
+      "expected": [
+        "A00LN",
+        "A00LP"
+      ],
+      "pick": "A00LP",
+      "pick_name": "Wall rocket",
+      "code": "A00LP",
+      "facets": [],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 37285,
+      "calls": 37,
+      "cost_usd": 0.372375
+    },
+    {
+      "id": "encode-boeuf-bourguignon",
+      "capability": "Encodes a named dish as the dish class, with meat as F04 and the name in free text.",
+      "input": "boeuf bourguignon",
+      "expected": [
+        "A03VY"
+      ],
+      "pick": "A03VY",
+      "pick_name": "Meat stew",
+      "code": "A03VY#F04.A00HC$F04.A01QX$F04.A022X$F04.A03MX",
+      "facets": [
+        "F04.A00HC",
+        "F04.A01QX",
+        "F04.A022X",
+        "F04.A03MX"
+      ],
+      "free_text": "dish=boeuf bourguignon",
+      "pass": true,
+      "soft": false,
+      "ms": 20653,
+      "calls": 22,
+      "cost_usd": 0.14526999999999995
+    },
+    {
+      "id": "encode-risotto-asparagus",
+      "capability": "Prefers the dish name over a characterising ingredient as the base term.",
+      "input": "Risotto with asparagus",
+      "expected": [
+        "A041F"
+      ],
+      "pick": "A041F",
+      "pick_name": "Risotto",
+      "code": "A041F#F04.A00RT",
+      "facets": [
+        "F04.A00RT"
+      ],
+      "free_text": "dish=Risotto with asparagus",
+      "pass": true,
+      "soft": false,
+      "ms": 16216,
+      "calls": 17,
+      "cost_usd": 0.10172500000000018
+    },
+    {
+      "id": "encode-homemade-yakitori",
+      "capability": "Keeps an unknown modifier in free text and does not invent dish-definition facets.",
+      "input": "homemade yakitori",
+      "expected": [
+        "A03VV"
+      ],
+      "pick": "A03VV",
+      "pick_name": "Meat based dishes",
+      "code": "A03VV#F04.A01SP$F22.A07SS$F26.A07XE$F28.A07GZ",
+      "facets": [
+        "F04.A01SP",
+        "F22.A07SS",
+        "F26.A07XE",
+        "F28.A07GZ"
+      ],
+      "free_text": "dish=homemade yakitori",
+      "pass": true,
+      "soft": false,
+      "ms": 25313,
+      "calls": 25,
+      "cost_usd": 0.12082500000000018
+    },
+    {
+      "id": "encode-sandwich-bare",
+      "capability": "Does not invent fillings for a bare composite dish name.",
+      "input": "sandwich",
+      "expected": [
+        "A03YZ"
+      ],
+      "pick": "A03YZ",
+      "pick_name": "Sandwich and sandwich-like dishes",
+      "code": "A03YZ",
+      "facets": [],
+      "free_text": "dish=sandwich",
+      "pass": true,
+      "soft": false,
+      "ms": 18526,
+      "calls": 15,
+      "cost_usd": 0.08801750000000008
+    },
+    {
+      "id": "encode-smoked-sprats-canned",
+      "capability": "Treats processing (smoking) as a facet, not as the base term (EFSA §3.1.3).",
+      "input": "smoked sprats in a can",
+      "expected": [
+        "A0FBY"
+      ],
+      "pick": "A0FBY",
+      "pick_name": "Canned sprats",
+      "code": "A0FBY#F28.A07JV",
+      "facets": [
+        "F28.A07JV"
+      ],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 26487,
+      "calls": 26,
+      "cost_usd": 0.28644999999999987
+    },
+    {
+      "id": "encode-ice-cream-topping",
+      "capability": "Adds a stated topping as F04 and sends an uncodable residue to free text.",
+      "input": "chocolate ice cream with amarena cherries",
+      "expected": [
+        "A02QA"
+      ],
+      "pick": "A02QA",
+      "pick_name": "Ice cream, milk-based",
+      "code": "A02QA#F04.A06MF",
+      "facets": [
+        "F04.A06MF"
+      ],
+      "free_text": "dish=chocolate ice cream with amarena cherries; side=amarena cherries",
+      "pass": false,
+      "soft": true,
+      "ms": 18361,
+      "calls": 23,
+      "cost_usd": 0.2660199999999997
+    },
+    {
+      "id": "encode-buffalo-mozzarella",
+      "capability": "Attaches a source-commodity origin facet (water buffalo milk).",
+      "input": "buffalo mozzarella",
+      "expected": [
+        "A02QJ"
+      ],
+      "pick": "A02QJ",
+      "pick_name": "Mozzarella",
+      "code": "A02QJ#F27.A02MD",
+      "facets": [
+        "F27.A02MD"
+      ],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 18821,
+      "calls": 14,
+      "cost_usd": 0.19167749999999995
+    },
+    {
+      "id": "encode-canned-organic-orange-juice",
+      "capability": "Adds production-method and preservation facets on a known juice base.",
+      "input": "canned organic orange juice",
+      "expected": [
+        "A03AM"
+      ],
+      "pick": "A03AM",
+      "pick_name": "Juice, orange",
+      "code": "A03AM#F21.A07SE$F28.A0BYP",
+      "facets": [
+        "F21.A07SE",
+        "F28.A0BYP"
+      ],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 22624,
+      "calls": 19,
+      "cost_usd": 0.14285749999999942
+    },
+    {
+      "id": "encode-orange-nectar-long",
+      "capability": "Handles a long real product label with several facets at once.",
+      "input": "Orange nectar, fortified with calcium, sugar free, organic",
+      "expected": [
+        "A03BG"
+      ],
+      "pick": "A03BG",
+      "pick_name": "Nectar, orange",
+      "code": "A03BG#F04.A0EXH$F10.A077L$F21.A07SE",
+      "facets": [
+        "F04.A0EXH",
+        "F10.A077L",
+        "F21.A07SE"
+      ],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 21422,
+      "calls": 19,
+      "cost_usd": 0.09019999999999984
+    },
+    {
+      "id": "encode-mixed-nuts",
+      "capability": "Encodes a same-nature mix as the group plus F27 members (not Mixing / Other).",
+      "input": "mixed nuts (almonds, walnuts and hazelnuts)",
+      "expected": [
+        "A014C"
+      ],
+      "pick": "A014C",
+      "pick_name": "Tree nuts",
+      "code": "A014C#F27.A014D$F27.A014L$F27.A014R$F28.A0CRL",
+      "facets": [
+        "F27.A014D",
+        "F27.A014L",
+        "F27.A014R",
+        "F28.A0CRL"
+      ],
+      "free_text": null,
+      "pass": false,
+      "soft": true,
+      "ms": 20196,
+      "calls": 20,
+      "cost_usd": 0.10508249999999975
+    },
+    {
+      "id": "encode-quinoa-flour",
+      "capability": "Falls back to the correct not-listed bucket when no dedicated leaf exists.",
+      "input": "Quinoa flour",
+      "expected": [
+        "A04KT"
+      ],
+      "pick": "A04KT",
+      "pick_name": "Cereal and cereal-like flours not separately listed",
+      "code": "A04KT#F27.A000R",
+      "facets": [
+        "F27.A000R"
+      ],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 13856,
+      "calls": 13,
+      "cost_usd": 0.07151000000000018
+    },
+    {
+      "id": "encode-kangaroo-meat",
+      "capability": "Does not assume catalogue words (fresh) that the input does not state.",
+      "input": "kangaroo meat",
+      "expected": [
+        "A0EYF"
+      ],
+      "pick": "A0EYF",
+      "pick_name": "Mammals meat",
+      "code": "A0EYF#F01.A057V$F26.A07XE",
+      "facets": [
+        "F01.A057V",
+        "F26.A07XE"
+      ],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 14271,
+      "calls": 13,
+      "cost_usd": 0.0813625
+    },
+    {
+      "id": "encode-spirits-volume",
+      "capability": "Ignores numeric nutrient-database noise and picks the spirit class.",
+      "input": "Spirits, 40% volume",
+      "expected": [
+        "A03PD"
+      ],
+      "pick": "A03PD",
+      "pick_name": "Unsweetened spirits",
+      "code": "A03PD#F11.A07DL",
+      "facets": [
+        "F11.A07DL"
+      ],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 15434,
+      "calls": 16,
+      "cost_usd": 0.07323250000000048
+    },
+    {
+      "id": "encode-semi-skimmed-milk",
+      "capability": "Accepts either the denser milk leaf or its parent when both are defensible.",
+      "input": "semi-skimmed milk",
+      "expected": [
+        "A02LZ",
+        "A02LV"
+      ],
+      "pick": "A02LZ",
+      "pick_name": "Cow milk, semi skimmed (half fat)",
+      "code": "A02LZ",
+      "facets": [],
+      "free_text": null,
+      "pass": true,
+      "soft": false,
+      "ms": 19631,
+      "calls": 10,
+      "cost_usd": 0.06698749999999976
+    }
+  ]
+}

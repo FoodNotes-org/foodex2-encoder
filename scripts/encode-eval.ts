@@ -4,33 +4,48 @@
  *   npm run encode-eval
  *
  * Needs a configured model (see README Setup).
+ * On a complete run (no early infra stop), writes eval/results/encode-base-term.json.
  */
 
+import { execSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Catalogue } from "../src/catalogue.js";
 import { codeList, list, loadCaseRecords, oneOf, requiredText, text } from "../src/eval/cases.js";
 import {
   evaluateEncodeCase,
+  formatExpected,
   type EncodeCaseResult,
   type EncodeEvalCase,
 } from "../src/eval/encode.js";
 import { loadEnv } from "../src/env.js";
+import { defaultModel } from "../src/llm.js";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const RESULTS_PATH = join(ROOT, "eval", "results", "encode-base-term.json");
 
 function loadCases(path: string): EncodeEvalCase[] {
-  return loadCaseRecords(path).map((rec) => ({
-    id: requiredText(rec, "id"),
-    input: requiredText(rec, "input"),
-    expected: requiredText(rec, "expected").toUpperCase(),
-    method: oneOf(rec, "method", ["lexical", "traversal"]),
-    tags: list(rec, "tags"),
-    note: text(rec, "note"),
-    forbid_pick: codeList(rec, "forbid_pick"),
-    forbid_facets: codeList(rec, "forbid_facets"),
-    require_facets: codeList(rec, "require_facets"),
-    require_f04_under: codeList(rec, "require_f04_under"),
-    free_text_includes: text(rec, "free_text_includes"),
-  }));
+  return loadCaseRecords(path).map((rec) => {
+    const expected = codeList(rec, "expected");
+    if (!expected || expected.length === 0) {
+      throw new Error(`case ${String(rec.id)}: expected must list at least one code`);
+    }
+    return {
+      id: requiredText(rec, "id"),
+      input: requiredText(rec, "input"),
+      expected,
+      capability: requiredText(rec, "capability"),
+      method: oneOf(rec, "method", ["lexical", "traversal"]),
+      tags: list(rec, "tags"),
+      note: text(rec, "note"),
+      forbid_pick: codeList(rec, "forbid_pick"),
+      forbid_facets: codeList(rec, "forbid_facets"),
+      require_facets: codeList(rec, "require_facets"),
+      require_f04_under: codeList(rec, "require_f04_under"),
+      free_text_includes: text(rec, "free_text_includes"),
+    };
+  });
 }
 
 function isSoft(r: EncodeCaseResult): boolean {
@@ -41,6 +56,14 @@ const RULE = "-".repeat(100);
 
 function usd(cost: number | null): string {
   return cost === null ? "—" : cost.toFixed(3);
+}
+
+function gitCommit(): string | null {
+  try {
+    return execSync("git rev-parse --short HEAD", { cwd: ROOT, encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
 }
 
 function printTable(results: EncodeCaseResult[]): void {
@@ -68,7 +91,7 @@ function printTable(results: EncodeCaseResult[]): void {
         usd(r.usage.costUsd).padEnd(7),
         String(r.pick ?? r.status).padEnd(10),
         String(r.method ?? "—").padEnd(10),
-        r.expected.padEnd(10),
+        formatExpected(r.expectedSet).padEnd(10),
       ].join("")
     );
     if (r.infra) {
@@ -77,6 +100,7 @@ function printTable(results: EncodeCaseResult[]): void {
       if (r.note) console.log(`    note: ${r.note}`);
     } else if (!r.pass) {
       console.log(`    input: ${r.input}`);
+      console.log(`    capability: ${r.capability}`);
       if (r.pickName) console.log(`    pick:  ${r.pick} ${r.pickName}`);
       if (r.reason) console.log(`    reason: ${r.reason}`);
       if (!r.methodPass) console.log(`    method mismatch (got ${r.method ?? "—"})`);
@@ -183,26 +207,73 @@ function summarizeCost(quality: EncodeCaseResult[]): void {
     const sum = cs.reduce((a, b) => a + b, 0);
     console.log(
       `  ${method}: n=${cs.length}; mean $${usd(sum / cs.length)}; max $${usd(Math.max(...cs))};` +
-        ` per 1,000 encodes $${(1000 * sum / cs.length).toFixed(0)}`
+        ` per 1,000 encodes $${((1000 * sum) / cs.length).toFixed(0)}`
     );
   }
 }
 
+function writeResultsArtifact(
+  results: EncodeCaseResult[],
+  model: string,
+  mtxVersion: string
+): void {
+  const quality = results.filter((r) => !r.infra);
+  const hard = quality.filter((r) => !isSoft(r));
+  const soft = quality.filter(isSoft);
+  const times = quality.map((r) => r.elapsedMs).sort((a, b) => a - b);
+  const priced = quality.filter((r) => r.usage.costUsd !== null);
+  const totalCost = priced.reduce((a, r) => a + (r.usage.costUsd as number), 0);
+
+  const payload = {
+    _provenance: {
+      generated_by: "scripts/encode-eval.ts",
+      generated_at: new Date().toISOString(),
+      model,
+      mtx_version: mtxVersion,
+      git_commit: gitCommit(),
+    },
+    summary: {
+      hard_pass: hard.filter((r) => r.pass).length,
+      hard_total: hard.length,
+      soft_pass: soft.filter((r) => r.pass).length,
+      soft_total: soft.length,
+      total_cost_usd: priced.length > 0 ? Number(totalCost.toFixed(4)) : null,
+      median_ms: times[Math.floor((times.length - 1) * 0.5)] ?? null,
+    },
+    cases: results.map((r) => ({
+      id: r.id,
+      capability: r.capability,
+      input: r.input,
+      expected: r.expectedSet,
+      pick: r.pick,
+      pick_name: r.pickName,
+      code: r.code,
+      facets: r.facets,
+      free_text: r.freeText,
+      pass: r.pass,
+      soft: isSoft(r),
+      ms: r.elapsedMs,
+      calls: r.usage.calls,
+      cost_usd: r.usage.costUsd,
+    })),
+  };
+
+  mkdirSync(dirname(RESULTS_PATH), { recursive: true });
+  writeFileSync(RESULTS_PATH, `${JSON.stringify(payload, null, 2)}\n`);
+  console.log(`Wrote ${RESULTS_PATH}`);
+}
+
 async function main(): Promise<void> {
   loadEnv();
-  const path = join(
-    dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "eval",
-    "encode-base-term.yaml"
-  );
+  const path = join(ROOT, "eval", "encode-base-term.yaml");
   const cases = loadCases(path);
   if (cases.length === 0) {
     throw new Error(`No cases loaded from ${path}`);
   }
 
   const cat = Catalogue.load();
-  console.log(`Encode eval (${cases.length} cases, MTX v${cat.version})\n`);
+  const model = defaultModel();
+  console.log(`Encode eval (${cases.length} cases, MTX v${cat.version}, model ${model})\n`);
 
   const results: EncodeCaseResult[] = [];
   let stoppedForInfra = false;
@@ -223,6 +294,8 @@ async function main(): Promise<void> {
   summarize(results);
   if (stoppedForInfra) {
     console.log("Stopped early after provider infrastructure error.");
+  } else {
+    writeResultsArtifact(results, model, cat.version);
   }
 
   const qualityFail = results.some((r) => !r.infra && !r.pass && !isSoft(r));
