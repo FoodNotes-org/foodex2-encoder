@@ -8,6 +8,10 @@
  * 1b. Foodstuff name meaning — when route said foodstuff and fit is broad:
  *     what the common name conventionally means that the locked base does not
  *     capture → same property shape, miss → drop (no not_in_input filter).
+ * 1c. Fortification — before any ingredient/source placement: does the input
+ *     claim fortification/enrichment/supplementation? Bare → F10 Fortified;
+ *     named agents → F09 via the fortification-agent shortlist (A0EVE tree).
+ *     Recorded in `covered` so input-vs-base does not re-list those as ingredient.
  * 2. Input vs base — what the input still expresses; covered includes step 1;
  *    `side` → free text; ingredient/source → origin role → F01/F27/F04
  *    (`mix` on an RPC/derivative base prefers F27 over F01); `other` → Facets
@@ -45,6 +49,10 @@ const F26 = "F26";
 const F27 = "F27";
 const F28 = "F28";
 const F21 = "F21";
+const F09 = "F09";
+const F10 = "F10";
+/** Qualitative-info leaf: fortifying agents have been added, none named. */
+const F10_FORTIFIED = "A0F6C";
 
 const F26_UNSPECIFIED = "A07XD";
 const F26_OTHER = "A07XE";
@@ -177,10 +185,33 @@ Kinds:
 - other — any other distinctness (freshness/storage state, fat level, part, packaging, production method, …)
 
 If the base already covers the name, return an empty property list.
+Do not list properties already captured in \`covered\`.
 
 Reply with JSON only:
 {"definition":"<text>","properties":[{"phrase":"<text>","kind":"ingredient"|"source"|"process"|"other"},...]}
 `;
+
+/**
+ * Fortification / enrichment / supplementation — asked before ingredient/source
+ * placement so those routes do not claim the same wording as F04.
+ */
+const SYSTEM_FORTIFICATION = `You are a food and nutrition ontology expert.
+
+Does this food description state that the food is fortified, enriched, or supplemented — including a nutrient or substance added for that purpose?
+
+If no: return null.
+If yes but no fortifying agent is named: return "bare".
+If yes and one or more agents are named: list each agent as a short phrase (the nutrient or substance only).
+
+Reply with JSON only:
+{"fortification":null|"bare"|{"agents":["<phrase>",...]}}
+`;
+
+/** Detected fortification claim; facet placement comes in a later step. */
+export type FortificationClaim =
+  | { status: "none" }
+  | { status: "bare" }
+  | { status: "agents"; agents: string[] };
 
 /** Input vs locked base → kind-tagged properties not yet captured. */
 function systemInputVsBase(allowSide: boolean): string {
@@ -331,6 +362,8 @@ interface PlaceContext {
   model: string;
   input: string;
   fit: SelectFit | null;
+  /** Step 0 claim; later leftover phrases that restate it are not placed again. */
+  fortificationClaim: FortificationClaim;
 }
 
 function altNames(code: string): string[] {
@@ -748,6 +781,170 @@ export function parseGapProperties(content: unknown): GapProperty[] {
     out.push({ phrase, kind });
   }
   return out;
+}
+
+/** Parse the fortification detection reply. Unknown shapes → none. */
+export function parseFortification(content: unknown): FortificationClaim {
+  if (content === null || typeof content !== "object") return { status: "none" };
+  const raw = (content as { fortification?: unknown }).fortification;
+  if (raw === null || raw === undefined) return { status: "none" };
+  if (typeof raw === "string") {
+    const s = raw.trim().toLowerCase();
+    if (s === "bare") return { status: "bare" };
+    if (s === "" || s === "null" || s === "none") return { status: "none" };
+    // Single agent returned as a plain string.
+    return { status: "agents", agents: [raw.trim()] };
+  }
+  if (typeof raw !== "object") return { status: "none" };
+  const agentsRaw = (raw as { agents?: unknown }).agents;
+  if (!Array.isArray(agentsRaw)) return { status: "none" };
+  const agents: string[] = [];
+  for (const item of agentsRaw) {
+    if (typeof item !== "string") continue;
+    const phrase = item.trim();
+    if (phrase === "") continue;
+    if (!agents.some((a) => a.toLowerCase() === phrase.toLowerCase())) {
+      agents.push(phrase);
+    }
+  }
+  if (agents.length === 0) return { status: "bare" };
+  return { status: "agents", agents };
+}
+
+function normalizeFortificationPhrase(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[-]/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+const FORTIFICATION_CLAIM_RE =
+  /\b(fortif(?:y|ied|ication|ying)?|enrich(?:ed|ment)?|supplement(?:ed|s|ation)?)\b/;
+
+/**
+ * True when a leftover phrase restates a fortification claim already placed
+ * (named agent and/or generic fortified/enriched/supplemented wording).
+ */
+export function phraseCoveredByFortification(
+  phrase: string,
+  claim: FortificationClaim
+): boolean {
+  if (claim.status === "none") return false;
+  const p = normalizeFortificationPhrase(phrase);
+  if (p === "") return false;
+  if (claim.status === "agents") {
+    for (const agent of claim.agents) {
+      const a = normalizeFortificationPhrase(agent);
+      if (a !== "" && p.includes(a)) return true;
+    }
+  }
+  return FORTIFICATION_CLAIM_RE.test(p);
+}
+
+export function dropFortificationRestatements(
+  properties: GapProperty[],
+  claim: FortificationClaim
+): { kept: GapProperty[]; dropped: GapProperty[] } {
+  const kept: GapProperty[] = [];
+  const dropped: GapProperty[] = [];
+  for (const property of properties) {
+    if (phraseCoveredByFortification(property.phrase, claim)) dropped.push(property);
+    else kept.push(property);
+  }
+  return { kept, dropped };
+}
+
+async function askFortification(
+  ctx: PlaceContext,
+  foodDescription: string
+): Promise<{ claim: FortificationClaim; detail: Record<string, unknown> }> {
+  const answered = await chatJson({
+    model: ctx.model,
+    system: SYSTEM_FORTIFICATION,
+    user: JSON.stringify(
+      {
+        input: foodDescription,
+        baseTerm: { code: ctx.baseCode, name: ctx.baseName },
+      },
+      null,
+      2
+    ),
+  });
+  const claim = parseFortification(answered.content);
+  return {
+    claim,
+    detail: {
+      via: "fortification",
+      model: answered.model,
+      claim,
+    },
+  };
+}
+
+/** F10 Fortified when the claim names no agent. Null if implied or not a descriptor. */
+export function bareFortifiedFacet(
+  cat: Catalogue,
+  implied: Set<string>
+): FacetDescriptorRef | null {
+  if (acceptClosedDescriptor(cat, F10, F10_FORTIFIED, implied) !== "keep") return null;
+  return {
+    header: F10,
+    code: F10_FORTIFIED,
+    name: cat.term(F10_FORTIFIED)?.name ?? "Fortified",
+  };
+}
+
+async function applyFortification(
+  ctx: PlaceContext,
+  claim: FortificationClaim
+): Promise<Record<string, unknown>> {
+  if (claim.status === "none") {
+    return { placement: "none" };
+  }
+
+  if (claim.status === "bare") {
+    const facet = bareFortifiedFacet(ctx.cat, ctx.implied);
+    const added = facet !== null && addFacet(ctx, facet);
+    return {
+      placement: "bare",
+      facet,
+      added,
+    };
+  }
+
+  const f09Label =
+    ctx.cat.facetCategory(F09)?.label?.trim().toLowerCase() || "fortification-agent";
+  const placed: Array<{ agent: string; facet: FacetDescriptorRef }> = [];
+  const missed: Array<{ agent: string; detail: Record<string, unknown> }> = [];
+
+  for (const agent of claim.agents) {
+    const resolved = await resolveClosedFacetPhrase(ctx.cat, agent, F09, ctx.implied, {
+      model: ctx.model,
+      allowRootFallback: false,
+    });
+    if (resolved.facet !== null && addFacet(ctx, resolved.facet)) {
+      placed.push({ agent, facet: resolved.facet });
+    } else {
+      missed.push({ agent, detail: resolved.detail });
+      pushFreeText(ctx.freeText, f09Label, agent);
+    }
+  }
+
+  return {
+    placement: "agents",
+    placed,
+    missed,
+  };
+}
+
+/** Shape stored on `covered` so input-vs-base does not re-emit fortification. */
+function fortificationCovered(claim: FortificationClaim): Record<string, unknown> | null {
+  if (claim.status === "none") return null;
+  if (claim.status === "bare") {
+    return { status: "bare", facet: `${F10}.${F10_FORTIFIED}` };
+  }
+  return { status: "agents", agents: claim.agents, header: F09 };
 }
 
 export interface GapOmitted {
@@ -2190,7 +2387,19 @@ export async function assignResiduals(
     model,
     input,
     fit: options.fit ?? null,
+    fortificationClaim: { status: "none" },
   };
+
+  // --- 0. Fortification (before any ingredient/source placement) ---
+  const { claim: fortificationClaim, detail: fortificationDetect } =
+    await askFortification(ctx, input);
+  ctx.fortificationClaim = fortificationClaim;
+  const fortificationPlace = await applyFortification(ctx, fortificationClaim);
+  audit.push({
+    step: "residuals_fortification",
+    detail: { ...fortificationDetect, ...fortificationPlace },
+  });
+  const fortificationCover = fortificationCovered(fortificationClaim);
 
   // --- 1. Unstated essence (dish / dish type from route) ---
   const descriptionKind = ctx.descriptionKind;
@@ -2227,25 +2436,40 @@ export async function assignResiduals(
             name: foodName,
             baseTerm: { code: baseTerm.code, name: baseTerm.name },
             implicits,
+            covered: {
+              facets: ctx.facets.map((f) => ({
+                header: f.header,
+                code: f.code,
+                name: f.name,
+              })),
+              ...(fortificationCover !== null ? { fortification: fortificationCover } : {}),
+            },
           },
           null,
           2
         ),
       });
       const meaning = parseEssence(defined.content);
+      const meaningFiltered = dropFortificationRestatements(
+        meaning.properties,
+        ctx.fortificationClaim
+      );
       audit.push({
         step: "residuals_name_meaning",
         detail: {
           model: defined.model,
           name: foodName,
           definition: meaning.definition,
-          properties: meaning.properties,
+          properties: meaningFiltered.kept,
           fit: options.fit,
+          ...(meaningFiltered.dropped.length > 0
+            ? { droppedFortification: meaningFiltered.dropped }
+            : {}),
         },
       });
 
       const meaningResolutions = [];
-      for (const property of meaning.properties) {
+      for (const property of meaningFiltered.kept) {
         meaningResolutions.push(await placeByKind(ctx, property, "drop"));
       }
       audit.push({
@@ -2325,7 +2549,10 @@ export async function assignResiduals(
           kept: covered.kept,
         },
       });
-      for (const property of covered.kept) {
+      for (const property of dropFortificationRestatements(
+        covered.kept,
+        ctx.fortificationClaim
+      ).kept) {
         essenceResolutions.push(await placeByKind(ctx, property, "drop"));
       }
     }
@@ -2371,6 +2598,7 @@ export async function assignResiduals(
       name: f.name,
     })),
     freeText: [...ctx.freeText],
+    ...(fortificationCover !== null ? { fortification: fortificationCover } : {}),
   };
 
   const allowSide = sideAllowedForKind(descriptionKind);
@@ -2397,7 +2625,17 @@ export async function assignResiduals(
     : listedRaw.map((p) =>
         p.kind === "side" ? { ...p, kind: "ingredient" as const } : p
       );
-  const { kept: properties, dropped } = filterPropertiesToInput(forFilter, gapInput);
+  const { kept: inInput, dropped } = filterPropertiesToInput(forFilter, gapInput);
+  const fortDrop = dropFortificationRestatements(inInput, ctx.fortificationClaim);
+  const properties = fortDrop.kept;
+  const droppedAll = [
+    ...dropped,
+    ...fortDrop.dropped.map((p) => ({
+      phrase: p.phrase,
+      kind: p.kind,
+      reason: "fortification_already_placed",
+    })),
+  ];
   audit.push({
     step: "residuals_input",
     detail: {
@@ -2413,7 +2651,7 @@ export async function assignResiduals(
               .map((p) => p.phrase),
           }
         : {}),
-      ...(dropped.length > 0 ? { dropped, raw: listedRaw } : {}),
+      ...(droppedAll.length > 0 ? { dropped: droppedAll, raw: listedRaw } : {}),
     },
   });
 

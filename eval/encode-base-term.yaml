@@ -132,10 +132,11 @@ cases:
     input: Orange nectar, fortified with calcium, sugar free, organic
     expected: A03BG
     method: traversal
-    require_facets: F10.A077L,F21.A07SE
+    require_facets: F09.A0EXH,F10.A077L,F21.A07SE
+    forbid_facets: F04.A0EXH
     capability: Handles a long real product label with several facets at once.
     tags: facets
-    note: Nectar, orange + sugar free + organic; fortification may be free text
+    note: Nectar, orange + Calcium (F09) + Sugar free + Organic; Calcium as F04 is the wrong facet
 
   - id: encode-mixed-nuts
     input: mixed nuts (almonds, walnuts and hazelnuts)

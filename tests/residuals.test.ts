@@ -9,6 +9,7 @@ import { Catalogue } from "../src/catalogue.js";
 import {
   acceptF04Descriptor,
   alignsComponentToFoodTerm,
+  bareFortifiedFacet,
   buildClosedPickPool,
   chooseF26Unspecified,
   cleanupFacets,
@@ -17,12 +18,16 @@ import {
   findDishSpan,
   headerForFacetDimension,
   originRolesForBaseType,
+  parseFortification,
   parseGapOmitted,
   parseGapProperties,
+  phraseCoveredByFortification,
+  dropFortificationRestatements,
   parseOriginRole,
   promptF26Other,
   recallIngredF04,
   siblingChildrenForF26,
+  type FortificationClaim,
 } from "../src/encode/residuals.js";
 import type { FacetDescriptorRef } from "../src/encode/types.js";
 
@@ -246,6 +251,85 @@ describe("parseGapOmitted", () => {
   it("returns empty when absent", () => {
     assert.deepEqual(parseGapOmitted({ properties: [] }), []);
     assert.deepEqual(parseGapOmitted(null), []);
+  });
+});
+
+describe("parseFortification", () => {
+  it("reads null as none", () => {
+    assert.deepEqual(parseFortification({ fortification: null }), { status: "none" });
+    assert.deepEqual(parseFortification({}), { status: "none" });
+    assert.deepEqual(parseFortification(null), { status: "none" });
+  });
+
+  it("reads bare", () => {
+    assert.deepEqual(parseFortification({ fortification: "bare" }), { status: "bare" });
+  });
+
+  it("reads agent list and dedupes", () => {
+    assert.deepEqual(
+      parseFortification({ fortification: { agents: ["calcium", " Calcium", "vitamin D", ""] } }),
+      { status: "agents", agents: ["calcium", "vitamin D"] }
+    );
+  });
+
+  it("treats an empty agent list as bare", () => {
+    assert.deepEqual(parseFortification({ fortification: { agents: [] } }), { status: "bare" });
+  });
+});
+
+describe("phraseCoveredByFortification", () => {
+  const calcium: FortificationClaim = { status: "agents", agents: ["calcium"] };
+
+  it("drops phrases that restate a named agent", () => {
+    assert.equal(phraseCoveredByFortification("fortified with calcium", calcium), true);
+    assert.equal(phraseCoveredByFortification("calcium-fortified", calcium), true);
+    assert.equal(phraseCoveredByFortification("calcium", calcium), true);
+  });
+
+  it("drops generic fortification wording once a claim is placed", () => {
+    assert.equal(phraseCoveredByFortification("fortified", calcium), true);
+    assert.equal(phraseCoveredByFortification("enriched", { status: "bare" }), true);
+  });
+
+  it("keeps unrelated leftovers", () => {
+    assert.equal(phraseCoveredByFortification("sugar free", calcium), false);
+    assert.equal(phraseCoveredByFortification("organic", calcium), false);
+    assert.equal(phraseCoveredByFortification("calcium", { status: "none" }), false);
+  });
+
+  it("splits a property list", () => {
+    const { kept, dropped } = dropFortificationRestatements(
+      [
+        { phrase: "fortified with calcium", kind: "ingredient" },
+        { phrase: "sugar free", kind: "other" },
+      ],
+      calcium
+    );
+    assert.deepEqual(
+      kept.map((p) => p.phrase),
+      ["sugar free"]
+    );
+    assert.deepEqual(
+      dropped.map((p) => p.phrase),
+      ["fortified with calcium"]
+    );
+  });
+});
+
+describe("fortification placement helpers", () => {
+  it("maps a bare claim to F10 Fortified", () => {
+    const facet = bareFortifiedFacet(cat, new Set());
+    assert.equal(facet?.header, "F10");
+    assert.equal(facet?.code, "A0F6C");
+  });
+
+  it("drops F10 Fortified when already implied", () => {
+    assert.equal(bareFortifiedFacet(cat, new Set(["F10.A0F6C"])), null);
+  });
+
+  it("aligns calcium on F09 to Calcium", () => {
+    const { alignedAccepted } = buildClosedPickPool(cat, "calcium", "F09", new Set());
+    assert.equal(alignedAccepted[0]?.code, "A0EXH");
   });
 });
 
