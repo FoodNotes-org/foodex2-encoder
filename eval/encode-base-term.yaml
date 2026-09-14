@@ -138,6 +138,25 @@ cases:
     tags: facets
     note: Nectar, orange + Calcium (F09) + Sugar free + Organic; Calcium as F04 is the wrong facet
 
+  - id: encode-fortified-bare
+    input: fortified breakfast cereal
+    expected: A00CV
+    method: traversal
+    require_facets: F10.A0F6C
+    capability: Codes a bare fortification claim (no nutrient named) as qualitative Fortified.
+    tags: facets
+    note: Breakfast cereals + F10 Fortified; no F09 agent to invent
+
+  - id: encode-fortified-two-agents
+    input: orange juice fortified with calcium and vitamin D
+    expected: A03AM
+    method: traversal
+    require_facets: F09.A0EXH,F09.A0EXM
+    forbid_facets: F04.A0EXH,F10.A0F6C
+    capability: Places two named fortification agents as F09 and does not also add bare Fortified or Calcium as F04.
+    tags: facets
+    note: Juice, orange + Calcium + Vitamin D; agents imply fortified so F10 Fortified is redundant
+
   - id: encode-mixed-nuts
     input: mixed nuts (almonds, walnuts and hazelnuts)
     expected: A014C
