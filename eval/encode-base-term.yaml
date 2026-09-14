@@ -190,9 +190,19 @@ cases:
     input: Spirits, 40% volume
     expected: A03PD
     method: traversal
-    capability: Ignores numeric nutrient-database noise and picks the spirit class.
-    tags: noise
-    note: CoFID Spirits, 40% volume → Unsweetened spirits
+    require_facets: F11.A07DL
+    capability: Attaches a stated alcohol-by-volume percentage as F11 on the spirit class.
+    tags: facets
+    note: Unsweetened spirits + 40 % alcohol v/v; not nutrient-database noise to ignore
+
+  - id: encode-milk-fat-percent
+    input: cow milk, 1.5% fat
+    expected: A02LZ, A02LV, A02LT
+    method: traversal
+    require_facets: F07.A06ZA
+    capability: Attaches a stated fat percentage as F07 on a milk base.
+    tags: facets
+    note: Cow milk / semi-skimmed / Milk + 1.5 % fat; soft fat claims without a number stay off F07
 
   # --- Any-of gold ---
   - id: encode-semi-skimmed-milk

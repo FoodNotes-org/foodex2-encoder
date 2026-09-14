@@ -12,6 +12,9 @@
  *     claim fortification/enrichment/supplementation? Bare → F10 Fortified;
  *     named agents → F09 via the fortification-agent shortlist (A0EVE tree).
  *     Recorded in `covered` so input-vs-base does not re-list those as ingredient.
+ * 1d. Numeric content — fat % (F07) / alcohol % v/v (F11): model reports values;
+ *     code snaps to the nearest catalogue bucket. Soft claims without a number
+ *     are left for later residual passes.
  * 2. Input vs base — what the input still expresses; covered includes step 1;
  *    `side` → free text; ingredient/source → origin role → F01/F27/F04
  *    (`mix` on an RPC/derivative base prefers F27 over F01); `other` → Facets
@@ -33,6 +36,14 @@ import { searchTerms, type SearchCandidate } from "../search/lexical.js";
 import { vectorIndexAvailable, vectorSearchFacets } from "../search/vector.js";
 import { pickAllowedCode, pickAllowedCodes } from "./answers.js";
 import { formatFoodEx2Code, sortFacets } from "./foodex2-code.js";
+import {
+  dropNumericRestatements,
+  nearestAlcoholFacet,
+  nearestFatFacet,
+  numericContentCovered,
+  parseNumericContent,
+  type NumericContentClaim,
+} from "./numeric-facets.js";
 import type {
   AuditEntry,
   BaseTermRef,
@@ -207,6 +218,24 @@ Reply with JSON only:
 {"fortification":null|"bare"|{"agents":["<phrase>",...]}}
 `;
 
+/**
+ * Stated fat % / alcohol % v/v — asked early so later residual passes do not
+ * place the same wording via F10 soft claims or a facet walk of F07/F11.
+ * Soft labels without a number (low fat, alcohol free) stay null here.
+ */
+const SYSTEM_NUMERIC_CONTENT = `You are a food and nutrition ontology expert.
+
+Does this food description state a fat percentage and/or an alcohol-by-volume percentage?
+
+If a fat percentage is stated, set fatPercent to that number (ranges → midpoint).
+If an alcohol-by-volume percentage is stated (including ABV or "% volume" on drinks), set alcoholPercent similarly.
+If only a soft claim is present with no number (low fat, alcohol free, …), leave that field null.
+If neither percentage is stated, both fields are null.
+
+Reply with JSON only:
+{"fatPercent":<number>|null,"alcoholPercent":<number>|null}
+`;
+
 /** Detected fortification claim; facet placement comes in a later step. */
 export type FortificationClaim =
   | { status: "none" }
@@ -364,6 +393,8 @@ interface PlaceContext {
   fit: SelectFit | null;
   /** Step 0 claim; later leftover phrases that restate it are not placed again. */
   fortificationClaim: FortificationClaim;
+  /** Step 0b claim; quantitative fat/alcohol % restatements are not placed again. */
+  numericClaim: NumericContentClaim;
 }
 
 function altNames(code: string): string[] {
@@ -945,6 +976,94 @@ function fortificationCovered(claim: FortificationClaim): Record<string, unknown
     return { status: "bare", facet: `${F10}.${F10_FORTIFIED}` };
   }
   return { status: "agents", agents: claim.agents, header: F09 };
+}
+
+async function askNumericContent(
+  ctx: PlaceContext,
+  foodDescription: string
+): Promise<{ claim: NumericContentClaim; detail: Record<string, unknown> }> {
+  const answered = await chatJson({
+    model: ctx.model,
+    system: SYSTEM_NUMERIC_CONTENT,
+    user: JSON.stringify(
+      {
+        input: foodDescription,
+        baseTerm: { code: ctx.baseCode, name: ctx.baseName },
+      },
+      null,
+      2
+    ),
+  });
+  const claim = parseNumericContent(answered.content);
+  return {
+    claim,
+    detail: {
+      via: "numeric_content",
+      model: answered.model,
+      claim,
+    },
+  };
+}
+
+async function applyNumericContent(
+  ctx: PlaceContext,
+  claim: NumericContentClaim
+): Promise<Record<string, unknown>> {
+  const placed: FacetDescriptorRef[] = [];
+  const missed: Array<{ kind: "fat" | "alcohol"; value: number; reason: string }> = [];
+
+  if (claim.fatPercent !== null) {
+    const facet = nearestFatFacet(ctx.cat, claim.fatPercent);
+    if (
+      facet !== null &&
+      acceptClosedDescriptor(ctx.cat, facet.header, facet.code, ctx.implied) === "keep" &&
+      addFacet(ctx, facet)
+    ) {
+      placed.push(facet);
+    } else {
+      missed.push({
+        kind: "fat",
+        value: claim.fatPercent,
+        reason: facet === null ? "no_bucket" : "not_accepted",
+      });
+      pushFreeText(ctx.freeText, "fat-content", `${claim.fatPercent}% fat`);
+    }
+  }
+
+  if (claim.alcoholPercent !== null) {
+    const facet = nearestAlcoholFacet(ctx.cat, claim.alcoholPercent);
+    if (
+      facet !== null &&
+      acceptClosedDescriptor(ctx.cat, facet.header, facet.code, ctx.implied) === "keep" &&
+      addFacet(ctx, facet)
+    ) {
+      placed.push(facet);
+    } else {
+      missed.push({
+        kind: "alcohol",
+        value: claim.alcoholPercent,
+        reason: facet === null ? "no_bucket" : "not_accepted",
+      });
+      pushFreeText(ctx.freeText, "alcohol-content", `${claim.alcoholPercent}% alcohol`);
+    }
+  }
+
+  return {
+    placement: placed.length > 0 || missed.length > 0 ? "numeric" : "none",
+    placed,
+    missed,
+  };
+}
+
+/** Drop leftovers already owned by fortification or numeric early placement. */
+function dropEarlyClaimRestatements(
+  properties: GapProperty[],
+  fortification: FortificationClaim,
+  numeric: NumericContentClaim
+): { kept: GapProperty[]; dropped: GapProperty[] } {
+  const fort = dropFortificationRestatements(properties, fortification);
+  const num = dropNumericRestatements(fort.kept, numeric);
+  return { kept: num.kept, dropped: [...fort.dropped, ...num.dropped] };
 }
 
 export interface GapOmitted {
@@ -2388,6 +2507,7 @@ export async function assignResiduals(
     input,
     fit: options.fit ?? null,
     fortificationClaim: { status: "none" },
+    numericClaim: { fatPercent: null, alcoholPercent: null },
   };
 
   // --- 0. Fortification (before any ingredient/source placement) ---
@@ -2400,6 +2520,19 @@ export async function assignResiduals(
     detail: { ...fortificationDetect, ...fortificationPlace },
   });
   const fortificationCover = fortificationCovered(fortificationClaim);
+
+  // --- 0b. Fat % / alcohol % (F07 / F11 nearest bucket) ---
+  const { claim: numericClaim, detail: numericDetect } = await askNumericContent(
+    ctx,
+    input
+  );
+  ctx.numericClaim = numericClaim;
+  const numericPlace = await applyNumericContent(ctx, numericClaim);
+  audit.push({
+    step: "residuals_numeric",
+    detail: { ...numericDetect, ...numericPlace },
+  });
+  const numericCover = numericContentCovered(numericClaim);
 
   // --- 1. Unstated essence (dish / dish type from route) ---
   const descriptionKind = ctx.descriptionKind;
@@ -2443,6 +2576,7 @@ export async function assignResiduals(
                 name: f.name,
               })),
               ...(fortificationCover !== null ? { fortification: fortificationCover } : {}),
+              ...(numericCover !== null ? { numeric: numericCover } : {}),
             },
           },
           null,
@@ -2450,9 +2584,10 @@ export async function assignResiduals(
         ),
       });
       const meaning = parseEssence(defined.content);
-      const meaningFiltered = dropFortificationRestatements(
+      const meaningFiltered = dropEarlyClaimRestatements(
         meaning.properties,
-        ctx.fortificationClaim
+        ctx.fortificationClaim,
+        ctx.numericClaim
       );
       audit.push({
         step: "residuals_name_meaning",
@@ -2463,7 +2598,7 @@ export async function assignResiduals(
           properties: meaningFiltered.kept,
           fit: options.fit,
           ...(meaningFiltered.dropped.length > 0
-            ? { droppedFortification: meaningFiltered.dropped }
+            ? { droppedEarlyClaims: meaningFiltered.dropped }
             : {}),
         },
       });
@@ -2549,9 +2684,10 @@ export async function assignResiduals(
           kept: covered.kept,
         },
       });
-      for (const property of dropFortificationRestatements(
+      for (const property of dropEarlyClaimRestatements(
         covered.kept,
-        ctx.fortificationClaim
+        ctx.fortificationClaim,
+        ctx.numericClaim
       ).kept) {
         essenceResolutions.push(await placeByKind(ctx, property, "drop"));
       }
@@ -2599,6 +2735,7 @@ export async function assignResiduals(
     })),
     freeText: [...ctx.freeText],
     ...(fortificationCover !== null ? { fortification: fortificationCover } : {}),
+    ...(numericCover !== null ? { numeric: numericCover } : {}),
   };
 
   const allowSide = sideAllowedForKind(descriptionKind);
@@ -2626,14 +2763,18 @@ export async function assignResiduals(
         p.kind === "side" ? { ...p, kind: "ingredient" as const } : p
       );
   const { kept: inInput, dropped } = filterPropertiesToInput(forFilter, gapInput);
-  const fortDrop = dropFortificationRestatements(inInput, ctx.fortificationClaim);
-  const properties = fortDrop.kept;
+  const claimDrop = dropEarlyClaimRestatements(
+    inInput,
+    ctx.fortificationClaim,
+    ctx.numericClaim
+  );
+  const properties = claimDrop.kept;
   const droppedAll = [
     ...dropped,
-    ...fortDrop.dropped.map((p) => ({
+    ...claimDrop.dropped.map((p) => ({
       phrase: p.phrase,
       kind: p.kind,
-      reason: "fortification_already_placed",
+      reason: "early_claim_already_placed",
     })),
   ];
   audit.push({
