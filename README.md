@@ -4,10 +4,7 @@ Library and stdio MCP server that turns an English food description into an
 EFSA FoodEx2 code (MTX catalogue): base term, facet descriptors, and labelled
 free text for what the code cannot express.
 
-This repository is the **inspectable core** — the encoding procedure and how it
-talks to a model. The hosted product at foodnotes.org wraps this core with
-auth, billing and ops. Organisations can audit this code, run it themselves, or
-build their own wrapper around it.
+This repository is the core. A hosted version is available at https://foodex2-encoder.foodnotes.org/ .
 
 ## What you need
 
