@@ -1,7 +1,6 @@
 /**
- * Identical wording: query and catalogue term name carry the same content words
- * (order-free, after normalization). No fuzzy score path — that cannot be
- * measured or trusted at scale.
+ * Identical wording: query and catalogue term name carry the same words
+ * (order-free, exact). Function words count — "from" is not noise.
  */
 
 import { sameContentTokenSet } from "../search/content-match.js";

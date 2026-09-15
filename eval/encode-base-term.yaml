@@ -204,6 +204,25 @@ cases:
     tags: facets
     note: Cow milk / semi-skimmed / Milk + 1.5 % fat; soft fat claims without a number stay off F07
 
+  - id: encode-oj-from-concentrate
+    input: orange juice from concentrate
+    expected: A03AM
+    method: traversal
+    require_facets: F28.A07MR
+    forbid_facets: F28.A07KF
+    capability: Places "from concentrate" as reconstitution, not concentration/evaporation.
+    tags: facets
+    note: Juice, orange + Reconstitution…; "from" is load-bearing so lexical must not accept Juice concentrate, orange
+
+  - id: encode-unsweetened-almond-drink
+    input: unsweetened almond drink
+    expected: A03TK
+    method: traversal
+    require_facets: F10.A077K
+    capability: Places unsweetened as Without added sugar under Qualitative-info.
+    tags: facets
+    note: Almond drink + Without added sugar (no Unsweetened leaf in MTX)
+
   # --- Any-of gold ---
   - id: encode-semi-skimmed-milk
     input: semi-skimmed milk

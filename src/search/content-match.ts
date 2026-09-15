@@ -1,22 +1,25 @@
 /**
- * Order-free content-word matching shared by lexical search and identical-word accept.
+ * Order-free word matching shared by lexical search and identical-word accept.
+ *
+ * Function words are *not* stripped here: words like "from" / "with" can change
+ * meaning ("orange juice from concentrate" ≠ "Juice concentrate, orange").
+ * Lexical *search* still drops function words when building query postings.
  */
 
 import { tokenize } from "./encode.js";
 
-/** Stripped from content-word sets; kept as query tokens for partial recall search. */
+/** Dropped only when building lexical search query tokens (recall), not for identity. */
 export const FUNCTION_WORDS = new Set([
   "a", "an", "and", "any", "are", "as", "at", "be", "by", "for", "from", "in", "into", "is", "it",
   "its", "of", "on", "or", "that", "the", "then", "there", "these", "this", "to", "was", "were",
 ]);
 
+/** All tokens after normalize/tokenize — including function words. */
 export function contentTokens(text: string): Set<string> {
-  const tokens = tokenize(text);
-  const filtered = tokens.filter((t) => !FUNCTION_WORDS.has(t));
-  return new Set(filtered.length > 0 ? filtered : tokens);
+  return new Set(tokenize(text));
 }
 
-/** Bidirectional content-word equality ("orange juice" = "Juice, orange"; "cabbage" ≠ "Red cabbages"). */
+/** Bidirectional word-set equality ("orange juice" = "Juice, orange"; "cabbage" ≠ "Red cabbages"). */
 export function sameContentTokenSet(query: string, termName: string): boolean {
   const q = contentTokens(query);
   const n = contentTokens(termName);
@@ -25,7 +28,7 @@ export function sameContentTokenSet(query: string, termName: string): boolean {
   return true;
 }
 
-/** One edit or shared prefix — catches yogurt/yoghurt in search recall only. */
+/** One edit or shared prefix — catches yogurt/yoghurt (and minor typos) per token. */
 function tokenMatchesOneEdit(a: string, b: string): boolean {
   if (a === b) return true;
   if (a.startsWith(b) || b.startsWith(a)) return true;
@@ -77,7 +80,7 @@ export function sameContentTokenSetFuzzy(query: string, termName: string): boole
 }
 
 /**
- * Every query content word appears in the name (fuzzy); the name may carry extra words.
+ * Every query word appears in the name (fuzzy); the name may carry extra words.
  * For identical wording use sameContentTokenSet instead.
  */
 export function queryContentWordsInNameFuzzy(query: string, termName: string): boolean {

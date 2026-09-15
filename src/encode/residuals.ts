@@ -17,8 +17,8 @@
  *     are left for later residual passes.
  * 2. Input vs base — what the input still expresses; covered includes step 1;
  *    `side` → free text; ingredient/source → origin role → F01/F27/F04
- *    (`mix` on an RPC/derivative base prefers F27 over F01); `other` → Facets
- *    (A0B8V) dimension pick → closed place in that header. Mix skips F26 Other.
+ *    (`mix` on an RPC/derivative base prefers F27 over F01); `process` /
+ *    `other` → top-down Facets walk (excl. F07/F11/F26). Mix skips F26 Other.
  * For dish/dish_type, defining span is for essence grounding + dish= identity;
  * step 2 always sees the full input (attributes in the dish wording stay claimable).
  * Other route kinds: wording denseness goes through input vs base like any leftover.
@@ -29,13 +29,12 @@
  * narrow freely.
  */
 
-import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
-import { chatJson, defaultModel } from "../llm.js";
-import { contentTokens, sameContentTokenSet } from "../search/content-match.js";
 import { searchTerms, type SearchCandidate } from "../search/lexical.js";
-import { vectorIndexAvailable, vectorSearchFacets } from "../search/vector.js";
-import { pickAllowedCode, pickAllowedCodes } from "./answers.js";
-import { formatFoodEx2Code, sortFacets } from "./foodex2-code.js";
+import { pickAllowedCode } from "./answers.js";
+import {
+  openFacetDimensions,
+  resolveFacetWalk,
+} from "./facet-walk.js";
 import {
   dropNumericRestatements,
   nearestAlcoholFacet,
@@ -52,6 +51,10 @@ import type {
   FreeTextEntry,
   SelectFit,
 } from "./types.js";
+import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
+import { chatJson, defaultModel } from "../llm.js";
+import { contentTokens, FUNCTION_WORDS, sameContentTokenSet } from "../search/content-match.js";
+import { formatFoodEx2Code, sortFacets } from "./foodex2-code.js";
 
 const INGRED_HIERARCHY = "ingred";
 const F01 = "F01";
@@ -128,24 +131,6 @@ If unclear, return null.
 
 Reply with JSON only:
 {"role":"organism"|"made_from"|"contains"|null}
-`;
-
-/**
- * Facets (A0B8V) dimension recall for an `other` property.
- * Candidates may include codingGuidance — MTX scope text for that dimension.
- * Embedding tips reorder candidates / seed leaf pick in code; they are not shown to the model.
- * Wide recall: list every dimension that might fit; placement tries them in order.
- */
-const SYSTEM_FACET_DIMENSION = `You are a food and nutrition ontology expert.
-
-Relative to the food, which candidates might be a possible fit for this property?
-
-Candidates may include codingGuidance: catalogue coding instructions for that dimension — not a description of the food. Use it only to judge whether the property could belong there.
-
-List every candidate code that might fit (wide recall). Empty list if none.
-
-Reply with JSON only:
-{"codes":["<code>",...]}
 `;
 
 /** Named-dish unstated essence → kind-tagged properties to place. */
@@ -304,16 +289,20 @@ A candidate denotes the same ingredient only when it is not a broader group, a r
 
 Something served alongside the food, a cooking method or form, or an optional or alternative inclusion is not an ingredient of the food.
 
+Candidates may include codingGuidance: catalogue instructions for when to use or not use that descriptor, and sometimes how it trades off against other facets. It is not a definition of the phrase or of the food.
+
 Return the matching candidate's code, preferring the raw commodity over a flavour descriptor when the phrase names the food itself. Otherwise return null.
 
 Reply with JSON only:
 {"code":"<code>"|null}
 `;
 
-/** Closed-facet pick (F28/F21/F01/F27/…): same thing as a candidate, or null. */
+/** Closed-facet pick (F01/F27/F09/…): same thing as a candidate, or null. */
 const SYSTEM_CLOSED_PICK = `You are a food and nutrition ontology expert.
 
 Does the phrase mean the same thing as one of the candidates?
+
+Candidates may include codingGuidance: catalogue instructions for when to use or not use that descriptor, and sometimes how it trades off against other facets. It is not a definition of the phrase or of the food. Use it only to decide whether that candidate is the right code for the phrase.
 
 If yes, return that candidate's code. Prefer a more specific candidate when the phrase still means the same thing; do not pick a candidate that adds detail the phrase does not support.
 If none, return null.
@@ -571,112 +560,6 @@ export function facetDimensionCodeForTerm(
     current = parent;
   }
   return null;
-}
-
-export interface FacetEmbeddingTip {
-  descriptorCode: string;
-  descriptorName: string;
-  similarity: number;
-  dimensionCode: string;
-  dimensionName: string;
-  header: string;
-}
-
-const DEFAULT_FACET_EMBEDDING_TIP_LIMIT = 5;
-
-/** Semantic tip hits for an `other` property — never auto-accept. */
-export async function gatherFacetEmbeddingTips(
-  cat: Catalogue,
-  phrase: string,
-  dimensions: FacetDimension[],
-  limit = DEFAULT_FACET_EMBEDDING_TIP_LIMIT
-): Promise<FacetEmbeddingTip[]> {
-  if (!vectorIndexAvailable("facets")) return [];
-  const byDim = new Map(dimensions.map((d) => [d.code, d]));
-  const hits = await vectorSearchFacets(phrase, limit);
-  const tips: FacetEmbeddingTip[] = [];
-  for (const hit of hits) {
-    const dimensionCode = facetDimensionCodeForTerm(cat, hit.code);
-    if (dimensionCode === null || dimensionCode === FACETS_GENERIC_TERM) continue;
-    const dim = byDim.get(dimensionCode);
-    if (dim === undefined) continue;
-    tips.push({
-      descriptorCode: hit.code,
-      descriptorName: cat.term(hit.code)?.name ?? hit.code,
-      similarity: hit.similarity,
-      dimensionCode: dim.code,
-      dimensionName: dim.name,
-      header: dim.header,
-    });
-  }
-  return tips;
-}
-
-async function askFacetDimension(
-  ctx: PlaceContext,
-  phrase: string,
-  dimensions: FacetDimension[],
-  embeddingTips: FacetEmbeddingTip[] = []
-): Promise<{
-  dimensions: FacetDimension[];
-  model: string;
-  detail: Record<string, unknown>;
-}> {
-  const byCode = new Map(dimensions.map((d) => [d.code, d]));
-  const allowed = new Set(byCode.keys());
-  const tipped = new Set(embeddingTips.map((t) => t.dimensionCode));
-  const ordered = [
-    ...dimensions.filter((d) => tipped.has(d.code)),
-    ...dimensions.filter((d) => !tipped.has(d.code)),
-  ];
-  const answered = await chatJson({
-    model: ctx.model,
-    system: SYSTEM_FACET_DIMENSION,
-    user: JSON.stringify(
-      {
-        food: ctx.baseName,
-        property: phrase,
-        input: ctx.input,
-        candidates: ordered.map((d) => {
-          const row: { code: string; name: string; codingGuidance?: string } = {
-            code: d.code,
-            name: d.name,
-          };
-          if (d.codingGuidance !== null) row.codingGuidance = d.codingGuidance;
-          return row;
-        }),
-      },
-      null,
-      2
-    ),
-  });
-  const pickedCodes = pickAllowedCodes(answered.content, allowed);
-  // Among model recalls, try embedding-tipped dimensions first.
-  const rankedCodes = [
-    ...pickedCodes.filter((c) => tipped.has(c)),
-    ...pickedCodes.filter((c) => !tipped.has(c)),
-  ];
-  const picked = rankedCodes
-    .map((c) => byCode.get(c))
-    .filter((d): d is FacetDimension => d !== undefined);
-  return {
-    dimensions: picked,
-    model: answered.model,
-    detail: {
-      via: "facet_dimension",
-      model: answered.model,
-      phrase,
-      food: ctx.baseName,
-      picked: rankedCodes,
-      embeddingTips: embeddingTips.map((t) => ({
-        code: t.descriptorCode,
-        name: t.descriptorName,
-        similarity: Math.round(t.similarity * 1000) / 1000,
-        dimension: t.dimensionName,
-        header: t.header,
-      })),
-    },
-  };
 }
 
 export type AcceptFacetOptions = {
@@ -1609,7 +1492,9 @@ async function resolveF04Phrase(
         code: c.code,
         name: term?.name ?? c.name,
         ...(alts.length > 0 ? { alts } : {}),
-        ...(term?.scopeNote ? { scopeNote: term.scopeNote } : {}),
+        ...(term?.scopeNote?.trim()
+          ? { codingGuidance: term.scopeNote.trim() }
+          : {}),
       };
     }),
   };
@@ -1703,7 +1588,8 @@ function closedNameContainsPhrase(phrase: string, code: string, termName: string
 
 /**
  * Extra name tokens that only qualify an origin label ("Camel (as animal)"),
- * not a different head noun ("Butter nut").
+ * not a different head noun ("Butter nut"). Function words in the label
+ * ("as") are scaffolding, not a second head.
  */
 function originQualifierOnly(phrase: string, termName: string): boolean {
   if (!queryTokensInText(phrase, termName)) return false;
@@ -1711,7 +1597,7 @@ function originQualifierOnly(phrase: string, termName: string): boolean {
   const extras = [...contentTokens(termName)].filter((t) => !q.has(t));
   if (extras.length === 0) return true;
   const qualifiers = new Set(["animal", "plant", "spp"]);
-  return extras.every((t) => qualifiers.has(t));
+  return extras.every((t) => qualifiers.has(t) || FUNCTION_WORDS.has(t));
 }
 
 /**
@@ -1865,7 +1751,9 @@ async function modelPickClosedDescriptor(
         code: c.code,
         name: term?.name ?? c.name,
         ...(alts.length > 0 ? { alts } : {}),
-        ...(term?.scopeNote ? { scopeNote: term.scopeNote } : {}),
+        ...(term?.scopeNote?.trim()
+          ? { codingGuidance: term.scopeNote.trim() }
+          : {}),
       };
     }),
   };
@@ -2148,9 +2036,9 @@ function pushFreeText(entries: FreeTextEntry[], label: string, value: string): v
 /**
  * Place a kind-tagged property (no cross-kind fall-through).
  * ingredient/source: origin role → F01 / F27 / F04.
- * process: F28.
+ * process: F28 Facets walk.
  * side: free text only (no plate-companion facet in MTX).
- * other: Facets (A0B8V) dimension pick → closed place in that header only.
+ * other: Facets dimension open → walk selected headers (excl. F07/F11/F26).
  * onMiss: essence drops (dish= covers identity); input vs base → free text.
  */
 async function placeByKind(
@@ -2164,6 +2052,10 @@ async function placeByKind(
    * Origin trees (F01/F27) must still allow naming a child organism/commodity
    * under a broad implied source (deer under mammals-as-animal). */
   const rejectUnderImplied = onMiss === "drop";
+  const walkAccept = (header: string, code: string): boolean =>
+    acceptClosedDescriptor(ctx.cat, header, code, ctx.implied, {
+      rejectUnderImplied,
+    }) === "keep";
 
   if (kind === "side") {
     if (onMiss === "drop") {
@@ -2212,20 +2104,9 @@ async function placeByKind(
       }
     }
   } else if (kind === "process") {
-    const dimensions = facetDimensions(ctx.cat);
-    const embeddingTips = await gatherFacetEmbeddingTips(ctx.cat, phrase, dimensions, 15);
-    const seedHits: LexHit[] = embeddingTips
-      .filter((t) => t.header === F28)
-      .map((t) => ({
-        code: t.descriptorCode,
-        name: t.descriptorName,
-        score: t.similarity,
-      }));
-    const process = await resolveClosedFacetPhrase(ctx.cat, phrase, F28, ctx.implied, {
+    const process = await resolveFacetWalk(ctx.cat, phrase, [F28], {
       model: ctx.model,
-      allowRootFallback: false,
-      seedHits,
-      rejectUnderImplied,
+      accept: walkAccept,
     });
     attempts.push(process.detail);
     if (process.facet !== null && addFacet(ctx, process.facet)) {
@@ -2233,42 +2114,31 @@ async function placeByKind(
     }
   } else if (kind === "other") {
     const dimensions = facetDimensions(ctx.cat);
-    const embeddingTips = await gatherFacetEmbeddingTips(ctx.cat, phrase, dimensions);
-    const asked = await askFacetDimension(ctx, phrase, dimensions, embeddingTips);
-    attempts.push(asked.detail);
-    for (const dimension of asked.dimensions) {
-      otherLabel = ctx.cat.facetCategory(dimension.header)?.label ?? dimension.name;
-      const seedHits: LexHit[] = embeddingTips
-        .filter((t) => t.header === dimension.header)
-        .map((t) => ({
-          code: t.descriptorCode,
-          name: t.descriptorName,
-          score: t.similarity,
-        }));
-      const placed = await resolveClosedFacetPhrase(
-        ctx.cat,
+    const opened = await openFacetDimensions(ctx.cat, phrase, dimensions, {
+      model: ctx.model,
+      accept: walkAccept,
+    });
+    attempts.push(opened.detail);
+    const walked = await resolveFacetWalk(ctx.cat, phrase, opened.headers, {
+      model: ctx.model,
+      accept: walkAccept,
+    });
+    attempts.push(walked.detail);
+    if (walked.facet !== null && addFacet(ctx, walked.facet)) {
+      otherLabel =
+        ctx.cat.facetCategory(walked.facet.header)?.label ?? walked.facet.header;
+      return {
         phrase,
-        dimension.header,
-        ctx.implied,
-        {
-          model: ctx.model,
-          allowRootFallback: false,
-          seedHits,
-          rejectUnderImplied,
-        }
-      );
-      attempts.push(placed.detail);
-      if (placed.facet !== null && addFacet(ctx, placed.facet)) {
-        return {
-          phrase,
-          kind,
-          dimension: dimension.name,
-          header: dimension.header,
-          placed: "facet",
-          facet: placed.facet,
-          attempts,
-        };
-      }
+        kind,
+        header: walked.facet.header,
+        placed: "facet",
+        facet: walked.facet,
+        attempts,
+      };
+    }
+    if (opened.headers.length === 1) {
+      otherLabel =
+        ctx.cat.facetCategory(opened.headers[0]!)?.label ?? opened.headers[0]!;
     }
   }
 
