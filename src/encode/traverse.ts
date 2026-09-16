@@ -73,7 +73,7 @@ interface RawCandidate {
 
 const SYSTEM_ROUTE = `Assign exactly one descriptionKind to the input:
 
-- "foodstuff": one food or drink
+- "foodstuff": a food, beverage, food product, food commodity or food category
 - "dish": a prepared dish or meal, including a named dish with sides or accompaniments
 - "dish_type": a type of dish, without a specific dish name
 - "mix": mixed foods predominantly from the same food group
