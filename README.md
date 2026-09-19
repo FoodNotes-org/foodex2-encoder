@@ -112,3 +112,18 @@ MIT — see [LICENSE](LICENSE). Copyright (c) 2026 e-accent BV.
 
 That grant covers this software. EFSA catalogue files under `vendor/efsa-catalogues/`
 (and generated `data/` derived from them) remain subject to EFSA’s terms.
+
+### Attribution (eval inputs)
+
+Some food names used as evaluation cases under `eval/` were drawn from national
+food composition databases. We use food names only (not nutrient values). Those
+databases remain under their publishers’ terms:
+
+- **CIQUAL** (ANSES, France) — [ciqual.anses.fr](https://ciqual.anses.fr/).
+  Cite as: Anses. Table de composition nutritionnelle des aliments Ciqual.
+  Data are available under the [Etalab Open Licence 2.0](https://www.etalab.gouv.fr/licence-ouverte-open-licence/).
+- **CoFID** (UK) — McCance and Widdowson’s Composition of Foods Integrated
+  Dataset, [GOV.UK](https://www.gov.uk/government/publications/composition-of-foods-integrated-dataset-cofid).
+  Contains public sector information licensed under the
+  [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).
+
