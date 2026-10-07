@@ -80,6 +80,17 @@ cases:
     tags: dish
     note: Named-dish span owned; uncovered homemade may be note=
 
+  - id: encode-sausage-potatoes-fries
+    input: sausage with potatoes and fries
+    expected: A03VJ
+    method: traversal
+    require_facets: F04.A024F
+    require_f04_under: F04.A011N
+    forbid_facets: F04.A00ZT,F26.A07XE,F28.A07GR
+    capability: Encodes a plate as the composite meal term, with its components as F04 rather than as separate foods.
+    tags: dish
+    note: Potatoes and meat meal; potatoes and meat are implicit, sausages and fries are F04. Frying holds for the fries only; no F26 Other because a dedicated meal term exists
+
   - id: encode-sandwich-bare
     input: sandwich
     expected: A03YZ
@@ -167,6 +178,15 @@ cases:
     tags: soft, facets
     note: Soft — F27 members are required; model sometimes also adds F28 Mixing (same-nature mix is not Mixing)
 
+  - id: encode-fresh-and-frozen-shellfish
+    input: fresh and frozen shellfish
+    expected: A026T
+    method: traversal
+    forbid_facets: F28.A07KQ,F10.A166Y,F28.A0BYG
+    capability: Does not attach a treatment or state that holds for only part of a described category.
+    tags: facets
+    note: Fish and seafood; fresh and frozen are subgroups, so the input establishes neither Freezing, Fresh nor the preservation-treatment parent of the item as a whole. Unprocessed is defensible (fresh and frozen both count as unprocessed) — neither required nor forbidden
+
   # --- Catalogue gaps and restraint ---
   - id: encode-quinoa-flour
     input: Quinoa flour
@@ -179,12 +199,11 @@ cases:
 
   - id: encode-kangaroo-meat
     input: kangaroo meat
-    expected: A0EYF
+    expected: A01RS, A0EYF
     method: traversal
-    forbid_pick: A01RS
-    capability: Does not assume catalogue words (fresh) that the input does not state.
-    tags: restraint
-    note: Mammals meat — not Kangaroo fresh meat
+    capability: Reads a catalogue default qualifier (fresh) as part of the plain name, without requiring it.
+    tags: any_of
+    note: Kangaroo fresh meat (preferred; fresh is the catalogue default for the meat, as with chicken) or Mammals meat + F01 Kangaroos
 
   - id: encode-spirits-volume
     input: Spirits, 40% volume

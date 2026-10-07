@@ -18,7 +18,10 @@
  * 2. Input vs base — what the input still expresses; covered includes step 1;
  *    `side` → free text; ingredient/source → origin role → F01/F27/F04
  *    (`mix` on an RPC/derivative base prefers F27 over F01); `process` /
- *    `other` → top-down Facets walk (excl. F07/F11/F26). Mix skips F26 Other.
+ *    `other` → top-down Facets walk (excl. F07/F11/F26). Mix skips F26.
+ * 3. F26 Generic-term — its own step after placement (chooseF26): Other when the
+ *    input is a missing sibling of the base's children, else Unspecified on an
+ *    H/M/P base.
  * For dish/dish_type, defining span is for essence grounding + dish= identity;
  * step 2 always sees the full input (attributes in the dish wording stay claimable).
  * Other route kinds: wording denseness goes through input vs base like any leftover.
@@ -55,6 +58,7 @@ import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
 import { chatJson, defaultModel } from "../llm.js";
 import { contentTokens, FUNCTION_WORDS, sameContentTokenSet } from "../search/content-match.js";
 import { formatFoodEx2Code, sortFacets } from "./foodex2-code.js";
+import { checkWholeItem } from "./whole-item-check.js";
 
 const INGRED_HIERARCHY = "ingred";
 const F01 = "F01";
@@ -243,7 +247,7 @@ function systemInputVsBase(allowSide: boolean): string {
 
 You are given a food description (\`input\`) and what is already captured (\`baseTerm\`, \`implicits\`, \`covered\`).
 
-List only the properties that \`input\` still expresses and that are not yet captured. Omit wording that do not materially change the food. For each kept property: a short \`phrase\` and a \`kind\`. Put omitted candidates in \`omitted\` with a short \`reason\` so the omission is explicit.
+List only additional properties asserted by input that are not already represented by \`baseTerm\`, \`implicits\`, or \`covered\`. Omit wording that do not materially change the food. For each kept property: a short \`phrase\` and a \`kind\`. Put omitted candidates in \`omitted\` with a short \`reason\` so the omission is explicit.
 
 Kinds:
 ${kinds}
@@ -311,20 +315,28 @@ Reply with JSON only:
 {"code":"<CODE>"|null}
 `;
 
-/** F26 Other: is this food a missing sibling under the parent base (not a parent/relative of the set)? */
-export function promptF26Other(a: string, termNames: string[]): string {
-  return `As an ontologist, how would you classify ${JSON.stringify(a)} in relationship with the set ${JSON.stringify(termNames)}?
+/**
+ * F26: how the input relates to the base's direct children. The answer decides
+ * Other vs Unspecified in code (see decideF26); the model does not pick F26.
+ */
+const SYSTEM_F26_RELATION = `You are a food and nutrition ontology expert.
 
-Assign one of:
-- "parent" — it is a broader kind that the set belongs under
-- "sibling" — it belongs as a peer of the set, forming a coherent set together
-- "relative" — it is related but neither a parent nor a peer
-- "non-related" — it does not belong with this set
+You are given a food description (\`input\`), the catalogue term chosen for it (\`baseTerm\`), and the terms directly under that term (\`children\`).
+
+First, consider what food \`input\` identifies.
+
+Then, consider what kinds of \`baseTerm\` the children are.
+
+Then, decide how \`input\` relates to the children:
+- "same" — it is the same food as one of the children
+- "within" — it is a kind of one of the children
+- "sibling" — it is another kind of \`baseTerm\`, at the same level as the children, that none of them covers
+- "parent" — it covers several of the children, or is no narrower than \`baseTerm\`
+- "none" — none of these
 
 Reply with JSON only:
-{"verdict":"parent"|"sibling"|"relative"|"non-related"}
+{"relation":"same"|"within"|"sibling"|"parent"|"none"}
 `;
-}
 
 export interface AssignResidualsOptions {
   model?: string;
@@ -338,7 +350,7 @@ export interface AssignResidualsOptions {
   /**
    * From the traversal route. Dish essence runs for `dish` / `dish_type`.
    * Foodstuff name meaning runs for `foodstuff` when fit is `broad`.
-   * `mix` places components as F27 on an RPC/derivative base and skips F26 Other.
+   * `mix` places components as F27 on an RPC/derivative base and skips F26.
    * Lexical auto-accept and missing route → skip dish / foodstuff essence.
    */
   descriptionKind?: DescriptionKind | null;
@@ -2175,78 +2187,105 @@ export function siblingChildrenForF26(
   return out;
 }
 
-/**
- * F26 Unspecified when the locked base is a hierarchy term.
- */
-export function chooseF26Unspecified(
-  cat: Catalogue,
-  baseCode: string
-): FacetDescriptorRef | null {
-  const term = cat.term(baseCode);
-  if (term === undefined) return null;
-  const implied = impliedKeys(cat, baseCode);
-  if ([...implied].some((key) => key.startsWith(`${F26}.`))) return null;
-  if (term.detailLevel !== "H") return null;
-  return {
-    header: F26,
-    code: F26_UNSPECIFIED,
-    name: cat.term(F26_UNSPECIFIED)?.name ?? "Unspecified",
-  };
+/** How the input relates to the base's children (SYSTEM_F26_RELATION). */
+export type F26Relation = "same" | "within" | "sibling" | "parent" | "none";
+
+const F26_RELATIONS = new Set<F26Relation>(["same", "within", "sibling", "parent", "none"]);
+
+/** Detail levels above core/extended: the base itself is a broad group. */
+const F26_BROAD_LEVELS = new Set(["H", "M", "P"]);
+
+export function parseF26Relation(content: unknown): F26Relation | null {
+  if (content === null || typeof content !== "object") return null;
+  const raw = (content as { relation?: unknown }).relation;
+  if (typeof raw !== "string") return null;
+  const relation = raw.trim().toLowerCase() as F26Relation;
+  return F26_RELATIONS.has(relation) ? relation : null;
 }
 
-function parseF26OtherVerdict(content: unknown): "yes" | "no" {
-  if (content === null || typeof content !== "object") return "no";
-  const raw = (content as { verdict?: unknown }).verdict;
-  if (typeof raw !== "string") return "no";
-  // F26 Other means a missing sibling — only "sibling" qualifies. A parent is
-  // already covered by the base; a relative is SKOS-related, not a missing leaf.
-  return raw.trim().toLowerCase() === "sibling" ? "yes" : "no";
-}
+export type F26Decision =
+  | { kind: "other" }
+  | { kind: "unspecified" }
+  | { kind: "none"; reason: string };
 
 /**
- * F26 Other when fit is broad and the model judges a missing natural sibling.
+ * Other and Unspecified are exclusive (F26 is single cardinality); Other is
+ * decided first.
+ *
+ * - Other: the input names another kind of the base that no child covers.
+ * - Unspecified: the base is a broad group (H/M/P) and the input does not name
+ *   anything narrower. We only land on a broad group when the input is that
+ *   vague, so detail level settles it once Other is ruled out.
+ * - same/within: a child fits, so the base should have gone lower; neither
+ *   descriptor describes that (a selection miss, visible in the audit).
+ * - No children: no more detailed item exists to be missing or unknown.
  */
-export async function chooseF26Other(
+export function decideF26(
+  hasChildren: boolean,
+  baseDetailLevel: string | null,
+  relation: F26Relation | null
+): F26Decision {
+  if (!hasChildren) return { kind: "none", reason: "no_children" };
+  if (relation === "sibling") return { kind: "other" };
+  if (relation === "same" || relation === "within") {
+    return { kind: "none", reason: `child_fits_${relation}` };
+  }
+  if (baseDetailLevel !== null && F26_BROAD_LEVELS.has(baseDetailLevel)) {
+    return { kind: "unspecified" };
+  }
+  return { kind: "none", reason: "base_core_or_extended" };
+}
+
+/** F26 for the locked base: one relation call, then decideF26. */
+export async function chooseF26(
   cat: Catalogue,
   input: string,
   baseCode: string,
-  options: { model: string; fit?: SelectFit | null }
+  options: { model: string }
 ): Promise<{ facet: FacetDescriptorRef | null; detail: Record<string, unknown> }> {
-  const implied = impliedKeys(cat, baseCode);
-  if ([...implied].some((key) => key.startsWith(`${F26}.`))) {
+  if ([...impliedKeys(cat, baseCode)].some((key) => key.startsWith(`${F26}.`))) {
     return { facet: null, detail: { reason: "already_implied" } };
   }
-  if (options.fit !== "broad") {
-    return { facet: null, detail: { reason: "fit_not_broad", fit: options.fit ?? null } };
-  }
-  if (cat.term(baseCode)?.detailLevel === "H") {
-    return { facet: null, detail: { reason: "hierarchy_uses_unspecified" } };
+  const baseTerm = cat.term(baseCode);
+  const baseDetailLevel = baseTerm?.detailLevel ?? null;
+  const children = siblingChildrenForF26(cat, baseCode);
+
+  let relation: F26Relation | null = null;
+  let model: string | undefined;
+  if (children.length > 0) {
+    const answered = await chatJson({
+      model: options.model,
+      system: SYSTEM_F26_RELATION,
+      user: JSON.stringify(
+        {
+          input,
+          baseTerm: baseTerm?.name ?? baseCode,
+          children: children.map((c) => c.name),
+        },
+        null,
+        2
+      ),
+    });
+    relation = parseF26Relation(answered.content);
+    model = answered.model;
   }
 
-  const siblings = siblingChildrenForF26(cat, baseCode);
-  if (siblings.length === 0) {
-    return { facet: null, detail: { reason: "no_siblings" } };
-  }
-
-  const picked = await chatJson({
-    model: options.model,
-    system: promptF26Other(input, siblings.map((s) => s.name)),
-    user: input,
-  });
-  const verdict = parseF26OtherVerdict(picked.content);
+  const decision = decideF26(children.length > 0, baseDetailLevel, relation);
   const detail = {
-    model: picked.model,
-    verdict,
-    siblingCount: siblings.length,
+    ...(model !== undefined ? { model } : {}),
+    relation,
+    childCount: children.length,
+    baseDetailLevel,
+    decision: decision.kind,
+    ...(decision.kind === "none" ? { reason: decision.reason } : {}),
   };
-  if (verdict !== "yes") {
-    return { facet: null, detail };
-  }
+  if (decision.kind === "none") return { facet: null, detail };
+  const code = decision.kind === "other" ? F26_OTHER : F26_UNSPECIFIED;
   return {
     facet: {
       header: F26,
-      code: F26_OTHER,
-      name: cat.term(F26_OTHER)?.name ?? "Other",
+      code,
+      name: cat.term(code)?.name ?? (decision.kind === "other" ? "Other" : "Unspecified"),
     },
     detail,
   };
@@ -2257,8 +2296,8 @@ async function finishResiduals(
   audit: AuditEntry[],
   extra: Record<string, unknown> = {}
 ): Promise<AssignResidualsOk> {
-  // Same-nature mix: the generic base is intentional (§3.1.10); F26 Other would
-  // mis-flag it as a missing sibling.
+  // Same-nature mix: the generic base is intentional (§3.1.10); neither a
+  // missing sibling (Other) nor missing detail (Unspecified).
   if (ctx.descriptionKind === "mix") {
     audit.push({
       step: "residuals_f26",
@@ -2270,38 +2309,12 @@ async function finishResiduals(
       },
     });
   } else {
-    const unspecified = chooseF26Unspecified(ctx.cat, ctx.baseCode);
-    if (unspecified !== null) {
-      const added = addFacet(ctx, unspecified);
-      audit.push({
-        step: "residuals_f26",
-        detail: {
-          kind: "unspecified",
-          applied: added,
-          facet: unspecified,
-          fit: ctx.fit,
-          baseDetailLevel: ctx.cat.term(ctx.baseCode)?.detailLevel ?? null,
-        },
-      });
-    } else {
-      const other = await chooseF26Other(ctx.cat, ctx.input, ctx.baseCode, {
-        model: ctx.model,
-        fit: ctx.fit,
-      });
-      audit.push({
-        step: "residuals_f26",
-        detail: {
-          kind: "other",
-          ...other.detail,
-          applied: other.facet !== null,
-          facet: other.facet,
-          fit: ctx.fit,
-        },
-      });
-      if (other.facet !== null) {
-        addFacet(ctx, other.facet);
-      }
-    }
+    const f26 = await chooseF26(ctx.cat, ctx.input, ctx.baseCode, { model: ctx.model });
+    const applied = f26.facet !== null && addFacet(ctx, f26.facet);
+    audit.push({
+      step: "residuals_f26",
+      detail: { ...f26.detail, applied, facet: f26.facet, fit: ctx.fit },
+    });
   }
 
   const cleaned = cleanupFacets(ctx.cat, ctx.facets, ctx.implied, {
@@ -2327,7 +2340,19 @@ async function finishResiduals(
     });
   }
 
-  const sorted = sortFacets(cleaned.facets);
+  // Each facet is judged against the full input, not the phrase that proposed it.
+  const whole = await checkWholeItem(ctx.cat, ctx.input, ctx.baseCode, cleaned.facets, {
+    model: ctx.model,
+  });
+  audit.push({
+    step: "residuals_whole_item",
+    detail: {
+      ...whole.detail,
+      rejected: whole.rejected.map((f) => ({ header: f.header, code: f.code, name: f.name })),
+    },
+  });
+
+  const sorted = sortFacets(whole.facets);
   const freeTextOut = ctx.freeText.length > 0 ? ctx.freeText : null;
   const code = formatFoodEx2Code(ctx.baseCode, sorted);
   audit.push({

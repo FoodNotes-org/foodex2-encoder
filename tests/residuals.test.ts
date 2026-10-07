@@ -11,8 +11,8 @@ import {
   alignsComponentToFoodTerm,
   bareFortifiedFacet,
   buildClosedPickPool,
-  chooseF26Unspecified,
   cleanupFacets,
+  decideF26,
   facetDimensionCodeForTerm,
   facetDimensions,
   findDishSpan,
@@ -23,8 +23,8 @@ import {
   parseGapProperties,
   phraseCoveredByFortification,
   dropFortificationRestatements,
+  parseF26Relation,
   parseOriginRole,
-  promptF26Other,
   recallIngredF04,
   siblingChildrenForF26,
   type FortificationClaim,
@@ -534,39 +534,47 @@ describe("facetDimensions / headerForFacetDimension", () => {
   });
 });
 
-describe("chooseF26Unspecified / siblingChildrenForF26", () => {
-  it("assigns Unspecified for a hierarchy-term base", () => {
-    const facet = chooseF26Unspecified(cat, "A026T");
-    assert.ok(facet);
-    assert.equal(facet!.header, "F26");
-    assert.equal(facet!.code, "A07XD");
+describe("decideF26 / parseF26Relation / siblingChildrenForF26", () => {
+  it("gives Other for a missing sibling, at any detail level", () => {
+    assert.deepEqual(decideF26(true, "C", "sibling"), { kind: "other" });
+    assert.deepEqual(decideF26(true, "H", "sibling"), { kind: "other" });
   });
 
-  it("does not assign Unspecified for a non-hierarchy base", () => {
-    assert.equal(chooseF26Unspecified(cat, "A02QJ"), null);
-    assert.equal(chooseF26Unspecified(cat, "A0F3J"), null);
-    assert.equal(chooseF26Unspecified(cat, "A03YJ"), null);
+  it("gives Unspecified on an H/M/P base when the input names nothing narrower", () => {
+    for (const level of ["H", "M", "P"]) {
+      assert.deepEqual(decideF26(true, level, "parent"), { kind: "unspecified" });
+      assert.deepEqual(decideF26(true, level, "none"), { kind: "unspecified" });
+      assert.deepEqual(decideF26(true, level, null), { kind: "unspecified" });
+    }
+  });
+
+  it("gives nothing on a core or extended base unless the input is a missing sibling", () => {
+    assert.equal(decideF26(true, "C", "parent").kind, "none");
+    assert.equal(decideF26(true, "E", "none").kind, "none");
+  });
+
+  it("gives nothing when a child fits, even on a broad base", () => {
+    assert.deepEqual(decideF26(true, "P", "same"), { kind: "none", reason: "child_fits_same" });
+    assert.deepEqual(decideF26(true, "M", "within"), {
+      kind: "none",
+      reason: "child_fits_within",
+    });
+  });
+
+  it("gives nothing when the base has no children", () => {
+    assert.deepEqual(decideF26(false, "P", null), { kind: "none", reason: "no_children" });
+  });
+
+  it("parses known relations and rejects others", () => {
+    assert.equal(parseF26Relation({ relation: " Sibling " }), "sibling");
+    assert.equal(parseF26Relation({ relation: "relative" }), null);
+    assert.equal(parseF26Relation({ verdict: "sibling" }), null);
+    assert.equal(parseF26Relation(null), null);
   });
 
   it("lists sibling children under egg based dishes", () => {
     const siblings = siblingChildrenForF26(cat, "A03YJ");
     assert.ok(siblings.length >= 3);
     assert.ok(siblings.some((s) => s.code === "A03YN"));
-  });
-
-  it("formats sibling names as a JSON array so commas in names stay inside elements", () => {
-    const prompt = promptF26Other("venison", [
-      "Deer, fallow fresh meat",
-      "Deer, red fresh meat",
-      "Roe deer meat",
-    ]);
-    assert.match(
-      prompt,
-      /\["Deer, fallow fresh meat","Deer, red fresh meat","Roe deer meat"\]/
-    );
-    assert.ok(prompt.includes('"parent"'));
-    assert.ok(prompt.includes('"sibling"'));
-    assert.ok(prompt.includes('"relative"'));
-    assert.ok(prompt.includes('"non-related"'));
   });
 });

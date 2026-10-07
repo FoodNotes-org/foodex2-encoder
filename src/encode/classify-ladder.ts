@@ -50,10 +50,9 @@ export function classifySystemPrompt(options: {
  * Questions always name the actual item text so we don't abstract it into
  * "this food with additions".
  *
- * Known gap: catalogue-default qualifiers (*Deer fresh meat* vs
- * *venison*) — literal ≠ conventional exact; no sibling/parent context in
- * select; fuzzy exact/related accepted for now. Revisit later; do not paper
- * over with example-heavy prompt wording.
+ * Catalogue-default qualifiers (*Deer fresh meat* for *venison*): literal ≠
+ * conventional exact, and either reading is accepted (lenient, by decision;
+ * see WORK_DOC). Do not paper over with example-heavy prompt wording.
  */
 export function classifyQuestions(
   itemQ: string,
