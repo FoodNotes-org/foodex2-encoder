@@ -24,7 +24,7 @@ describe("toUserEncodeResult", () => {
         },
       ],
       steps: [],
-      audit: [{ step: "input", detail: { raw: "fried rice with chicken" } }],
+      audit: [{ step: "input", detail: { input: "fried rice with chicken" } }],
       food: "fried rice with chicken",
       descriptionKind: "dish",
     };
@@ -52,7 +52,7 @@ describe("toUserEncodeResult", () => {
       status: "rejected",
       reason: "empty_input",
       message: "Input is empty",
-      audit: [{ step: "input", detail: { raw: "" } }],
+      audit: [{ step: "input", detail: { input: "" } }],
     };
     assert.deepEqual(toUserEncodeResult(internal), {
       status: "rejected",

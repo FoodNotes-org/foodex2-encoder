@@ -116,7 +116,7 @@ export async function encodeBaseTerm(
   const audit: AuditEntry[] = [];
   const lexicalLimit = options.lexicalLimit ?? 10;
 
-  audit.push({ step: "input", detail: { raw: rawInput, trimmed: input } });
+  audit.push({ step: "input", detail: { input } });
 
   if (input === "") {
     return {
