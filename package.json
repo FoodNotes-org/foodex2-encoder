@@ -6,6 +6,7 @@
   "scripts": {
     "build:catalogue": "python3 scripts/build-catalogue.py",
     "build:embeddings": "tsx scripts/build-embeddings.ts",
+    "build:rules": "tsx scripts/build-rules.ts",
     "cli": "tsx src/cli.ts",
     "server": "tsx src/server.ts",
     "lexical-eval": "tsx scripts/lexical-eval.ts",

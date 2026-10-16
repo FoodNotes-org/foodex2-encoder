@@ -15,6 +15,7 @@
  */
 
 import { readDataText } from "./data.js";
+import { isHierarchyTerm } from "./rules/check.js";
 
 /** Exposure hierarchy — food-section grouping for search and traversal. */
 export const DEFAULT_HIERARCHY = "expo";
@@ -49,7 +50,7 @@ export const DETAIL_LEVEL_LABELS: Record<string, string> = {
  * them as a last resort when nothing more specific fits.
  */
 export function isBaseCandidate(term: CatalogueTerm): boolean {
-  if (term.detailLevel === "H") return false;
+  if (isHierarchyTerm(term)) return false;
   return DEFAULT_HIERARCHY in term.hierarchies && term.hierarchies[DEFAULT_HIERARCHY]?.[1] === true;
 }
 
@@ -62,7 +63,6 @@ export interface FacetCategory {
   label: string | null;
   /** Hierarchy code the descriptors of this category live in, e.g. "process". */
   hierarchyCode: string;
-  cardinality: "single" | "repeatable";
   scopeNote: string | null;
 }
 

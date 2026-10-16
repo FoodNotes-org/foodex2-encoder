@@ -39,6 +39,13 @@ npm run build:embeddings
 `data/` is generated locally (~25 MB) and is gitignored. Rebuild after updating
 the `vendor/efsa-catalogues` submodule.
 
+The coding rules in `src/rules/` (EFSA business rules, facet cardinality, our
+own checks) are shared with the FoodEx2 Atlas validator. Their data comes from
+`rules/cardinality.yaml`, `rules/conflicts.yaml` and
+`vendor/efsa-business-rules/`; after editing those, regenerate the committed
+`src/rules/rules-data.json` with `npm run build:rules`. Background and sources
+are in `rules/efsa-business-rules.md`.
+
 ## Model endpoint
 
 Copy `.env` (or export the same variables). OpenRouter needs only a key:
@@ -87,8 +94,10 @@ Point a client at that process. Cursor example (`mcp.json`):
 }
 ```
 
-Tools: `encode` (main), `search_terms`, `get_term`. `encode` returns the code,
-base term, facets, free text, fit, method, and a short `explanation`.
+Tool: `encode`. It returns the code, base term, facets, free text, fit,
+method, and a short `explanation`. Catalogue lookups, decoding, validation
+and EFSA guidance are in the free
+[FoodEx2 Atlas MCP](https://foodex2-atlas.foodnotes.org/mcp-service/).
 
 ## Tests and eval
 

@@ -8,11 +8,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadEnv } from "./env.js";
-import { TOOLS } from "./tools.js";
+import { SERVER_INSTRUCTIONS, TOOLS } from "./tools.js";
 
 loadEnv();
 
-const server = new McpServer({ name: "foodex2-encoder", version: "0.1.0" });
+const server = new McpServer(
+  { name: "foodex2-encoder", version: "0.1.0" },
+  { instructions: SERVER_INSTRUCTIONS }
+);
 
 for (const tool of TOOLS) {
   server.registerTool(

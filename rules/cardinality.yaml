@@ -1,0 +1,235 @@
+# Facet cardinality: how many descriptors a FoodEx2 code may state per facet.
+# Like EFSA's BR25, this counts stated descriptors only; how a stated descriptor
+# relates to one the base term implies is a separate check.
+#
+# Hand-maintained. One entry per MTX facet, each with its sources:
+#   flag           MTX attributeSingleOrRepeatable (what EFSA's checker, BR25, enforces)
+#   guidance_2015  FoodEx2 guidance rev 2, Table 20 (null: facet added after 2015)
+#   description    the cardinality sentence of the MTX facet description (null: silent)
+# and the verdict for a second descriptor in the same facet:
+#   second: error    EFSA's BR25 rejects it
+#   second: warning  EFSA's checker accepts it, but EFSA's own wording says one
+#   second: allowed
+#   except         descriptors that don't count towards the limit
+#   per_group      count only within the same top-level group of the facet hierarchy
+#   conflict       id in conflicts.yaml
+#
+# Source precedence and the reasoning per verdict: efsa-business-rules.md and
+# conflicts.yaml.
+
+mtx_release: "17.1"
+
+facets:
+  F01:
+    label: Source
+    flag: single
+    guidance_2015: Single
+    description: "In most cases a RPC has only one source. However, more (none contradicting) descriptors can be applied to each entry."
+    second: error
+    conflict: cardinality-F01-F30-F32
+
+  F02:
+    label: Part-nature
+    flag: single
+    guidance_2015: Single
+    description: null
+    second: error
+
+  F03:
+    label: Physical-state
+    flag: single
+    guidance_2015: Single
+    description: "Only one descriptor from this facet can be added to each entry, apart from the specification “with solid particles”."
+    second: error
+    conflict: cardinality-F03-exception
+
+  F04:
+    label: Ingredient
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More (none contradicting) descriptors can be applied to each entry."
+    second: allowed
+
+  F06:
+    label: Surrounding-medium
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: allowed
+
+  F07:
+    label: Fat-content
+    flag: single
+    guidance_2015: Single
+    description: "Only one descriptor from this facet can be added to each entry."
+    second: error
+
+  F08:
+    label: Sweetening-agent
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: allowed
+
+  F09:
+    label: Fortification-agent
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: allowed
+
+  F10:
+    label: Qualitative-info
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: allowed
+
+  F11:
+    label: Alcohol-content
+    flag: single
+    guidance_2015: Single
+    description: "Only one descriptor from this facet can be added to each entry."
+    second: error
+
+  F12:
+    label: Dough-Mass
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: allowed
+
+  F17:
+    label: Extent-of-cooking
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "Only one descriptor from this facet can be added to each entry, apart from the specification “Meat/fish/bakery/vegetables: presence of burned spots-parts”."
+    second: warning
+    except: [A07ND]
+    conflict: cardinality-F17-F18-F19
+
+  F18:
+    label: Packaging-format
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "Only one descriptor from this facet can usually be added to each entry."
+    second: warning
+    conflict: cardinality-F17-F18-F19
+
+  F19:
+    label: Packaging-material
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "Only one descriptor for this facet may be used for each entry."
+    second: warning
+    conflict: cardinality-F17-F18-F19
+
+  F20:
+    label: Part-consumed-analysed
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: allowed
+
+  F21:
+    label: Production-method
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other (e.g. domesticated and wild)."
+    second: allowed
+
+  F22:
+    label: Preparation-production-place
+    flag: single
+    guidance_2015: Single
+    description: "Only one descriptor from this facet can be added to each entry."
+    second: error
+
+  F23:
+    label: Target-consumer
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: allowed
+
+  F24:
+    label: Intended-use
+    flag: single
+    guidance_2015: Single
+    description: "Only one descriptor from this facet can be added to each entry."
+    second: error
+
+  F25:
+    label: Risky-Ingredient
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: allowed
+
+  F26:
+    label: Generic-term
+    flag: single
+    guidance_2015: Single
+    description: "Only one descriptor from this facet can be added to each entry."
+    second: error
+
+  F27:
+    label: Source-commodities
+    flag: repeatable
+    guidance_2015: Single (repeatable for mixed raw commodities or derivatives)
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    # When several are allowed is decided by BR01, BR05 and BR07, not by cardinality.
+    second: allowed
+
+  F28:
+    label: Process
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More (none contradicting) descriptors can be applied to each entry."
+    second: allowed
+
+  F29:
+    label: Purpose-of-raising
+    flag: repeatable
+    guidance_2015: Repeatable
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: allowed
+
+  F30:
+    label: Reproductive-level
+    flag: single
+    guidance_2015: Single
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: error
+    conflict: cardinality-F01-F30-F32
+
+  F31:
+    label: Animal-age-class
+    flag: repeatable
+    guidance_2015: Single Repeatable
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: allowed
+
+  F32:
+    label: Gender
+    flag: single
+    guidance_2015: Single
+    description: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    second: error
+    conflict: cardinality-F01-F30-F32
+
+  F33:
+    label: Legislative-classes
+    flag: repeatable
+    guidance_2015: Single for each sub-list; repeatable among sub-lists
+    description: "Only one descriptor from this facet can be added to each entry."
+    second: warning
+    per_group: true
+    conflict: cardinality-F33
+
+  F34:
+    label: Host-sampled
+    flag: single
+    guidance_2015: null
+    description: "Only one descriptor from this facet can be added to each entry."
+    second: error

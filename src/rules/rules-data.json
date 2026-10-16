@@ -1,0 +1,888 @@
+{
+  "_provenance": {
+    "generated_by": "scripts/build-rules.ts",
+    "generated_at": "2026-10-16T17:34:48.288Z",
+    "sources": [
+      "rules/cardinality.yaml",
+      "rules/conflicts.yaml",
+      "vendor/efsa-business-rules/BR_Data.csv (EFSA, EUPL 1.2)"
+    ]
+  },
+  "mtxRelease": "17.1",
+  "facets": {
+    "F01": {
+      "label": "Source",
+      "flag": "single",
+      "description": "In most cases a RPC has only one source. However, more (none contradicting) descriptors can be applied to each entry.",
+      "second": "error",
+      "except": [],
+      "perGroup": false,
+      "conflict": "cardinality-F01-F30-F32"
+    },
+    "F02": {
+      "label": "Part-nature",
+      "flag": "single",
+      "description": null,
+      "second": "error",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F03": {
+      "label": "Physical-state",
+      "flag": "single",
+      "description": "Only one descriptor from this facet can be added to each entry, apart from the specification “with solid particles”.",
+      "second": "error",
+      "except": [],
+      "perGroup": false,
+      "conflict": "cardinality-F03-exception"
+    },
+    "F04": {
+      "label": "Ingredient",
+      "flag": "repeatable",
+      "description": "More (none contradicting) descriptors can be applied to each entry.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F06": {
+      "label": "Surrounding-medium",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F07": {
+      "label": "Fat-content",
+      "flag": "single",
+      "description": "Only one descriptor from this facet can be added to each entry.",
+      "second": "error",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F08": {
+      "label": "Sweetening-agent",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F09": {
+      "label": "Fortification-agent",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F10": {
+      "label": "Qualitative-info",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F11": {
+      "label": "Alcohol-content",
+      "flag": "single",
+      "description": "Only one descriptor from this facet can be added to each entry.",
+      "second": "error",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F12": {
+      "label": "Dough-Mass",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F17": {
+      "label": "Extent-of-cooking",
+      "flag": "repeatable",
+      "description": "Only one descriptor from this facet can be added to each entry, apart from the specification “Meat/fish/bakery/vegetables: presence of burned spots-parts”.",
+      "second": "warning",
+      "except": [
+        "A07ND"
+      ],
+      "perGroup": false,
+      "conflict": "cardinality-F17-F18-F19"
+    },
+    "F18": {
+      "label": "Packaging-format",
+      "flag": "repeatable",
+      "description": "Only one descriptor from this facet can usually be added to each entry.",
+      "second": "warning",
+      "except": [],
+      "perGroup": false,
+      "conflict": "cardinality-F17-F18-F19"
+    },
+    "F19": {
+      "label": "Packaging-material",
+      "flag": "repeatable",
+      "description": "Only one descriptor for this facet may be used for each entry.",
+      "second": "warning",
+      "except": [],
+      "perGroup": false,
+      "conflict": "cardinality-F17-F18-F19"
+    },
+    "F20": {
+      "label": "Part-consumed-analysed",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F21": {
+      "label": "Production-method",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other (e.g. domesticated and wild).",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F22": {
+      "label": "Preparation-production-place",
+      "flag": "single",
+      "description": "Only one descriptor from this facet can be added to each entry.",
+      "second": "error",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F23": {
+      "label": "Target-consumer",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F24": {
+      "label": "Intended-use",
+      "flag": "single",
+      "description": "Only one descriptor from this facet can be added to each entry.",
+      "second": "error",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F25": {
+      "label": "Risky-Ingredient",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F26": {
+      "label": "Generic-term",
+      "flag": "single",
+      "description": "Only one descriptor from this facet can be added to each entry.",
+      "second": "error",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F27": {
+      "label": "Source-commodities",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F28": {
+      "label": "Process",
+      "flag": "repeatable",
+      "description": "More (none contradicting) descriptors can be applied to each entry.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F29": {
+      "label": "Purpose-of-raising",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F30": {
+      "label": "Reproductive-level",
+      "flag": "single",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "error",
+      "except": [],
+      "perGroup": false,
+      "conflict": "cardinality-F01-F30-F32"
+    },
+    "F31": {
+      "label": "Animal-age-class",
+      "flag": "repeatable",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "allowed",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    },
+    "F32": {
+      "label": "Gender",
+      "flag": "single",
+      "description": "More than one descriptor can be applied to each entry, provided they are not contradicting each other.",
+      "second": "error",
+      "except": [],
+      "perGroup": false,
+      "conflict": "cardinality-F01-F30-F32"
+    },
+    "F33": {
+      "label": "Legislative-classes",
+      "flag": "repeatable",
+      "description": "Only one descriptor from this facet can be added to each entry.",
+      "second": "warning",
+      "except": [],
+      "perGroup": true,
+      "conflict": "cardinality-F33"
+    },
+    "F34": {
+      "label": "Host-sampled",
+      "flag": "single",
+      "description": "Only one descriptor from this facet can be added to each entry.",
+      "second": "error",
+      "except": [],
+      "perGroup": false,
+      "conflict": null
+    }
+  },
+  "conflicts": {
+    "cardinality-F01-F30-F32": {
+      "topic": "How many Source, Reproductive-level and Gender descriptors a code may have",
+      "sources": [
+        {
+          "source": "EFSA business rule BR25 (ICT and DCF, HIGH, rejected on submission)",
+          "says": "One. EFSA's rule sheet gives apple juice with two sources (A039M#F01.A05YH$F01.A05YG) as a code this rule rejects."
+        },
+        {
+          "source": "MTX 17.1 facet flag",
+          "says": "single"
+        },
+        {
+          "source": "FoodEx2 guidance rev 2 (2015), Table 20",
+          "says": "Single"
+        },
+        {
+          "source": "MTX 17.1 facet descriptions",
+          "says": "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+        }
+      ],
+      "verdict": "A second stated descriptor is an error (BR25). The result notes that the facet description allows several.",
+      "why": "EFSA's checker rejects it, and the checker comes first. Only the description text disagrees.",
+      "ours": false
+    },
+    "cardinality-F03-exception": {
+      "topic": "The \"with solid particles\" exception to single Physical-state",
+      "sources": [
+        {
+          "source": "MTX 17.1 F03 description",
+          "says": "Only one descriptor, \"apart from the specification “with solid particles”\"."
+        },
+        {
+          "source": "MTX 17.1 catalogue data",
+          "says": "\"With solid particles/pieces\" (A06JM) is not an F03 descriptor; it is in F10 Qualitative-info."
+        },
+        {
+          "source": "MTX 17.1 facet flag and guidance 2015 Table 20",
+          "says": "single"
+        }
+      ],
+      "verdict": "F03 is single with no exception; solid particles are coded under F10.",
+      "why": "Where a term sits is catalogue data, which wins. The description refers to a placement that no longer exists.",
+      "ours": false
+    },
+    "cardinality-F17-F18-F19": {
+      "topic": "How many Extent-of-cooking, Packaging-format and Packaging-material descriptors a code may have",
+      "sources": [
+        {
+          "source": "EFSA business rule BR25",
+          "says": "Several (BR25 follows the flag, which is repeatable)."
+        },
+        {
+          "source": "MTX 17.1 facet flag and guidance 2015 Table 20",
+          "says": "repeatable"
+        },
+        {
+          "source": "MTX 17.1 facet descriptions",
+          "says": "F17: only one, apart from \"presence of burned spots-parts\" (A07ND). F18: \"only one descriptor ... can usually be added\". F19: \"only one descriptor ... may be used\"."
+        }
+      ],
+      "verdict": "A second stated descriptor is a warning that quotes the description, not an error. A07ND doesn't count for F17.",
+      "why": "EFSA's checker accepts it, so it isn't an error. The newest EFSA wording says one, so the user should know.",
+      "ours": false
+    },
+    "cardinality-F33": {
+      "topic": "How many Legislative-classes descriptors a code may have",
+      "sources": [
+        {
+          "source": "EFSA business rule BR25",
+          "says": "Several (flag is repeatable)."
+        },
+        {
+          "source": "MTX 17.1 facet flag",
+          "says": "repeatable"
+        },
+        {
+          "source": "MTX 17.1 F33 description",
+          "says": "\"Only one descriptor from this facet can be added to each entry.\" It mentions food additive classes only."
+        },
+        {
+          "source": "FoodEx2 guidance rev 2 (2015), Table 20",
+          "says": "Single for each sub-list; repeatable among sub-lists."
+        },
+        {
+          "source": "MTX 17.1 catalogue data",
+          "says": "F33 now has four sub-lists (food additives, acrylamide, microbiological criteria, veterinary drug residues)."
+        }
+      ],
+      "verdict": "A second descriptor in the same sub-list is a warning; descriptors from different sub-lists are fine.",
+      "why": "The description predates the other three sub-lists, so \"only one\" most plausibly means one per legislation, as the 2015 guidance says. This is our reading, and results label it as ours.",
+      "ours": true
+    },
+    "definition-BR16": {
+      "topic": "What makes a stated process \"less detailed than the implicit facets\"",
+      "sources": [
+        {
+          "source": "EFSA rule sheet (2020), BR16 description and example",
+          "says": "A process whose ordinal code (BR_Data.csv) is lower than the implied one's. Example: A01PS#F28.A0CQZ (candied fruits, fermentation)."
+        },
+        {
+          "source": "EFSA TermRules.java (Catalogue Browser 1.2.15, 2024)",
+          "says": "A stated descriptor that is an ancestor of an implied descriptor of the same facet, for base terms in a forbidden-process food group."
+        }
+      ],
+      "verdict": "Follow the code. EFSA's 2020 example does not fail under it (fermentation is not above \"Preserving with sugars\").",
+      "why": "What EFSA's checking tool enforces comes first.",
+      "ours": false
+    },
+    "severity-BR16": {
+      "topic": "How serious it is to state a process less detailed than the implied one",
+      "sources": [
+        {
+          "source": "EFSA rule sheet, Catalogue Browser and ICT level",
+          "says": "HIGH"
+        },
+        {
+          "source": "EFSA rule sheet, DCF behaviour",
+          "says": "LOW"
+        }
+      ],
+      "verdict": "Error, although EFSA's message says \"discouraged\".",
+      "why": "The checking tool's level comes first.",
+      "ours": false
+    }
+  },
+  "forbiddenProcesses": {
+    "A000L": [
+      "A07LG",
+      "A07LH",
+      "A07LL",
+      "A0C03",
+      "A0C09",
+      "A0C0A",
+      "A0C0B",
+      "A07LA"
+    ],
+    "A07XJ": [
+      "A07LN",
+      "A07KF",
+      "A07JT",
+      "A07KC",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A0C6N",
+      "A07JP",
+      "A0F2N",
+      "A07JQ",
+      "A07JR",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A0BYN",
+      "A0BYP"
+    ],
+    "A011Y": [
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A0BYN",
+      "A0BYP"
+    ],
+    "A012R": [
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A0BYN",
+      "A0BYP"
+    ],
+    "A04RK": [
+      "A07LN",
+      "A07KF",
+      "A07JQ",
+      "A07JR",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A0BYN",
+      "A0BYP",
+      "A0CER",
+      "A07JT",
+      "A07KC",
+      "A07JP",
+      "A0F2N",
+      "A0C6N"
+    ],
+    "A0EZP": [
+      "A07LN",
+      "A07KF",
+      "A0C6N",
+      "A07MJ",
+      "A0BZS"
+    ],
+    "A0BY3": [
+      "A07JQ",
+      "A07JR",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A0BYN",
+      "A0BYP",
+      "A0CER",
+      "A07JT",
+      "A07KC",
+      "A07JP",
+      "A0F2N",
+      "A0C6N"
+    ],
+    "A014C": [
+      "A0C6N",
+      "A07JQ",
+      "A07JR",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK"
+    ],
+    "A01BJ": [
+      "A0C6N",
+      "A07JQ",
+      "A07JR",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK"
+    ],
+    "A015E": [
+      "A0C02",
+      "A0C06",
+      "A0C08",
+      "A0C07",
+      "A0PZN"
+    ],
+    "A00ZS": [
+      "A07LG",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A0BYP"
+    ],
+    "A010R": [
+      "A0C04"
+    ],
+    "A04MA": [
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK"
+    ],
+    "A04LZ": [
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK"
+    ],
+    "A0EZJ": [
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK"
+    ],
+    "A0EYH": [
+      "A0BYN",
+      "A0BYP",
+      "A07JP",
+      "A07JV",
+      "A16ES",
+      "A16ET",
+      "A06TK",
+      "A07JT",
+      "A07KC",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A07KD",
+      "A0C6F"
+    ],
+    "A01TT": [
+      "A0BYN",
+      "A0BYP",
+      "A07JP",
+      "A07JV",
+      "A16ES",
+      "A16ET",
+      "A06TK",
+      "A07JT",
+      "A07KC",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A07KD",
+      "A0C6F"
+    ],
+    "A0BY5": [
+      "A0BYN",
+      "A0BYP",
+      "A07JP",
+      "A07JV",
+      "A16ES",
+      "A16ET",
+      "A06TK",
+      "A07JT",
+      "A07KC",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A07KD",
+      "A0C6F"
+    ],
+    "A04MQ": [
+      "A0BYN",
+      "A0BYP",
+      "A07JP",
+      "A07JV",
+      "A16ES",
+      "A16ET",
+      "A06TK",
+      "A07JT",
+      "A07KC",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A07KD",
+      "A0C6F"
+    ],
+    "A0BXT": [
+      "A0BYN",
+      "A0BYP",
+      "A07JP",
+      "A07JV",
+      "A16ES",
+      "A16ET",
+      "A06TK",
+      "A07JT",
+      "A07KC",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A07KD",
+      "A0C6F"
+    ],
+    "A0EZR": [
+      "A07JV",
+      "A16ES",
+      "A16ET",
+      "A06TK",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07JP",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A0BYN",
+      "A0BYP",
+      "A07LM",
+      "A0C6N",
+      "A07JT",
+      "A07KC"
+    ],
+    "A0EZQ": [
+      "A07JP",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A0BYN",
+      "A0BYP",
+      "A07JV",
+      "A16ES",
+      "A16ET",
+      "A06TK",
+      "A07JT",
+      "A07KC"
+    ],
+    "A0BXZ": [
+      "A07KF",
+      "A07KM",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A0EKQ",
+      "A07MC",
+      "A0C0D",
+      "A0C6E",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07MH",
+      "A07HJ",
+      "A0F2N",
+      "A0C6F"
+    ],
+    "A031E": [
+      "A07LC",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A07GL",
+      "A07GR",
+      "A07GS",
+      "A07GT",
+      "A07GV",
+      "A07LF",
+      "A0BA1",
+      "A07GF",
+      "A07GG",
+      "A07GH",
+      "A07GJ",
+      "A07GK",
+      "A07GM",
+      "A07GN",
+      "A07GP",
+      "A07GQ",
+      "A07GX",
+      "A07GY",
+      "A0EJY",
+      "A07GZ",
+      "A07HA",
+      "A07HB"
+    ],
+    "A0ESS": [
+      "A07HC",
+      "A07MJ",
+      "A07KF",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A07XZ",
+      "A0C0L",
+      "A0BZN",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07MK"
+    ],
+    "A03JB": [
+      "A07HC",
+      "A07MJ",
+      "A07KF",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A07XZ",
+      "A0C0L",
+      "A0BZN",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07MK"
+    ],
+    "A03JS": [
+      "A07HC",
+      "A07MJ",
+      "A07KF",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A07XZ",
+      "A0C0L",
+      "A0BZN",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07MK"
+    ],
+    "A0BYA": [
+      "A07HC",
+      "A07MJ",
+      "A07KF",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A07XZ",
+      "A0C0L",
+      "A0BZN",
+      "A0CQZ",
+      "A07JY",
+      "A07JZ",
+      "A07KA",
+      "A07MK"
+    ],
+    "A00HQ": [
+      "A07LN",
+      "A07KF",
+      "A0C6N",
+      "A0BYN",
+      "A0BYP",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK"
+    ],
+    "A04MB": [
+      "A07LN",
+      "A07KF",
+      "A0C6N",
+      "A0BYN",
+      "A0BYP",
+      "A07KL",
+      "A07KG",
+      "A07KH",
+      "A07KJ",
+      "A0C0C",
+      "A07KK",
+      "A07JT"
+    ]
+  }
+}

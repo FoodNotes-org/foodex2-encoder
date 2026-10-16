@@ -71,7 +71,9 @@ def build(ecf: Path, out_dir: Path) -> None:
         facet_categories[code] = {
             "label": text(attr.find("attributeDesc/label")),
             "hierarchyCode": name,  # e.g. "process"; matches hierarchyAssignments
-            "cardinality": text(attr.find("attributeDesc/attributeSingleOrRepeatable")),
+            # Cardinality is not taken from attributeSingleOrRepeatable: it
+            # contradicts the facet descriptions for several facets. See
+            # rules/cardinality.yaml.
             "scopeNote": scope_note_text(text(attr.find("attributeDesc/scopeNote"))),
         }
 

@@ -59,6 +59,8 @@ import type {
   SelectFit,
 } from "./types.js";
 import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
+import { cardinalityKey, impliedRelation } from "../rules/index.js";
+import { catalogueLookup } from "../rules/catalogue-lookup.js";
 import { chatJson, defaultModel } from "../llm.js";
 import { contentTokens, FUNCTION_WORDS, sameContentTokenSet } from "../search/content-match.js";
 import { formatFoodEx2Code, sortFacets } from "./foodex2-code.js";
@@ -479,7 +481,8 @@ interface PlaceContext {
   facets: FacetDescriptorRef[];
   freeText: FreeTextEntry[];
   seenCodes: Set<string>;
-  singleHeaders: Set<string>;
+  /** Cardinality keys already filled (see rules `cardinalityKey`). */
+  limitedSlots: Set<string>;
   model: string;
   input: string;
   fit: SelectFit | null;
@@ -737,26 +740,24 @@ function acceptClosedDescriptor(
   code: string,
   implied: Set<string>,
   options: Pick<AcceptFacetOptions, "rejectUnderImplied"> = {}
-): "keep" | "restate" | "broader" | "already_implied" | "not_descriptor" {
-  const key = `${header}.${code}`;
-  if (implied.has(key)) return "restate";
+):
+  | "keep"
+  | "restate"
+  | "broader"
+  | "already_implied"
+  | "contradicts_implied"
+  | "not_descriptor" {
+  const relation = impliedRelation(catalogueLookup(cat), header, code, [...implied]);
+  if (relation === "repeats") return "restate";
 
   const hierarchy = cat.facetCategory(header)?.hierarchyCode;
   if (hierarchy === undefined || !cat.belongsTo(code, hierarchy) || cat.isDeprecated(code)) {
     return "not_descriptor";
   }
 
-  for (const imp of implied) {
-    if (!imp.startsWith(`${header}.`)) continue;
-    const impliedCode = imp.slice(header.length + 1);
-    if (cat.isAncestor(code, impliedCode, hierarchy)) return "broader";
-  }
-  if (
-    options.rejectUnderImplied === true &&
-    narrowerThanImplied(cat, header, code, implied)
-  ) {
-    return "already_implied";
-  }
+  if (relation === "broader") return "broader";
+  if (relation === "contradicts") return "contradicts_implied";
+  if (options.rejectUnderImplied === true && relation === "narrower") return "already_implied";
   return "keep";
 }
 
@@ -767,15 +768,7 @@ function narrowerThanImplied(
   code: string,
   implied: Set<string>
 ): boolean {
-  const hierarchy = cat.facetCategory(header)?.hierarchyCode;
-  if (hierarchy === undefined) return false;
-  for (const imp of implied) {
-    if (!imp.startsWith(`${header}.`)) continue;
-    const impliedCode = imp.slice(header.length + 1);
-    if (code === impliedCode) continue;
-    if (cat.isAncestor(impliedCode, code, hierarchy)) return true;
-  }
-  return false;
+  return impliedRelation(catalogueLookup(cat), header, code, [...implied]) === "narrower";
 }
 
 export function parseGapProperties(content: unknown): GapProperty[] {
@@ -1920,11 +1913,6 @@ async function resolveClosedFacetPhrase(
   };
 }
 
-function facetCardinality(cat: Catalogue, header: string): "single" | "repeatable" {
-  const card = cat.facetCategory(header)?.cardinality;
-  return card === "single" ? "single" : "repeatable";
-}
-
 function hierarchyDepth(cat: Catalogue, header: string, code: string): number {
   const hierarchy = cat.facetCategory(header)?.hierarchyCode;
   if (hierarchy === undefined) return 0;
@@ -2015,16 +2003,20 @@ export function cleanupFacets(
     return true;
   });
 
-  const byHeader = new Map<string, FacetDescriptorRef[]>();
+  const lookup = catalogueLookup(cat);
+  const bySlot = new Map<string, FacetDescriptorRef[]>();
   for (const facet of kept) {
-    const group = byHeader.get(facet.header) ?? [];
+    const slot =
+      cardinalityKey(lookup, facet.header, facet.code) ?? `${facet.header}.${facet.code}`;
+    const group = bySlot.get(slot) ?? [];
     group.push(facet);
-    byHeader.set(facet.header, group);
+    bySlot.set(slot, group);
   }
 
   const out: FacetDescriptorRef[] = [];
-  for (const [header, group] of byHeader) {
-    if (facetCardinality(cat, header) === "single" && group.length > 1) {
+  for (const group of bySlot.values()) {
+    if (group.length > 1) {
+      const header = group[0]!.header;
       const ranked = [...group].sort((a, b) =>
         compareFacetInformativeness(cat, header, a, b, implied)
       );
@@ -2044,16 +2036,10 @@ export function cleanupFacets(
 function addFacet(ctx: PlaceContext, facet: FacetDescriptorRef): boolean {
   const key = `${facet.header}.${facet.code}`;
   if (ctx.seenCodes.has(key)) return false;
-  if (
-    facetCardinality(ctx.cat, facet.header) === "single" &&
-    ctx.singleHeaders.has(facet.header)
-  ) {
-    return false;
-  }
+  const slot = cardinalityKey(catalogueLookup(ctx.cat), facet.header, facet.code);
+  if (slot !== null && ctx.limitedSlots.has(slot)) return false;
   ctx.seenCodes.add(key);
-  if (facetCardinality(ctx.cat, facet.header) === "single") {
-    ctx.singleHeaders.add(facet.header);
-  }
+  if (slot !== null) ctx.limitedSlots.add(slot);
   ctx.facets.push(facet);
   return true;
 }
@@ -2435,7 +2421,7 @@ export async function assignResiduals(
     facets: [],
     freeText: [],
     seenCodes: new Set(),
-    singleHeaders: new Set(),
+    limitedSlots: new Set(),
     model,
     input,
     fit: options.fit ?? null,

@@ -1,0 +1,117 @@
+# Conflicts register: places where EFSA's own sources disagree, what each says,
+# the verdict we apply and why.
+#
+# Hand-maintained. Verdicts follow the source-precedence rule:
+#   what a term is (names, placement, implied facets, deprecation):
+#     the MTX catalogue data wins
+#   whether a code is built correctly:
+#     what EFSA's checking tool enforces, then the newest EFSA wording (MTX facet
+#     descriptions, maintenance reports), then the 2015 guidance, then MTX flags
+#   how to code something: the newest EFSA wording
+#   our own interpretations are labelled as ours (`ours: true`)
+#
+# `report_to_efsa: true` marks rows worth sending to EFSA's maintenance process.
+
+conflicts:
+  - id: cardinality-F01-F30-F32
+    facets: [F01, F30, F32]
+    topic: How many Source, Reproductive-level and Gender descriptors a code may have
+    sources:
+      - source: EFSA business rule BR25 (ICT and DCF, HIGH, rejected on submission)
+        says: One. EFSA's rule sheet gives apple juice with two sources (A039M#F01.A05YH$F01.A05YG) as a code this rule rejects.
+      - source: MTX 17.1 facet flag
+        says: single
+      - source: FoodEx2 guidance rev 2 (2015), Table 20
+        says: Single
+      - source: MTX 17.1 facet descriptions
+        says: "More than one descriptor can be applied to each entry, provided they are not contradicting each other."
+    verdict: A second stated descriptor is an error (BR25). The result notes that the facet description allows several.
+    why: EFSA's checker rejects it, and the checker comes first. Only the description text disagrees.
+    report_to_efsa: true
+    decided: 2026-10
+
+  - id: cardinality-F03-exception
+    facets: [F03]
+    topic: The "with solid particles" exception to single Physical-state
+    sources:
+      - source: MTX 17.1 F03 description
+        says: Only one descriptor, "apart from the specification “with solid particles”".
+      - source: MTX 17.1 catalogue data
+        says: '"With solid particles/pieces" (A06JM) is not an F03 descriptor; it is in F10 Qualitative-info.'
+      - source: MTX 17.1 facet flag and guidance 2015 Table 20
+        says: single
+    verdict: F03 is single with no exception; solid particles are coded under F10.
+    why: Where a term sits is catalogue data, which wins. The description refers to a placement that no longer exists.
+    report_to_efsa: true
+    decided: 2026-10
+
+  - id: cardinality-F17-F18-F19
+    facets: [F17, F18, F19]
+    topic: How many Extent-of-cooking, Packaging-format and Packaging-material descriptors a code may have
+    sources:
+      - source: EFSA business rule BR25
+        says: Several (BR25 follows the flag, which is repeatable).
+      - source: MTX 17.1 facet flag and guidance 2015 Table 20
+        says: repeatable
+      - source: MTX 17.1 facet descriptions
+        says: >-
+          F17: only one, apart from "presence of burned spots-parts" (A07ND).
+          F18: "only one descriptor ... can usually be added".
+          F19: "only one descriptor ... may be used".
+    verdict: A second stated descriptor is a warning that quotes the description, not an error. A07ND doesn't count for F17.
+    why: EFSA's checker accepts it, so it isn't an error. The newest EFSA wording says one, so the user should know.
+    report_to_efsa: true
+    decided: 2026-10
+
+  - id: cardinality-F33
+    facets: [F33]
+    topic: How many Legislative-classes descriptors a code may have
+    sources:
+      - source: EFSA business rule BR25
+        says: Several (flag is repeatable).
+      - source: MTX 17.1 facet flag
+        says: repeatable
+      - source: MTX 17.1 F33 description
+        says: '"Only one descriptor from this facet can be added to each entry." It mentions food additive classes only.'
+      - source: FoodEx2 guidance rev 2 (2015), Table 20
+        says: Single for each sub-list; repeatable among sub-lists.
+      - source: MTX 17.1 catalogue data
+        says: F33 now has four sub-lists (food additives, acrylamide, microbiological criteria, veterinary drug residues).
+    verdict: A second descriptor in the same sub-list is a warning; descriptors from different sub-lists are fine.
+    ours: true
+    why: >-
+      The description predates the other three sub-lists, so "only one" most
+      plausibly means one per legislation, as the 2015 guidance says. This is
+      our reading, and results label it as ours.
+    report_to_efsa: true
+    decided: 2026-10
+
+  - id: definition-BR16
+    facets: [F28]
+    topic: What makes a stated process "less detailed than the implicit facets"
+    sources:
+      - source: EFSA rule sheet (2020), BR16 description and example
+        says: >-
+          A process whose ordinal code (BR_Data.csv) is lower than the implied
+          one's. Example: A01PS#F28.A0CQZ (candied fruits, fermentation).
+      - source: EFSA TermRules.java (Catalogue Browser 1.2.15, 2024)
+        says: >-
+          A stated descriptor that is an ancestor of an implied descriptor of the
+          same facet, for base terms in a forbidden-process food group.
+    verdict: Follow the code. EFSA's 2020 example does not fail under it (fermentation is not above "Preserving with sugars").
+    why: What EFSA's checking tool enforces comes first.
+    report_to_efsa: false
+    decided: 2026-10
+
+  - id: severity-BR16
+    facets: [F28]
+    topic: How serious it is to state a process less detailed than the implied one
+    sources:
+      - source: EFSA rule sheet, Catalogue Browser and ICT level
+        says: HIGH
+      - source: EFSA rule sheet, DCF behaviour
+        says: LOW
+    verdict: Error, although EFSA's message says "discouraged".
+    why: The checking tool's level comes first.
+    report_to_efsa: false
+    decided: 2026-10
