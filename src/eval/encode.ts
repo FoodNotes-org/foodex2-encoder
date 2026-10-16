@@ -108,7 +108,6 @@ export async function evaluateEncodeCase(c: EncodeEvalCase): Promise<EncodeCaseR
       facetsPass = false;
       facetDetail = `forbid_facets hit ${forbiddenHit}`;
     }
-
     if (facetsPass && c.require_facets && c.require_facets.length > 0) {
       const have = new Set(facets);
       const missing = c.require_facets

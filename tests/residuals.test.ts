@@ -17,6 +17,8 @@ import {
   facetDimensions,
   findDishSpan,
   headerForFacetDimension,
+  isCategoryMember,
+  memberTermTypes,
   originRolesForBaseType,
   parseFortification,
   parseGapOmitted,
@@ -221,6 +223,25 @@ describe("parseGapProperties", () => {
     );
   });
 
+  it("reads relation kinds with a lookup name, omitting a name equal to the phrase", () => {
+    assert.deepEqual(
+      parseGapProperties({
+        properties: [
+          { phrase: "salted", kind: "added", name: "salt" },
+          { phrase: "chocolate-coated", kind: "process", name: "chocolate coating" },
+          { phrase: "smoking", kind: "process", name: "smoking" },
+          { phrase: "citrus peel", kind: "made_from" },
+        ],
+      }),
+      [
+        { phrase: "salted", kind: "added", name: "salt" },
+        { phrase: "chocolate-coated", kind: "process", name: "chocolate coating" },
+        { phrase: "smoking", kind: "process" },
+        { phrase: "citrus peel", kind: "made_from" },
+      ]
+    );
+  });
+
   it("falls back bare strings and unknown kinds to other", () => {
     assert.deepEqual(parseGapProperties({ properties: ["cocoa", { phrase: "x", kind: "weird" }] }), [
       { phrase: "cocoa", kind: "other" },
@@ -364,6 +385,41 @@ describe("parseOriginRole / F01 / F27 lexical alignment", () => {
     assert.deepEqual(originRolesForBaseType("c", "mix"), ["contains"]);
     assert.deepEqual(originRolesForBaseType("r", "foodstuff"), ["organism", "contains"]);
     assert.deepEqual(originRolesForBaseType("r", "dish"), ["organism", "contains"]);
+  });
+
+  it("a source property gets no F04 fallback on a raw commodity or derivative (§5.14.9)", () => {
+    assert.deepEqual(originRolesForBaseType("r", "foodstuff", "source"), ["organism"]);
+    assert.deepEqual(originRolesForBaseType("d", "foodstuff", "source"), ["made_from"]);
+    assert.deepEqual(originRolesForBaseType("r", "mix", "source"), ["made_from"]);
+    assert.deepEqual(originRolesForBaseType("d", "mix", "source"), ["made_from"]);
+  });
+
+  it("an ingredient property keeps F04 as the minor-ingredient fallback (§3.1.9)", () => {
+    assert.deepEqual(originRolesForBaseType("r", "foodstuff", "ingredient"), [
+      "organism",
+      "contains",
+    ]);
+    assert.deepEqual(originRolesForBaseType("r", "mix", "ingredient"), ["made_from", "contains"]);
+  });
+
+  it("a made_from property gets the prescribed origin only, like source", () => {
+    assert.deepEqual(originRolesForBaseType("r", "foodstuff", "made_from"), ["organism"]);
+    assert.deepEqual(originRolesForBaseType("d", "foodstuff", "made_from"), ["made_from"]);
+    assert.deepEqual(originRolesForBaseType("c", "dish", "made_from"), ["contains"]);
+  });
+
+  it("an added property is always an ingredient, never the food's origin (§3.1.9, §5.13)", () => {
+    // Herbs in butter, salt on peanuts: not F27 / F01.
+    assert.deepEqual(originRolesForBaseType("d", "foodstuff", "added"), ["contains"]);
+    assert.deepEqual(originRolesForBaseType("r", "foodstuff", "added"), ["contains"]);
+    assert.deepEqual(originRolesForBaseType("r", "mix", "added"), ["contains"]);
+    assert.deepEqual(originRolesForBaseType("g", "foodstuff", "added"), ["contains"]);
+  });
+
+  it("composites keep F04 as the prescribed origin, whatever the property kind", () => {
+    assert.deepEqual(originRolesForBaseType("c", "dish", "source"), ["contains"]);
+    assert.deepEqual(originRolesForBaseType("s", "foodstuff", "source"), ["contains"]);
+    assert.equal(originRolesForBaseType("g", "foodstuff", "source"), null);
   });
 
   it("mix component phrases resolve as F27 commodities", () => {
@@ -531,6 +587,50 @@ describe("facetDimensions / headerForFacetDimension", () => {
     assert.equal(facetDimensionCodeForTerm(cat, "A07SE"), "A0B9A"); // Organic → Production-method
     assert.equal(facetDimensionCodeForTerm(cat, "A077L"), "A0B93"); // Sugar free → Qualitative-info
     assert.equal(facetDimensionCodeForTerm(cat, "A03AM"), null); // food term, not under Facets
+  });
+});
+
+describe("isCategoryMember", () => {
+  it("treats a source property on a category as a member, and nothing else", () => {
+    assert.equal(isCategoryMember("category", "source"), true);
+    assert.equal(isCategoryMember("category", "made_from"), true);
+    assert.equal(isCategoryMember("category", "added"), false);
+    assert.equal(isCategoryMember("category", "ingredient"), false);
+    assert.equal(isCategoryMember("category", "process"), false);
+    assert.equal(isCategoryMember("mix", "source"), false);
+    assert.equal(isCategoryMember("foodstuff", "source"), false);
+    assert.equal(isCategoryMember(null, "source"), false);
+  });
+});
+
+describe("memberTermTypes / category members", () => {
+  it("constrains only a category whose base is a raw commodity", () => {
+    assert.deepEqual([...memberTermTypes("category", "r")!], ["r"]);
+    assert.equal(memberTermTypes("category", "d"), null);
+    assert.equal(memberTermTypes("category", null), null);
+    assert.equal(memberTermTypes("foodstuff", "r"), null);
+    assert.equal(memberTermTypes("mix", "r"), null);
+  });
+
+  it("drops organisms (F01) when the members must be raw commodities", () => {
+    const implied = new Set(cat.impliedFacets("A012R"));
+    const open = buildClosedPickPool(cat, "peas", "F01", implied, { allowRootFallback: false });
+    assert.ok(open.pool.length > 0, "F01 finds plants when unconstrained");
+    const typed = buildClosedPickPool(cat, "peas", "F01", implied, {
+      allowRootFallback: false,
+      termTypes: new Set(["r"]),
+    });
+    assert.equal(typed.pool.length, 0);
+    assert.equal(typed.alignedAccepted.length, 0);
+  });
+
+  it("keeps raw-commodity descriptors on F27", () => {
+    const implied = new Set(cat.impliedFacets("A012R"));
+    const typed = buildClosedPickPool(cat, "dry peas", "F27", implied, {
+      allowRootFallback: false,
+      termTypes: new Set(["r"]),
+    });
+    assert.ok(typed.pool.some((h) => h.code === "A0DCD"));
   });
 });
 

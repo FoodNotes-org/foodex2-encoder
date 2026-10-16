@@ -151,12 +151,13 @@ cases:
 
   - id: encode-fortified-bare
     input: fortified breakfast cereal
-    expected: A00CV
+    expected: A00CV, A04LK
     method: traversal
     require_facets: F10.A0F6C
+    forbid_facets: F26.A07XE
     capability: Codes a bare fortification claim (no nutrient named) as qualitative Fortified.
     tags: facets
-    note: Breakfast cereals + F10 Fortified; no F09 agent to invent
+    note: Breakfast cereals + F10 Fortified; no F09 agent to invent. Both bases are exposure-hierarchy groups (§5.2); Processed and mixed assumes flakes/popped, defensible. F26 Other is not — nothing says the detailed terms don't fit
 
   - id: encode-fortified-two-agents
     input: orange juice fortified with calcium and vitamin D
@@ -178,14 +179,32 @@ cases:
     tags: soft, facets
     note: Soft — F27 members are required; model sometimes also adds F28 Mixing (same-nature mix is not Mixing)
 
+  - id: encode-shellfish-fresh-and-frozen
+    input: shellfish, fresh and frozen
+    expected: A026T
+    method: traversal
+    forbid_facets: F28.A07KQ,F28.A07KP,F28.A07KN,F28.A0BYG,F28.A0C0S,F10.A166Y
+    free_text_includes: frozen
+    capability: Reads a category as an aggregate term, so wording that says which foods it includes goes to free text.
+    tags: facets
+    note: Fish and seafood; fresh and frozen name subgroups, so no state or treatment (nor a parent covering both, such as Lowering temperature) is a property of the group. Fresh and frozen go to free text
+
   - id: encode-fresh-and-frozen-shellfish
     input: fresh and frozen shellfish
     expected: A026T
     method: traversal
-    forbid_facets: F28.A07KQ,F10.A166Y,F28.A0BYG
-    capability: Does not attach a treatment or state that holds for only part of a described category.
+    capability: Picks the group base for an ambiguous category wording.
     tags: facets
-    note: Fish and seafood; fresh and frozen are subgroups, so the input establishes neither Freezing, Fresh nor the preservation-treatment parent of the item as a whole. Unprocessed is defensible (fresh and frozen both count as unprocessed) — neither required nor forbidden
+    note: Ambiguous word order (frozen shellfish, or a fresh-and-frozen group?), outside the unambiguous-input contract, so only the base is checked. The strict case is "shellfish, fresh and frozen"
+
+  - id: encode-canned-shellfish
+    input: canned shellfish
+    expected: A0BZ5
+    method: traversal
+    require_facets: F27.A02FD,F27.A02GM
+    capability: Expresses a group name the catalogue splits into several terms as several facets, not as free text.
+    tags: soft, facets
+    note: Soft — known limitation. Canned seafood made from crustaceans and molluscs. Today "shellfish" finds no F27 term (lexical recall) and the closed pick returns one code, so it lands in free text (source-commodity=shellfish)
 
   # --- Catalogue gaps and restraint ---
   - id: encode-quinoa-flour

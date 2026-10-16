@@ -30,7 +30,7 @@ const MAX_BRANCHES_PER_LEVEL = 4;
  */
 const SYSTEM_BRANCH = `You are a food and nutrition ontology expert.
 
-We are placing a leftover property of a food into the FoodEx2 facet catalogue by walking its hierarchy top-down. The phrase is that property (not the food itself). The candidates are sibling nodes at the current level.
+We are placing a leftover property of a food into the FoodEx2 facet catalogue by walking its hierarchy top-down. The phrase is that property (not the food itself); \`food\`, when given, is the food it belongs to. The candidates are sibling nodes at the current level.
 
 Return every candidate under which the phrase might belong — we will descend into those next. Use each candidate's listed child names only to see what that branch covers; child names are catalogue structure, not ingredients of the food.
 
@@ -46,7 +46,7 @@ Reply with JSON only:
  */
 const SYSTEM_LEAF = `You are a food and nutrition ontology expert.
 
-We are placing a leftover property of a food into the FoodEx2 facet catalogue. The phrase is that property (not the food itself). Candidates may come from different facet dimensions (see facet). Pick the descriptor that fits the phrase, or null if none do.
+We are placing a leftover property of a food into the FoodEx2 facet catalogue. The phrase is that property (not the food itself); \`food\`, when given, is the food it belongs to. Candidates may come from different facet dimensions (see facet). Pick the descriptor that fits the phrase, or null if none do.
 
 Candidates may include codingGuidance: catalogue instructions for when to use or not use that descriptor, and sometimes how it trades off against other facets. Use it only to decide whether that candidate is the right code for the phrase.
 
@@ -56,11 +56,23 @@ Reply with JSON only:
 
 export type FacetWalkAccept = (header: string, code: string) => boolean;
 
+/** The food the phrase belongs to, shown to the model alongside the phrase. */
+export type FacetWalkFood = { input: string; baseTerm: string };
+
 export type FacetWalkOptions = {
   model: string;
-  /** Default: keep every non-deprecated descriptor in the hierarchy. */
+  /**
+   * Which descriptors may be returned. Default: every non-deprecated descriptor
+   * in the hierarchy. Rejected internal nodes can still be descended through.
+   */
   accept?: FacetWalkAccept;
   maxDepth?: number;
+  food?: FacetWalkFood;
+  /**
+   * Extra candidates for the select, e.g. name matches the catalogue files away
+   * from where the walk looks (F04 *Fries* under composite dishes).
+   */
+  seeds?: Array<{ header: string; code: string }>;
 };
 
 type WalkStep = Record<string, unknown>;
@@ -130,13 +142,17 @@ function selectPayload(
 async function askBranch(
   phrase: string,
   candidates: Array<{ code: string; name: string; children?: string[] }>,
-  model: string
+  options: FacetWalkOptions
 ): Promise<{ codes: string[]; model: string }> {
   const allowed = new Set(candidates.map((c) => c.code));
   const picked = await chatJson({
-    model,
+    model: options.model,
     system: SYSTEM_BRANCH,
-    user: JSON.stringify({ phrase, candidates }, null, 2),
+    user: JSON.stringify(
+      { phrase, ...(options.food ? { food: options.food } : {}), candidates },
+      null,
+      2
+    ),
   });
   return {
     codes: pickAllowedCodes(picked.content, allowed).slice(0, MAX_BRANCHES_PER_LEVEL),
@@ -147,13 +163,17 @@ async function askBranch(
 async function askSelect(
   phrase: string,
   candidates: Array<{ code: string; name: string; facet: string; codingGuidance?: string }>,
-  model: string
+  options: FacetWalkOptions
 ): Promise<{ code: string | null; model: string }> {
   const allowed = new Set(candidates.map((c) => c.code));
   const picked = await chatJson({
-    model,
+    model: options.model,
     system: SYSTEM_LEAF,
-    user: JSON.stringify({ phrase, candidates }, null, 2),
+    user: JSON.stringify(
+      { phrase, ...(options.food ? { food: options.food } : {}), candidates },
+      null,
+      2
+    ),
   });
   return { code: pickAllowedCode(picked.content, allowed), model: picked.model };
 }
@@ -217,7 +237,7 @@ export async function openFacetDimensions(
     };
   });
 
-  const opened = await askBranch(phrase, candidates, options.model);
+  const opened = await askBranch(phrase, candidates, options);
   const byCode = new Map(walkable.map((d) => [d.code, d.header]));
   const headers: string[] = [];
   for (const code of opened.codes) {
@@ -266,6 +286,7 @@ async function collectUnderHeader(
 
   const add = (code: string): void => {
     if (seen.has(code)) return;
+    if (accept !== undefined && !accept(header, code)) return;
     seen.add(code);
     out.push({ header, code });
   };
@@ -276,7 +297,7 @@ async function collectUnderHeader(
       return;
     }
 
-    const children = childCodes(cat, hierarchy, parent, header, accept);
+    const children = childCodes(cat, hierarchy, parent, header, undefined);
     if (children.length === 0) {
       steps.push({ header, parent, via: "no_children" });
       return;
@@ -285,7 +306,7 @@ async function collectUnderHeader(
     const leaves: string[] = [];
     const internals: string[] = [];
     for (const code of children) {
-      if (childCodes(cat, hierarchy, code, header, accept).length === 0) leaves.push(code);
+      if (childCodes(cat, hierarchy, code, header, undefined).length === 0) leaves.push(code);
       else internals.push(code);
     }
 
@@ -297,19 +318,19 @@ async function collectUnderHeader(
         parent,
         via: "recall_leaves",
         depth,
-        added: leaves,
+        added: leaves.filter((code) => seen.has(code)),
       });
       return;
     }
 
     const branchCandidates = branchPayload(cat, hierarchy, internals);
-    const opened = await askBranch(phrase, branchCandidates, options.model);
+    const opened = await askBranch(phrase, branchCandidates, options);
     steps.push({
       header,
       parent,
       via: "branch_open",
       depth,
-      leavesAtLevel: leaves,
+      leavesAtLevel: leaves.filter((code) => seen.has(code)),
       candidates: branchCandidates.map((c) => ({
         code: c.code,
         name: c.name,
@@ -358,7 +379,7 @@ async function selectAmong(
   }
 
   const candidates = selectPayload(cat, pool);
-  const picked = await askSelect(phrase, candidates, options.model);
+  const picked = await askSelect(phrase, candidates, options);
   steps.push({
     via,
     candidates: candidates.map((c) => ({
@@ -392,13 +413,7 @@ async function densify(
   let chosen = current;
 
   for (let depth = 0; depth < maxDepth; depth++) {
-    const kids = childCodes(
-      cat,
-      hierarchy,
-      chosen.code,
-      chosen.header,
-      options.accept
-    );
+    const kids = childCodes(cat, hierarchy, chosen.code, chosen.header, undefined);
     if (kids.length === 0) return chosen;
 
     const deeper = await collectUnderHeader(
@@ -456,6 +471,17 @@ export async function resolveFacetWalk(
     mergeRecalled(pool, recalled);
   }
 
+  const seeds = (options.seeds ?? []).filter(
+    (s) =>
+      tried.includes(s.header) &&
+      !cat.isDeprecated(s.code) &&
+      (options.accept === undefined || options.accept(s.header, s.code))
+  );
+  if (seeds.length > 0) {
+    steps.push({ via: "seeds", codes: seeds.map((s) => s.code) });
+    mergeRecalled(pool, seeds);
+  }
+
   steps.push({
     via: "recall_pool",
     count: pool.length,
@@ -482,7 +508,7 @@ export async function resolveFacetWalk(
   const hierarchy = hierarchyFor(cat, picked.header);
   if (
     hierarchy !== null &&
-    childCodes(cat, hierarchy, picked.code, picked.header, options.accept).length > 0
+    childCodes(cat, hierarchy, picked.code, picked.header, undefined).length > 0
   ) {
     picked = await densify(cat, phrase, picked, options, steps);
   }

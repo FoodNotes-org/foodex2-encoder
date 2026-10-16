@@ -1,18 +1,18 @@
 {
   "_provenance": {
     "generated_by": "scripts/encode-eval.ts",
-    "generated_at": "2026-10-07T15:39:22.680Z",
+    "generated_at": "2026-10-15T19:07:49.785Z",
     "model": "openai/gpt-5.4",
     "mtx_version": "17.1",
-    "git_commit": "5d937c1"
+    "git_commit": "3953c82"
   },
   "summary": {
-    "hard_pass": 23,
-    "hard_total": 23,
+    "hard_pass": 21,
+    "hard_total": 24,
     "soft_pass": 1,
-    "soft_total": 2,
-    "total_cost_usd": 2.4122,
-    "median_ms": 28008
+    "soft_total": 3,
+    "total_cost_usd": 3.3101,
+    "median_ms": 23698
   },
   "cases": [
     {
@@ -29,7 +29,7 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 2988,
+      "ms": 2816,
       "calls": 2,
       "cost_usd": 0.0012775
     },
@@ -47,7 +47,7 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 2597,
+      "ms": 2170,
       "calls": 2,
       "cost_usd": 0.0012775
     },
@@ -65,9 +65,9 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 18185,
-      "calls": 13,
-      "cost_usd": 0.040852
+      "ms": 18056,
+      "calls": 15,
+      "cost_usd": 0.0764125
     },
     {
       "id": "encode-arugula",
@@ -77,16 +77,16 @@
         "A00LN",
         "A00LP"
       ],
-      "pick": "A00LN",
-      "pick_name": "Roman rocket",
-      "code": "A00LN",
+      "pick": "A00LP",
+      "pick_name": "Wall rocket",
+      "code": "A00LP",
       "facets": [],
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 32915,
+      "ms": 32486,
       "calls": 28,
-      "cost_usd": 0.19237649999999995
+      "cost_usd": 0.27290000000000003
     },
     {
       "id": "encode-boeuf-bourguignon",
@@ -97,18 +97,18 @@
       ],
       "pick": "A03VY",
       "pick_name": "Meat stew",
-      "code": "A03VY#F04.A00HC$F04.A01QX$F04.A03MX",
+      "code": "A03VY#F04.A01QX$F04.A03MX$F28.A07GJ",
       "facets": [
-        "F04.A00HC",
         "F04.A01QX",
-        "F04.A03MX"
+        "F04.A03MX",
+        "F28.A07GJ"
       ],
       "free_text": "dish=boeuf bourguignon",
       "pass": true,
       "soft": false,
-      "ms": 32960,
-      "calls": 25,
-      "cost_usd": 0.1212659999999999
+      "ms": 43451,
+      "calls": 38,
+      "cost_usd": 0.17887249999999993
     },
     {
       "id": "encode-risotto-asparagus",
@@ -126,9 +126,9 @@
       "free_text": "dish=Risotto with asparagus",
       "pass": true,
       "soft": false,
-      "ms": 24485,
-      "calls": 20,
-      "cost_usd": 0.0695225000000001
+      "ms": 23831,
+      "calls": 23,
+      "cost_usd": 0.11012300000000019
     },
     {
       "id": "encode-homemade-yakitori",
@@ -137,22 +137,23 @@
       "expected": [
         "A03VV"
       ],
-      "pick": "A03VV",
-      "pick_name": "Meat based dishes",
-      "code": "A03VV#F04.A01SP$F22.A07SS$F26.A07XE$F28.A07GZ$F28.A07KS",
+      "pick": "A026J",
+      "pick_name": "Meat specialties",
+      "code": "A026J#F04.A01SP$F04.A042N$F22.A07SS$F26.A07XE$F28.A07GZ$F28.A07KS",
       "facets": [
         "F04.A01SP",
+        "F04.A042N",
         "F22.A07SS",
         "F26.A07XE",
         "F28.A07GZ",
         "F28.A07KS"
       ],
       "free_text": "dish=homemade yakitori",
-      "pass": true,
+      "pass": false,
       "soft": false,
-      "ms": 52735,
-      "calls": 38,
-      "cost_usd": 0.14806850000000005
+      "ms": 55200,
+      "calls": 49,
+      "cost_usd": 0.18093050000000033
     },
     {
       "id": "encode-sausage-potatoes-fries",
@@ -171,9 +172,9 @@
       "free_text": "dish=sausage with potatoes and fries",
       "pass": true,
       "soft": false,
-      "ms": 28398,
-      "calls": 21,
-      "cost_usd": 0.06907050000000015
+      "ms": 53773,
+      "calls": 47,
+      "cost_usd": 0.15869000000000044
     },
     {
       "id": "encode-sandwich-bare",
@@ -189,9 +190,9 @@
       "free_text": "dish=sandwich",
       "pass": true,
       "soft": false,
-      "ms": 23505,
-      "calls": 14,
-      "cost_usd": 0.06286750000000008
+      "ms": 23698,
+      "calls": 16,
+      "cost_usd": 0.08208500000000019
     },
     {
       "id": "encode-smoked-sprats-canned",
@@ -209,9 +210,9 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 38080,
+      "ms": 30882,
       "calls": 30,
-      "cost_usd": 0.20940399999999992
+      "cost_usd": 0.2840765000000003
     },
     {
       "id": "encode-ice-cream-topping",
@@ -222,14 +223,17 @@
       ],
       "pick": "A02QA",
       "pick_name": "Ice cream, milk-based",
-      "code": "A02QA",
-      "facets": [],
-      "free_text": "dish=chocolate ice cream with amarena cherries; ingredient=chocolate; side=amarena cherries",
+      "code": "A02QA#F04.A01NX$F04.A0EQD",
+      "facets": [
+        "F04.A01NX",
+        "F04.A0EQD"
+      ],
+      "free_text": "dish=chocolate ice cream with amarena cherries",
       "pass": false,
       "soft": true,
-      "ms": 35299,
-      "calls": 27,
-      "cost_usd": 0.13526949999999993
+      "ms": 42236,
+      "calls": 40,
+      "cost_usd": 0.27815800000000035
     },
     {
       "id": "encode-buffalo-mozzarella",
@@ -247,9 +251,9 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 28008,
+      "ms": 28156,
       "calls": 17,
-      "cost_usd": 0.13983849999999998
+      "cost_usd": 0.193535
     },
     {
       "id": "encode-canned-organic-orange-juice",
@@ -268,9 +272,9 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 32844,
-      "calls": 24,
-      "cost_usd": 0.10527350000000002
+      "ms": 27220,
+      "calls": 23,
+      "cost_usd": 0.15510749999999973
     },
     {
       "id": "encode-orange-nectar-long",
@@ -290,29 +294,31 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 34938,
-      "calls": 25,
-      "cost_usd": 0.09631450000000008
+      "ms": 23701,
+      "calls": 19,
+      "cost_usd": 0.09077749999999996
     },
     {
       "id": "encode-fortified-bare",
       "capability": "Codes a bare fortification claim (no nutrient named) as qualitative Fortified.",
       "input": "fortified breakfast cereal",
       "expected": [
-        "A00CV"
+        "A00CV",
+        "A04LK"
       ],
-      "pick": "A00CV",
-      "pick_name": "Breakfast cereals",
-      "code": "A00CV#F10.A0F6C",
+      "pick": "A04LK",
+      "pick_name": "Processed and mixed breakfast cereals",
+      "code": "A04LK#F10.A0F6C$F26.A07XE",
       "facets": [
-        "F10.A0F6C"
+        "F10.A0F6C",
+        "F26.A07XE"
       ],
       "free_text": null,
-      "pass": true,
+      "pass": false,
       "soft": false,
-      "ms": 26467,
-      "calls": 23,
-      "cost_usd": 0.10892600000000008
+      "ms": 21332,
+      "calls": 21,
+      "cost_usd": 0.10525800000000096
     },
     {
       "id": "encode-fortified-two-agents",
@@ -331,9 +337,9 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 25449,
-      "calls": 17,
-      "cost_usd": 0.10114149999999955
+      "ms": 22943,
+      "calls": 19,
+      "cost_usd": 0.12872749999999966
     },
     {
       "id": "encode-mixed-nuts",
@@ -353,29 +359,70 @@
       "free_text": null,
       "pass": true,
       "soft": true,
-      "ms": 26109,
-      "calls": 24,
-      "cost_usd": 0.09030950000000026
+      "ms": 23293,
+      "calls": 19,
+      "cost_usd": 0.09171999999999869
+    },
+    {
+      "id": "encode-shellfish-fresh-and-frozen",
+      "capability": "Reads a category as an aggregate term, so wording that says which foods it includes goes to free text.",
+      "input": "shellfish, fresh and frozen",
+      "expected": [
+        "A026T"
+      ],
+      "pick": "A026T",
+      "pick_name": "Fish and seafood",
+      "code": "A026T#F26.A07XD$F28.A07KN",
+      "facets": [
+        "F26.A07XD",
+        "F28.A07KN"
+      ],
+      "free_text": "member=shellfish",
+      "pass": false,
+      "soft": false,
+      "ms": 25749,
+      "calls": 25,
+      "cost_usd": 0.050980500000000095
     },
     {
       "id": "encode-fresh-and-frozen-shellfish",
-      "capability": "Does not attach a treatment or state that holds for only part of a described category.",
+      "capability": "Picks the group base for an ambiguous category wording.",
       "input": "fresh and frozen shellfish",
       "expected": [
         "A026T"
       ],
       "pick": "A026T",
       "pick_name": "Fish and seafood",
-      "code": "A026T#F26.A07XD",
+      "code": "A026T#F10.A166Y$F26.A07XD$F28.A07KQ",
       "facets": [
-        "F26.A07XD"
+        "F10.A166Y",
+        "F26.A07XD",
+        "F28.A07KQ"
       ],
-      "free_text": "source=shellfish",
+      "free_text": "member=shellfish",
       "pass": true,
       "soft": false,
-      "ms": 33497,
-      "calls": 26,
-      "cost_usd": 0.06953699999999996
+      "ms": 29046,
+      "calls": 27,
+      "cost_usd": 0.07044349999999877
+    },
+    {
+      "id": "encode-canned-shellfish",
+      "capability": "Expresses a group name the catalogue splits into several terms as several facets, not as free text.",
+      "input": "canned shellfish",
+      "expected": [
+        "A0BZ5"
+      ],
+      "pick": "A0BZ5",
+      "pick_name": "Canned seafood",
+      "code": "A0BZ5",
+      "facets": [],
+      "free_text": "member=shellfish",
+      "pass": false,
+      "soft": true,
+      "ms": 17543,
+      "calls": 14,
+      "cost_usd": 0.050202499999999706
     },
     {
       "id": "encode-quinoa-flour",
@@ -393,15 +440,16 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 23218,
-      "calls": 20,
-      "cost_usd": 0.08096600000000032
+      "ms": 17845,
+      "calls": 16,
+      "cost_usd": 0.07691999999999899
     },
     {
       "id": "encode-kangaroo-meat",
-      "capability": "Does not assume catalogue words (fresh) that the input does not state.",
+      "capability": "Reads a catalogue default qualifier (fresh) as part of the plain name, without requiring it.",
       "input": "kangaroo meat",
       "expected": [
+        "A01RS",
         "A0EYF"
       ],
       "pick": "A0EYF",
@@ -413,9 +461,9 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 29360,
-      "calls": 16,
-      "cost_usd": 0.05773050000000013
+      "ms": 19636,
+      "calls": 15,
+      "cost_usd": 0.0817824999999992
     },
     {
       "id": "encode-spirits-volume",
@@ -434,9 +482,9 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 20497,
-      "calls": 17,
-      "cost_usd": 0.043158999999999725
+      "ms": 15613,
+      "calls": 15,
+      "cost_usd": 0.06324499999999977
     },
     {
       "id": "encode-milk-fat-percent",
@@ -456,9 +504,9 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 21471,
+      "ms": 18710,
       "calls": 16,
-      "cost_usd": 0.04885949999999961
+      "cost_usd": 0.08099550000000022
     },
     {
       "id": "encode-oj-from-concentrate",
@@ -476,9 +524,9 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 36557,
-      "calls": 23,
-      "cost_usd": 0.1267400000000003
+      "ms": 23843,
+      "calls": 17,
+      "cost_usd": 0.11598000000000042
     },
     {
       "id": "encode-unsweetened-almond-drink",
@@ -496,9 +544,9 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 30367,
+      "ms": 23542,
       "calls": 26,
-      "cost_usd": 0.2352124999999985
+      "cost_usd": 0.26146999999999965
     },
     {
       "id": "encode-semi-skimmed-milk",
@@ -515,9 +563,9 @@
       "free_text": null,
       "pass": true,
       "soft": false,
-      "ms": 20083,
+      "ms": 16968,
       "calls": 12,
-      "cost_usd": 0.05697899999999967
+      "cost_usd": 0.06810749999999999
     }
   ]
 }
