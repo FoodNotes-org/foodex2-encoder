@@ -73,13 +73,14 @@ interface RawCandidate {
 
 const SYSTEM_ROUTE = `Assign exactly one descriptionKind to the input:
 
-- "foodstuff": a food, beverage, food product, food commodity or food category
+- "foodstuff": a food, beverage, food product or food commodity
+- "category": a food group or group of foods taken together for statistical reporting
 - "dish": a prepared dish or meal, including a named dish with sides or accompaniments
 - "dish_type": a type of dish, without a specific dish name
-- "mix": mixed foods predominantly from the same food group
+- "mix": a product you can buy that is a blend of several foods
 
 Reply with JSON only:
-{"descriptionKind":"foodstuff|dish|dish_type|mix"}
+{"descriptionKind":"foodstuff|category|dish|dish_type|mix"}
 `;
 
 /** Display name for the classify parent (quoted later via quote()). */
@@ -130,6 +131,7 @@ function buildClassifyUser(
 
 const DESCRIPTION_KINDS = new Set<string>([
   "foodstuff",
+  "category",
   "dish",
   "dish_type",
   "mix",

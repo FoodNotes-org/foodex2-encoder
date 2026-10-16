@@ -59,7 +59,7 @@ describe("parseRoute", () => {
 
 describe("parseDescriptionKind", () => {
   it("accepts all description kinds", () => {
-    for (const kind of ["foodstuff", "dish", "dish_type", "mix"]) {
+    for (const kind of ["foodstuff", "category", "dish", "dish_type", "mix"]) {
       assert.equal(parseDescriptionKind(kind), kind);
     }
   });

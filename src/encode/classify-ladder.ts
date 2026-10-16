@@ -89,6 +89,8 @@ export function descriptionKindNoun(kind: DescriptionKind | null): string {
       return "dish type";
     case "mix":
       return "mix";
+    case "category":
+      return "food category";
     case "foodstuff":
     case null:
       return "food or drink";

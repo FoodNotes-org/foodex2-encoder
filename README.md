@@ -6,6 +6,19 @@ free text for what the code cannot express.
 
 This repository is the core. A hosted version is available at https://foodex2-encoder.foodnotes.org/ .
 
+## Limitations
+
+Check every code before you use it. In particular:
+
+- **English input only**, including foreign food names commonly used in English.
+- **Group names the catalogue splits are kept as free text.** When a description
+  uses a name that the catalogue only has as several separate terms, that part
+  goes to free text instead of the code. For example, *canned shellfish* is coded
+  as *Canned seafood* with `source-commodity=shellfish` in free text, rather than
+  *Canned seafood* made from crustaceans and molluscs. The code is not wrong, but
+  it is broader than the description: *Canned seafood* also covers other marine
+  animals, such as sea urchins.
+
 ## What you need
 
 - Node.js 20+

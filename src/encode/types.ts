@@ -38,6 +38,7 @@ export type CandidateMatch = "exact" | "broad" | "narrow" | "related";
  */
 export type DescriptionKind =
   | "foodstuff"
+  | "category"
   | "dish"
   | "dish_type"
   | "mix";
