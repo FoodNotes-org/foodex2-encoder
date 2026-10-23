@@ -64,13 +64,16 @@ function placementLines(audit: AuditEntry[]): string[] {
       if (!isRecord(raw)) continue;
       const phrase = typeof raw.phrase === "string" ? raw.phrase : null;
       if (raw.placed === "facet") {
-        const facet = facetRef(raw.facet);
-        if (facet === null) continue;
-        lines.push(
-          phrase !== null
-            ? `"${phrase}" encoded as ${facet.name} (${facet.header}.${facet.code}).`
-            : `Added facet ${facet.name} (${facet.header}.${facet.code}).`
-        );
+        const placed = Array.isArray(raw.facets) ? raw.facets : [raw.facet];
+        for (const item of placed) {
+          const facet = facetRef(item);
+          if (facet === null) continue;
+          lines.push(
+            phrase !== null
+              ? `"${phrase}" encoded as ${facet.name} (${facet.header}.${facet.code}).`
+              : `Added facet ${facet.name} (${facet.header}.${facet.code}).`
+          );
+        }
       } else if (raw.placed === "freeText") {
         const ft = freeTextRef(raw.freeText);
         if (ft === null) continue;

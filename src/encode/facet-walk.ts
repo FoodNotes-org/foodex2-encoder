@@ -4,8 +4,8 @@
  * Two stages (same idea as base-term recall → select):
  * 1. Recall — under each opened header, branch-open only; collect candidate
  *    descriptors (leaves at visited levels + opened internals).
- * 2. Select — one pick over the union (name + codingGuidance). If the winner
- *    is an internal node, densify under it with the same split.
+ * 2. Select — one pick over the union (name + scope note). If the winner
+ *    is an internal node, pick among its direct children, level by level.
  *
  * Separate from base-term traverse.ts — phrase-vs-descriptor, not food-vs-term.
  */
@@ -16,10 +16,11 @@ import { pickAllowedCode, pickAllowedCodes } from "./answers.js";
 import { F07, F11 } from "./numeric-facets.js";
 import type { FacetDescriptorRef } from "./types.js";
 
+const F09 = "F09";
 const F26 = "F26";
 
-/** Handled by numeric snap, F26 path, or not residual Facets walk. */
-export const FACET_WALK_SKIP_HEADERS: ReadonlySet<string> = new Set([F07, F11, F26]);
+/** Owned by an earlier step (numeric snap, fortification, F26 path), never walked. */
+export const FACET_WALK_SKIP_HEADERS: ReadonlySet<string> = new Set([F07, F09, F11, F26]);
 
 const MAX_DEPTH = 6;
 const MAX_BRANCHES_PER_LEVEL = 4;
@@ -28,30 +29,34 @@ const MAX_BRANCHES_PER_LEVEL = 4;
  * Branch open: which children are worth descending into.
  * Payload is name + direct child names only (no scope notes).
  */
-const SYSTEM_BRANCH = `You are a food and nutrition ontology expert.
+const SYSTEM_BRANCH = `You are a food and nutrition ontology expert. Your task is to decide which -if any- of the groups may contain a term applicable to the phrase.
 
-We are placing a leftover property of a food into the FoodEx2 facet catalogue by walking its hierarchy top-down. The phrase is that property (not the food itself); \`food\`, when given, is the food it belongs to. The candidates are sibling nodes at the current level.
+Inputs:
+- \`description\`: the food description.
+- \`phrase\`: the phrase from the description.
+- \`groups\`: groups of catalogue terms, each with a \`code\`, a \`name\`, and the names of the terms directly under it.
 
-Return every candidate under which the phrase might belong — we will descend into those next. Use each candidate's listed child names only to see what that branch covers; child names are catalogue structure, not ingredients of the food.
+Interpret the phrase in the context of the food description.
 
-Empty list if none apply.
-
-Reply with JSON only:
+Reply with JSON only, listing the codes of those groups, or an empty list if there are none:
 {"codes":["<code>",...]}
 `;
 
 /**
  * Precision pick among recalled descriptors (possibly from several dimensions).
- * codingGuidance is MTX scope text reframed for the model.
+ * note is MTX scope text.
  */
-const SYSTEM_LEAF = `You are a food and nutrition ontology expert.
+const SYSTEM_LEAF = `You are a food and nutrition ontology expert. Your task is to match a phrase from a food description to a catalogue term.
 
-We are placing a leftover property of a food into the FoodEx2 facet catalogue. The phrase is that property (not the food itself); \`food\`, when given, is the food it belongs to. Candidates may come from different facet dimensions (see facet). Pick the descriptor that fits the phrase, or null if none do.
+Inputs:
+- \`description\`: the food description.
+- \`phrase\`: the phrase from the description.
+- \`terms\`: catalogue terms, each with a \`code\`, a \`name\`, the \`list\` it belongs to and, for some, a \`note\` from the catalogue on when to use it.
 
-Candidates may include codingGuidance: catalogue instructions for when to use or not use that descriptor, and sometimes how it trades off against other facets. Use it only to decide whether that candidate is the right code for the phrase.
+A term matches when the description alone is enough to know the term is true of what the phrase says. Pick the narrowest matching term.
 
-Reply with JSON only:
-{"code":"<CODE>"|null}
+Reply with JSON only, giving the code of that term, or null if no term matches:
+{"code":"<code>"|null}
 `;
 
 export type FacetWalkAccept = (header: string, code: string) => boolean;
@@ -124,32 +129,36 @@ function branchPayload(
 function selectPayload(
   cat: Catalogue,
   candidates: RecalledCandidate[]
-): Array<{ code: string; name: string; facet: string; codingGuidance?: string }> {
+): Array<{ code: string; name: string; list: string; note?: string }> {
   return candidates.map(({ code, header }) => {
     const term = cat.term(code);
     const name = term?.name ?? code;
-    const guidance = term?.scopeNote?.trim();
-    const facet = cat.facetCategory(header)?.label ?? header;
+    const note = term?.scopeNote?.trim();
+    const list = cat.facetCategory(header)?.label ?? header;
     return {
       code,
       name,
-      facet,
-      ...(guidance ? { codingGuidance: guidance } : {}),
+      list,
+      ...(note ? { note } : {}),
     };
   });
 }
 
 async function askBranch(
   phrase: string,
-  candidates: Array<{ code: string; name: string; children?: string[] }>,
+  groups: Array<{ code: string; name: string; children?: string[] }>,
   options: FacetWalkOptions
 ): Promise<{ codes: string[]; model: string }> {
-  const allowed = new Set(candidates.map((c) => c.code));
+  const allowed = new Set(groups.map((c) => c.code));
   const picked = await chatJson({
     model: options.model,
     system: SYSTEM_BRANCH,
     user: JSON.stringify(
-      { phrase, ...(options.food ? { food: options.food } : {}), candidates },
+      {
+        ...(options.food ? { description: options.food.input } : {}),
+        phrase,
+        groups,
+      },
       null,
       2
     ),
@@ -162,15 +171,19 @@ async function askBranch(
 
 async function askSelect(
   phrase: string,
-  candidates: Array<{ code: string; name: string; facet: string; codingGuidance?: string }>,
+  terms: Array<{ code: string; name: string; list: string; note?: string }>,
   options: FacetWalkOptions
 ): Promise<{ code: string | null; model: string }> {
-  const allowed = new Set(candidates.map((c) => c.code));
+  const allowed = new Set(terms.map((c) => c.code));
   const picked = await chatJson({
     model: options.model,
     system: SYSTEM_LEAF,
     user: JSON.stringify(
-      { phrase, ...(options.food ? { food: options.food } : {}), candidates },
+      {
+        ...(options.food ? { description: options.food.input } : {}),
+        phrase,
+        terms,
+      },
       null,
       2
     ),
@@ -262,6 +275,73 @@ export async function openFacetDimensions(
 }
 
 /**
+ * Which facets a leftover phrase speaks to, for this food. Several may apply
+ * ("in sunflower oil" on canned tuna: surrounding medium and ingredient).
+ */
+const SYSTEM_PICK_FACETS = `You are a food and nutrition ontology expert.
+
+We are coding a food in FoodEx2. Its base term is chosen; \`phrase\` is part of the food description the base term does not yet capture. Which facets does that phrase say something about, for this food? A phrase can speak to more than one facet.
+
+Each candidate is a facet; its listed child names show what it covers.
+
+Empty list if none apply.
+
+Reply with JSON only:
+{"codes":["<code>",...]}
+`;
+
+/** A picker option that is not a Facets dimension (routed by the caller). */
+export type FacetPickExtra = { code: string; name: string };
+
+/**
+ * Pick every option the phrase speaks to: walkable Facets dimensions (by
+ * header) plus caller-routed extras. Returns codes in reply order.
+ */
+export async function pickFacets(
+  cat: Catalogue,
+  phrase: string,
+  dimensions: FacetWalkDimension[],
+  extras: FacetPickExtra[],
+  options: FacetWalkOptions
+): Promise<{ codes: string[]; detail: Record<string, unknown> }> {
+  const walkable = walkableDimensions(dimensions);
+  const candidates = [
+    ...extras.map((e) => ({ code: e.code, name: e.name })),
+    ...walkable.map((d) => {
+      const hierarchy = hierarchyFor(cat, d.header);
+      const childNames =
+        hierarchy === null
+          ? []
+          : childCodes(cat, hierarchy, "root", d.header, options.accept).map(
+              (c) => cat.term(c)?.name ?? c
+            );
+      return {
+        code: d.header,
+        name: d.name,
+        ...(childNames.length > 0 ? { children: childNames } : {}),
+      };
+    }),
+  ];
+  /** pickAllowedCodes upper-cases replies; extras' codes need not be upper case. */
+  const byUpper = new Map(candidates.map((c) => [c.code.toUpperCase(), c.code]));
+  const allowed = new Set(byUpper.keys());
+  const picked = await chatJson({
+    model: options.model,
+    system: SYSTEM_PICK_FACETS,
+    user: JSON.stringify(
+      { phrase, ...(options.food ? { food: options.food } : {}), candidates },
+      null,
+      2
+    ),
+  });
+  const codes = pickAllowedCodes(picked.content, allowed).map((c) => byUpper.get(c) ?? c);
+  return {
+    codes,
+    detail: { phrase, via: "pick_facets", picked: codes, model: picked.model },
+  };
+}
+
+/**
  * Recall under one header: branch-open only; collect leaves at visited levels
  * and opened internal nodes (no precision pick yet).
  */
@@ -270,8 +350,7 @@ async function collectUnderHeader(
   phrase: string,
   header: string,
   options: FacetWalkOptions,
-  steps: WalkStep[],
-  startParent = "root"
+  steps: WalkStep[]
 ): Promise<RecalledCandidate[]> {
   const hierarchy = hierarchyFor(cat, header);
   if (hierarchy === null) {
@@ -346,7 +425,7 @@ async function collectUnderHeader(
     }
   };
 
-  await walk(startParent, startParent === "root" ? 0 : 1);
+  await walk("root", 0);
   return out;
 }
 
@@ -385,8 +464,8 @@ async function selectAmong(
     candidates: candidates.map((c) => ({
       code: c.code,
       name: c.name,
-      facet: c.facet,
-      hasGuidance: c.codingGuidance !== undefined,
+      facet: c.list,
+      hasGuidance: c.note !== undefined,
     })),
     picked: picked.code,
     model: picked.model,
@@ -396,8 +475,8 @@ async function selectAmong(
 }
 
 /**
- * After a global pick of an internal node, recall under it and select again
- * (including the current node as "stop here").
+ * After a pick of an internal node, select among its direct children only;
+ * keep the node when none matches. Repeats while the pick has children.
  */
 async function densify(
   cat: Catalogue,
@@ -413,30 +492,22 @@ async function densify(
   let chosen = current;
 
   for (let depth = 0; depth < maxDepth; depth++) {
-    const kids = childCodes(cat, hierarchy, chosen.code, chosen.header, undefined);
+    const kids = childCodes(cat, hierarchy, chosen.code, chosen.header, options.accept);
     if (kids.length === 0) return chosen;
 
-    const deeper = await collectUnderHeader(
-      cat,
-      phrase,
-      chosen.header,
-      options,
-      steps,
-      chosen.code
-    );
-    const pool: RecalledCandidate[] = [{ header: chosen.header, code: chosen.code }];
-    mergeRecalled(pool, deeper);
-
-    const picked = await selectAmong(
-      cat,
-      phrase,
-      pool,
-      options,
-      steps,
-      "select_densify"
-    );
-    if (picked === null || picked.code === chosen.code) return chosen;
-    chosen = picked;
+    const pool: RecalledCandidate[] = kids.map((code) => ({ header: chosen.header, code }));
+    const candidates = selectPayload(cat, pool);
+    const picked = await askSelect(phrase, candidates, options);
+    steps.push({
+      via: "select_densify",
+      parent: chosen.code,
+      candidates: candidates.map((c) => ({ code: c.code, name: c.name })),
+      picked: picked.code,
+      model: picked.model,
+    });
+    const next = pool.find((c) => c.code === picked.code);
+    if (next === undefined) return chosen;
+    chosen = next;
   }
 
   return chosen;

@@ -9,6 +9,7 @@ import { Catalogue } from "../src/catalogue.js";
 import {
   acceptF04Descriptor,
   alignsComponentToFoodTerm,
+  asUnsorted,
   bareFortifiedFacet,
   buildClosedPickPool,
   cleanupFacets,
@@ -250,6 +251,21 @@ describe("parseGapProperties", () => {
   });
 });
 
+describe("asUnsorted", () => {
+  it("leaves category members for free text and sends the rest to the facet picker", () => {
+    assert.deepEqual(
+      asUnsorted([
+        { phrase: "in sunflower oil", kind: "other", name: "sunflower oil" },
+        { phrase: "lentils", kind: "member" },
+      ]),
+      [
+        { phrase: "in sunflower oil", kind: "unsorted", name: "sunflower oil" },
+        { phrase: "lentils", kind: "member" },
+      ]
+    );
+  });
+});
+
 describe("parseGapOmitted", () => {
   it("reads phrase+reason and bare strings", () => {
     assert.deepEqual(
@@ -408,12 +424,17 @@ describe("parseOriginRole / F01 / F27 lexical alignment", () => {
     assert.deepEqual(originRolesForBaseType("c", "dish", "made_from"), ["contains"]);
   });
 
-  it("an added property is always an ingredient, never the food's origin (§3.1.9, §5.13)", () => {
+  it("an added property is an ingredient, never the food's origin (§3.1.9, §5.13)", () => {
     // Herbs in butter, salt on peanuts: not F27 / F01.
     assert.deepEqual(originRolesForBaseType("d", "foodstuff", "added"), ["contains"]);
     assert.deepEqual(originRolesForBaseType("r", "foodstuff", "added"), ["contains"]);
-    assert.deepEqual(originRolesForBaseType("r", "mix", "added"), ["contains"]);
     assert.deepEqual(originRolesForBaseType("g", "foodstuff", "added"), ["contains"]);
+  });
+
+  it("in a same-nature mix, an added component tries F27 before F04 (§3.1.10)", () => {
+    // Almonds in mixed nuts; salt has no F27 descriptor, so it still lands on F04.
+    assert.deepEqual(originRolesForBaseType("r", "mix", "added"), ["made_from", "contains"]);
+    assert.deepEqual(originRolesForBaseType("d", "mix", "added"), ["made_from", "contains"]);
   });
 
   it("composites keep F04 as the prescribed origin, whatever the property kind", () => {

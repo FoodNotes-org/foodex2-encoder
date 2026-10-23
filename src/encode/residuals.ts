@@ -16,13 +16,14 @@
  *     code snaps to the nearest catalogue bucket. Soft claims without a number
  *     are left for later residual passes.
  * 2. Input vs base — what the input still expresses; covered includes step 1.
- *    Outside dishes (and in 1b), each leftover is stated as how it relates to
- *    the food: `made_from` → origin role → F01/F27 (F04 on a composite);
- *    `added` → F04; `process` → F28. Dishes keep ingredient/source/side kinds:
- *    `side` → free text; ingredient/source → origin role → F01/F27/F04
- *    (`mix` on an RPC/derivative base prefers F27 over F01). `other` → top-down
- *    Facets walk (excl. F07/F11/F26). F04 is also a top-down walk of `ingred`.
- *    Mix skips F26.
+ *    Outside dishes (and in 1b), leftovers are unsorted: one facet pick per
+ *    phrase over the Facets dimensions (excl. F07/F09/F11/F26, owned by earlier
+ *    steps) plus two origin options, every pick placed. Origin options use the
+ *    origin route: `made_from` → F01/F27 (F04 on a composite), `added` → F04.
+ *    Dishes keep ingredient/source/side kinds: `side` → free text;
+ *    ingredient/source → origin role → F01/F27/F04 (`mix` on an RPC/derivative
+ *    base prefers F27 over F01); `process` → F28; `other` → top-down Facets
+ *    walk. F04 is also a top-down walk of `ingred`. Mix skips F26.
  * 3. F26 Generic-term — its own step after placement (chooseF26): Other when the
  *    input is a missing sibling of the base's children, else Unspecified on an
  *    H/M/P base.
@@ -40,7 +41,9 @@ import { searchTerms, type SearchCandidate } from "../search/lexical.js";
 import { pickAllowedCode } from "./answers.js";
 import {
   openFacetDimensions,
+  pickFacets,
   resolveFacetWalk,
+  type FacetPickExtra,
 } from "./facet-walk.js";
 import {
   dropNumericRestatements,
@@ -105,15 +108,16 @@ export type OriginRole = "organism" | "made_from" | "contains";
  * source, unknown) and the model must be asked.
  *
  * `made_from` behaves like `source`. An `added` property is something put into
- * the food, never its origin, so it is always an ingredient (F04): characterising
- * on a composite, minor on a raw commodity or derivative (§3.1.9, §5.13).
+ * the food, never its origin, so it is an ingredient (F04): characterising on a
+ * composite, minor on a raw commodity or derivative (§3.1.9, §5.13). In a
+ * same-nature mix, what is put in is a component (almonds in mixed nuts), so it
+ * tries F27 first and keeps F04 as the fallback for a true minor ingredient.
  */
 export function originRolesForBaseType(
   baseTermType: string | null,
   descriptionKind: DescriptionKind | null = null,
   propertyKind: GapPropertyKind | null = null
 ): OriginRole[] | null {
-  if (propertyKind === "added") return ["contains"];
   const withFallback = (prescribed: OriginRole): OriginRole[] =>
     propertyKind === "source" || propertyKind === "made_from"
       ? [prescribed]
@@ -124,6 +128,7 @@ export function originRolesForBaseType(
   ) {
     return withFallback("made_from");
   }
+  if (propertyKind === "added") return ["contains"];
   switch (baseTermType) {
     case "r":
       return withFallback("organism");
@@ -221,27 +226,28 @@ Reply with JSON only:
 {"verdicts":[{"id":"<id>","covered":true|false},...]}
 `;
 
-/** How a property relates to the food; each kind has one placement route. */
-const RELATION_KINDS = [
-  "- made_from — the plant, animal or commodity this food is, or is made from",
-  "- added — a food or substance added to this food",
-  "- process — a treatment or preparation applied to this food",
-  "- other — any other property (freshness/storage state, fat level, part, packaging, production method, …)",
-].join("\n");
-const RELATION_KIND_ENUM = '"made_from"|"added"|"process"|"other"';
+/**
+ * Origin options offered to the facet picker beside the Facets dimensions; each
+ * code is the property kind whose origin route places it.
+ */
+const ORIGIN_PICKS: FacetPickExtra[] = [
+  {
+    code: "made_from",
+    name: "Source or source-commodity: the plant, animal or commodity this food is, or is made from",
+  },
+  { code: "added", name: "Ingredient: a food or substance added to this food" },
+];
 
 /**
  * Foodstuff common-name meaning when the locked base is only a broader shelf.
- * Same property shape as dish essence; miss → drop (world knowledge, not input parse).
+ * Properties are unsorted: the facet picker decides where each goes.
+ * Miss → drop (world knowledge, not input parse).
  */
 const SYSTEM_NAME_MEANING = `You are a food and nutrition ontology expert.
 
 You are given a food name and the locked catalogue base term (a broader shelf that does not fully name that food).
 
-State briefly what the name conventionally means. Imagine the densest catalogue-style name for that meaning. List only characterising properties that denser name would carry beyond the locked base, each as how it relates to this food: the \`phrase\` it comes from, a \`kind\`, and a short catalogue-style \`name\`.
-
-Kinds:
-${RELATION_KINDS}
+State briefly what the name conventionally means. Imagine the densest catalogue-style name for that meaning. List only characterising properties that denser name would carry beyond the locked base: for each, the \`phrase\` it comes from and, as \`name\`, a short catalogue-style name of the food, organism, substance, treatment or attribute it states.
 
 Give more than one property for a phrase only when the phrase itself states more than one.
 
@@ -249,7 +255,7 @@ If the base already covers the name, return an empty property list.
 Do not list properties already captured in \`covered\`.
 
 Reply with JSON only:
-{"definition":"<text>","properties":[{"phrase":"<text>","kind":${RELATION_KIND_ENUM},"name":"<text>"},...]}
+{"definition":"<text>","properties":[{"phrase":"<text>","name":"<text>"},...]}
 `;
 
 /**
@@ -321,40 +327,34 @@ Reply with JSON only:
 }
 
 /**
- * Input vs locked base for anything but a dish: each leftover stated as how it
- * relates to the food, so one phrase can carry two facets (chocolate added by
- * coating) and an addition is never mistaken for the food's origin. Dishes keep
- * `systemInputVsBase`: there the base type already sends constituents to F04,
- * and relation wording made the model re-describe parts (fries → fried).
+ * Input vs locked base for anything but a dish. Leftovers are unsorted: the
+ * facet picker decides which facets each phrase speaks to, so one phrase can
+ * carry several (in sunflower oil → surrounding medium and ingredient). Dishes
+ * keep `systemInputVsBase`: there the base type already sends constituents to
+ * F04, and relation wording made the model re-describe parts (fries → fried).
  */
 export function systemInputRelations(descriptionKind: DescriptionKind | null = null): string {
   const aggregate = descriptionKind === "category";
   const group = aggregate
-    ? "\n`input` is an aggregate term: it names a group of foods, not one food. A property is something every food in the group has; wording that says which foods the group includes is kind `member`.\n"
+    ? "\n`input` is an aggregate term: it names a group of foods, not one food. A property is something every food in the group has; mark wording that says which foods the group includes with `\"kind\":\"member\"`.\n"
     : "";
-  const kinds = aggregate
-    ? `${RELATION_KINDS}\n- member — which foods the group includes`
-    : RELATION_KINDS;
-  const kindEnum = aggregate
-    ? RELATION_KIND_ENUM.replace('"other"', '"other"|"member"')
-    : RELATION_KIND_ENUM;
+  const shape = aggregate
+    ? '{"phrase":"<text>","name":"<text>","kind":"member"?}'
+    : '{"phrase":"<text>","name":"<text>"}';
   return `You are a food and nutrition ontology expert.
 
 You are given a food description (\`input\`) and what is already captured (\`baseTerm\`, \`implicits\`, \`covered\`).
 ${group}
 First, list what the input says about the food that is not already represented by \`baseTerm\`, \`implicits\`, or \`covered\`. Omit wording that does not materially change the food. Put omitted candidates in \`omitted\` with a short \`reason\`.
 
-Then, state each as how it relates to this food: the \`phrase\` from the input, a \`kind\`, and a short catalogue-style \`name\`.
-
-Kinds:
-${kinds}
+Then, state each as a property of this food: the \`phrase\` from the input and, as \`name\`, a short catalogue-style name of the food, organism, substance, treatment or attribute it states.
 
 Give more than one property for a phrase only when the phrase itself states more than one.
 
 If nothing is left to keep, return an empty properties list.
 
 Reply with JSON only:
-{"properties":[{"phrase":"<text>","kind":${kindEnum},"name":"<text>"},...],"omitted":[{"phrase":"<text>","reason":"<text>"},...]}
+{"properties":[${shape},...],"omitted":[{"phrase":"<text>","reason":"<text>"},...]}
 `;
 }
 
@@ -371,7 +371,9 @@ export type GapPropertyKind =
   | "process"
   | "side"
   | "member"
-  | "other";
+  | "other"
+  /** Not sorted by the listing model; the facet picker decides (non-dish channels). */
+  | "unsorted";
 
 export interface GapProperty {
   /** Wording from the input (or the name's meaning) the property comes from. */
@@ -590,7 +592,12 @@ function freeTextLabelForOriginRole(
   if (kind === "ingredient" || kind === "added") return "ingredient";
   if (kind === "source" || kind === "made_from") return "source";
   if (kind === "process") return "process";
-  if (kind === "other" && otherLabel !== undefined && otherLabel !== null && otherLabel.trim() !== "") {
+  if (
+    (kind === "other" || kind === "unsorted") &&
+    otherLabel !== undefined &&
+    otherLabel !== null &&
+    otherLabel.trim() !== ""
+  ) {
     return otherLabel.trim().toLowerCase();
   }
   if (kind === "other") return "note";
@@ -794,6 +801,11 @@ export function parseGapProperties(content: unknown): GapProperty[] {
     out.push(name !== "" && name !== phrase ? { phrase, kind, name } : { phrase, kind });
   }
   return out;
+}
+
+/** Non-dish channels: every property but a category member goes to the facet picker. */
+export function asUnsorted(properties: GapProperty[]): GapProperty[] {
+  return properties.map((p) => (p.kind === "member" ? p : { ...p, kind: "unsorted" }));
 }
 
 /** Parse the fortification detection reply. Unknown shapes → none. */
@@ -2054,14 +2066,46 @@ function pushFreeText(entries: FreeTextEntry[], label: string, value: string): v
   entries.push({ label: lab, value: val });
 }
 
+/** Origin route: base type (or the model) orders F01 / F27 / F04; the first role that places wins. */
+async function placeOrigin(
+  ctx: PlaceContext,
+  lookup: string,
+  kind: GapPropertyKind,
+  rejectUnderImplied: boolean,
+  attempts: Record<string, unknown>[]
+): Promise<{ facet: FacetDescriptorRef | null; role: OriginRole | null }> {
+  const { roles, detail } = await originRolesFor(ctx, lookup, kind);
+  attempts.push(detail);
+  for (const role of roles) {
+    const resolved =
+      role === "contains"
+        ? await resolveF04Phrase(ctx, lookup, { rejectUnderImplied })
+        : await resolveClosedFacetPhrase(
+            ctx.cat,
+            lookup,
+            role === "organism" ? F01 : F27,
+            ctx.implied,
+            { model: ctx.model, allowRootFallback: false, termTypes: ctx.memberTypes }
+          );
+    attempts.push(resolved.detail);
+    if (resolved.facet !== null && addFacet(ctx, resolved.facet)) {
+      return { facet: resolved.facet, role };
+    }
+  }
+  return { facet: null, role: roles[0] ?? null };
+}
+
 /**
  * Place a kind-tagged property (no cross-kind fall-through).
+ * unsorted: facet picker → every picked facet placed (origin picks via the
+ * origin route with the catalogue-style `name`; Facets dimensions walked with
+ * the input phrase).
  * ingredient/source/made_from: origin role → F01 / F27 / F04.
  * added: F04 only.
  * Lookups use the property's catalogue-style `name` when the model gave one.
  * process: F28 Facets walk.
  * side: free text only (no plate-companion facet in MTX).
- * other: Facets dimension open → walk selected headers (excl. F07/F11/F26).
+ * other: Facets dimension open → walk selected headers (excl. F07/F09/F11/F26).
  * onMiss: essence drops (dish= covers identity); input vs base → free text.
  */
 async function placeByKind(
@@ -2115,33 +2159,74 @@ async function placeByKind(
     };
   }
 
-  if (kind === "ingredient" || kind === "source" || kind === "made_from" || kind === "added") {
-    const { roles, detail } = await originRolesFor(ctx, lookup, kind);
-    attempts.push(detail);
-    originRole = roles[0] ?? null;
-
-    for (const role of roles) {
-      const resolved =
-        role === "contains"
-          ? await resolveF04Phrase(ctx, lookup, { rejectUnderImplied })
-          : await resolveClosedFacetPhrase(
-              ctx.cat,
-              lookup,
-              role === "organism" ? F01 : F27,
-              ctx.implied,
-              { model: ctx.model, allowRootFallback: false, termTypes: ctx.memberTypes }
-            );
-      attempts.push(resolved.detail);
-      if (resolved.facet !== null && addFacet(ctx, resolved.facet)) {
-        return {
-          phrase,
-          kind,
-          originRole: role,
-          placed: "facet",
-          facet: resolved.facet,
-          attempts,
-        };
+  if (kind === "unsorted") {
+    const picked = await pickFacets(ctx.cat, phrase, facetDimensions(ctx.cat), ORIGIN_PICKS, {
+      model: ctx.model,
+      accept: walkAccept,
+      food,
+    });
+    attempts.push(picked.detail);
+    const placed: FacetDescriptorRef[] = [];
+    let member = false;
+    for (const code of picked.codes) {
+      if (code === "made_from" || code === "added") {
+        if (isCategoryMember(ctx.descriptionKind, code)) {
+          member = true;
+          continue;
+        }
+        const origin = await placeOrigin(ctx, lookup, code, rejectUnderImplied, attempts);
+        originRole ??= origin.role;
+        if (origin.facet !== null) placed.push(origin.facet);
+        continue;
       }
+      const walked = await resolveFacetWalk(ctx.cat, phrase, [code], {
+        model: ctx.model,
+        accept: walkAccept,
+        food,
+      });
+      attempts.push(walked.detail);
+      if (walked.facet !== null && addFacet(ctx, walked.facet)) placed.push(walked.facet);
+    }
+    if (placed.length > 0) {
+      return {
+        phrase,
+        kind,
+        placed: "facet",
+        facet: placed[0],
+        facets: placed,
+        attempts,
+      };
+    }
+    if (member) {
+      if (onMiss === "drop") {
+        return { phrase, kind, placed: "dropped", reason: "category_member", attempts };
+      }
+      pushFreeText(ctx.freeText, "member", phrase);
+      return {
+        phrase,
+        kind,
+        placed: "freeText",
+        reason: "category_member",
+        freeText: { label: "member", value: phrase },
+        attempts,
+      };
+    }
+    const walkedHeaders = picked.codes.filter((c) => c !== "made_from" && c !== "added");
+    if (originRole === null && walkedHeaders.length === 1) {
+      otherLabel = ctx.cat.facetCategory(walkedHeaders[0]!)?.label ?? walkedHeaders[0]!;
+    }
+  } else if (kind === "ingredient" || kind === "source" || kind === "made_from" || kind === "added") {
+    const origin = await placeOrigin(ctx, lookup, kind, rejectUnderImplied, attempts);
+    originRole = origin.role;
+    if (origin.facet !== null) {
+      return {
+        phrase,
+        kind,
+        originRole: origin.role,
+        placed: "facet",
+        facet: origin.facet,
+        attempts,
+      };
     }
   } else if (kind === "process") {
     const process = await resolveFacetWalk(ctx.cat, lookup, [F28], {
@@ -2504,7 +2589,7 @@ export async function assignResiduals(
       });
       const meaning = parseEssence(defined.content);
       const meaningFiltered = dropEarlyClaimRestatements(
-        meaning.properties,
+        asUnsorted(meaning.properties),
         ctx.fortificationClaim,
         ctx.numericClaim
       );
@@ -2676,11 +2761,7 @@ export async function assignResiduals(
   });
   const listedRaw = parseGapProperties(listed.content);
   const omitted = parseGapOmitted(listed.content);
-  const forFilter = allowSide
-    ? listedRaw
-    : listedRaw.map((p) =>
-        p.kind === "side" ? { ...p, kind: "ingredient" as const } : p
-      );
+  const forFilter = allowSide ? listedRaw : asUnsorted(listedRaw);
   const { kept: inInput, dropped } = filterPropertiesToInput(forFilter, gapInput);
   const claimDrop = dropEarlyClaimRestatements(
     inInput,
@@ -2704,13 +2785,6 @@ export async function assignResiduals(
       properties,
       ...(omitted.length > 0 ? { omitted } : {}),
       ...(allowSide ? {} : { sideKind: "disallowed" }),
-      ...(listedRaw.some((p) => p.kind === "side") && !allowSide
-        ? {
-            remappedSideToIngredient: listedRaw
-              .filter((p) => p.kind === "side")
-              .map((p) => p.phrase),
-          }
-        : {}),
       ...(droppedAll.length > 0 ? { dropped: droppedAll, raw: listedRaw } : {}),
     },
   });

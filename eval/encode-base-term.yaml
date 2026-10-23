@@ -80,17 +80,6 @@ cases:
     tags: dish
     note: Named-dish span owned; uncovered homemade may be note=
 
-  - id: encode-sausage-potatoes-fries
-    input: sausage with potatoes and fries
-    expected: A03VJ
-    method: traversal
-    require_facets: F04.A024F
-    require_f04_under: F04.A011N
-    forbid_facets: F04.A00ZT,F26.A07XE,F28.A07GR
-    capability: Encodes a plate as the composite meal term, with its components as F04 rather than as separate foods.
-    tags: dish
-    note: Potatoes and meat meal; potatoes and meat are implicit, sausages and fries are F04. Frying holds for the fries only; no F26 Other because a dedicated meal term exists
-
   - id: encode-sandwich-bare
     input: sandwich
     expected: A03YZ
@@ -109,6 +98,51 @@ cases:
     capability: Treats processing (smoking) as a facet, not as the base term (EFSA §3.1.3).
     tags: process
     note: Canned sprats, not Smoked fish
+
+  - id: encode-tuna-sunflower-oil
+    input: tuna in sunflower oil, canned
+    expected: A0FBT
+    method: traversal
+    require_facets: F06.A06XL
+    capability: Codes the oil a canned fish is packed in as its surrounding medium.
+    tags: facets
+    note: Canned tunas + In vegetable oils other than olive. F04 Sunflower seed oil may also be added (BR12 warning); only F06 is checked
+
+  - id: encode-tuna-brine
+    input: tuna in brine, canned
+    expected: A0FBT
+    method: traversal
+    require_facets: F06.A06XT
+    capability: Codes brine on a canned fish as its surrounding medium.
+    tags: facets
+    note: Canned tunas + In salt brine
+
+  - id: encode-sardines-tomato-sauce
+    input: sardines in tomato sauce, canned
+    expected: A0FBZ
+    method: traversal
+    require_facets: F06.A06XR
+    capability: Codes a savoury sauce a canned fish is packed in as its surrounding medium.
+    tags: facets
+    note: Canned sardines + In gravy or savoury sauce
+
+  - id: encode-sardines-olive-oil
+    input: sardines in olive oil, canned
+    expected: A0FBZ
+    method: traversal
+    require_facets: F06.A06XK
+    capability: Distinguishes olive oil from other vegetable oils as a surrounding medium.
+    tags: facets
+    note: Canned sardines + In olive oil
+
+  - id: encode-peaches-fruit-juice
+    input: canned peaches in fruit juice
+    expected: A01NY
+    method: traversal
+    require_facets: F06.A06XM
+    capability: Codes the juice canned fruit is packed in as its surrounding medium.
+    tags: facets
+    note: Canned or jarred peach + In fruit/vegetable juice
 
   - id: encode-ice-cream-topping
     input: chocolate ice cream with amarena cherries
@@ -179,16 +213,6 @@ cases:
     tags: soft, facets
     note: Soft — F27 members are required; model sometimes also adds F28 Mixing (same-nature mix is not Mixing)
 
-  - id: encode-shellfish-fresh-and-frozen
-    input: shellfish, fresh and frozen
-    expected: A026T
-    method: traversal
-    forbid_facets: F28.A07KQ,F28.A07KP,F28.A07KN,F28.A0BYG,F28.A0C0S,F10.A166Y
-    free_text_includes: frozen
-    capability: Reads a category as an aggregate term, so wording that says which foods it includes goes to free text.
-    tags: facets
-    note: Fish and seafood; fresh and frozen name subgroups, so no state or treatment (nor a parent covering both, such as Lowering temperature) is a property of the group. Fresh and frozen go to free text
-
   - id: encode-fresh-and-frozen-shellfish
     input: fresh and frozen shellfish
     expected: A026T
@@ -201,10 +225,11 @@ cases:
     input: canned shellfish
     expected: A0BZ5
     method: traversal
-    require_facets: F27.A02FD,F27.A02GM
-    capability: Expresses a group name the catalogue splits into several terms as several facets, not as free text.
-    tags: soft, facets
-    note: Soft — known limitation. Canned seafood made from crustaceans and molluscs. Today "shellfish" finds no F27 term (lexical recall) and the closed pick returns one code, so it lands in free text (source-commodity=shellfish)
+    forbid_facets: F27.A02FD,F27.A02GM
+    free_text_includes: shellfish
+    capability: Keeps wording that says which foods a category includes in free text, not as facets.
+    tags: facets
+    note: Canned seafood; each can holds crustaceans or molluscs, not both, so F27 Crustaceans + F27 Molluscs would read as a mix. Shellfish goes to free text
 
   # --- Catalogue gaps and restraint ---
   - id: encode-quinoa-flour

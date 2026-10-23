@@ -14,8 +14,9 @@ import { facetDimensions } from "../src/encode/residuals.js";
 const cat = Catalogue.load();
 
 describe("FACET_WALK_SKIP_HEADERS", () => {
-  it("excludes numeric and generic-term headers", () => {
+  it("excludes numeric, fortification-agent and generic-term headers", () => {
     assert.ok(FACET_WALK_SKIP_HEADERS.has("F07"));
+    assert.ok(FACET_WALK_SKIP_HEADERS.has("F09"));
     assert.ok(FACET_WALK_SKIP_HEADERS.has("F11"));
     assert.ok(FACET_WALK_SKIP_HEADERS.has("F26"));
     assert.equal(FACET_WALK_SKIP_HEADERS.has("F28"), false);
