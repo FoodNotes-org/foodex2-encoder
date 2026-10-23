@@ -58,7 +58,7 @@ export const EFSA_RULES: Record<string, EfsaRule> = {
   BR31: { severity: "error", message: "The facet is not valid for the facet category." },
 };
 
-/** EFSA rules not implemented yet (see rules/efsa-business-rules.md). */
+/** EFSA rules not checked: not implemented yet, or not documented by EFSA (BR14, BR15). */
 export const EFSA_RULES_NOT_CHECKED = ["BR01", "BR05", "BR06", "BR07", "BR14", "BR15", "BR27"];
 
 /** BR11: "Processed" and its children. */

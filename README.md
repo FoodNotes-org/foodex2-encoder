@@ -43,8 +43,8 @@ The coding rules in `src/rules/` (EFSA business rules, facet cardinality, our
 own checks) are shared with the FoodEx2 Atlas validator. Their data comes from
 `rules/cardinality.yaml`, `rules/conflicts.yaml` and
 `vendor/efsa-business-rules/`; after editing those, regenerate the committed
-`src/rules/rules-data.json` with `npm run build:rules`. Background and sources
-are in `rules/efsa-business-rules.md`.
+`src/rules/rules-data.json` with `npm run build:rules`. Sources, licence and
+limits are in `rules/efsa-business-rules.md`.
 
 ## Model endpoint
 
