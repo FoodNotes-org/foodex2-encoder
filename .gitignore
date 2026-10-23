@@ -31,3 +31,4 @@ worker-configuration.d.ts
 eval/runs/
 .wrangler/
 dist-worker/
+.zed/
