@@ -59,6 +59,36 @@ Reply with JSON only, giving the code of that term, or null if no term matches:
 {"code":"<code>"|null}
 `;
 
+/** How the picked term relates to the food in an origin walk. */
+export type OriginPickRole = "source" | "made_from" | "ingredient";
+
+const ORIGIN_RELATION: Record<OriginPickRole, string> = {
+  source: "is it the plant or animal `food` comes from?",
+  made_from: "is `food` made from it?",
+  ingredient:
+    "is it a characterising ingredient of `food`: one that makes it different from other foods of its kind?",
+};
+
+/** Final pick for origin walks: asks about the food, not about the search phrase. */
+export function systemOriginPick(role: OriginPickRole): string {
+  return `You are an expert in food and nutrition.
+
+Task: decide which of the given terms holds for a food, so that the most specific one can be recorded.
+
+Given:
+- \`food\`: the food as described.
+- \`lookingFor\`: what we are trying to identify; it may be worded loosely.
+- \`terms\`: candidate terms, each with a \`code\` and a \`name\`.
+
+Judgement:
+- A term holds when the answer to this question is yes: ${ORIGIN_RELATION[role]}
+- Of the terms that hold and match \`lookingFor\`, pick the most specific.
+
+Reply with JSON only, with the code of that term, or null when no term holds:
+{"code":"<code>"|null}
+`;
+}
+
 export type FacetWalkAccept = (header: string, code: string) => boolean;
 
 /** The food the phrase belongs to, shown to the model alongside the phrase. */
@@ -78,6 +108,8 @@ export type FacetWalkOptions = {
    * from where the walk looks (F04 *Fries* under composite dishes).
    */
   seeds?: Array<{ header: string; code: string }>;
+  /** Origin walks: the final pick asks this role's question about `food`. */
+  originRole?: OriginPickRole;
 };
 
 type WalkStep = Record<string, unknown>;
@@ -175,6 +207,22 @@ async function askSelect(
   options: FacetWalkOptions
 ): Promise<{ code: string | null; model: string }> {
   const allowed = new Set(terms.map((c) => c.code));
+  if (options.originRole !== undefined && options.food !== undefined) {
+    const picked = await chatJson({
+      model: options.model,
+      system: systemOriginPick(options.originRole),
+      user: JSON.stringify(
+        {
+          food: options.food.input,
+          lookingFor: phrase,
+          terms: terms.map(({ code, name }) => ({ code, name })),
+        },
+        null,
+        2
+      ),
+    });
+    return { code: pickAllowedCode(picked.content, allowed), model: picked.model };
+  }
   const picked = await chatJson({
     model: options.model,
     system: SYSTEM_LEAF,

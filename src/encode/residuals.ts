@@ -43,7 +43,9 @@ import {
   openFacetDimensions,
   pickFacets,
   resolveFacetWalk,
+  systemOriginPick,
   type FacetPickExtra,
+  type OriginPickRole,
 } from "./facet-walk.js";
 import {
   dropNumericRestatements,
@@ -1563,6 +1565,7 @@ async function resolveF04Phrase(
     accept,
     food: { input: ctx.input, baseTerm: ctx.baseName },
     seeds,
+    originRole: "ingredient",
   });
   return {
     facet: walked.facet,
@@ -1775,9 +1778,38 @@ async function modelPickClosedDescriptor(
   phrase: string,
   header: string,
   candidates: LexHit[],
-  model: string
+  model: string,
+  origin?: { role: OriginPickRole; food: string }
 ): Promise<{ code: string | null; model: string; detail: Record<string, unknown> }> {
   const allowed = new Set(candidates.map((c) => c.code));
+  if (origin !== undefined) {
+    const picked = await chatJson({
+      model,
+      system: systemOriginPick(origin.role),
+      user: JSON.stringify(
+        {
+          food: origin.food,
+          lookingFor: phrase,
+          terms: candidates.map((c) => ({ code: c.code, name: cat.term(c.code)?.name ?? c.name })),
+        },
+        null,
+        2
+      ),
+    });
+    const code = pickAllowedCode(picked.content, allowed);
+    return {
+      code,
+      model: picked.model,
+      detail: {
+        phrase,
+        header,
+        via: "closed_model_pick",
+        originRole: origin.role,
+        candidates: candidates.map((c) => ({ code: c.code, name: c.name })),
+        picked: code,
+      },
+    };
+  }
   const payload = {
     phrase,
     candidates: candidates.map((c) => {
@@ -1841,6 +1873,8 @@ async function resolveClosedFacetPhrase(
     seedHits?: LexHit[];
     rejectUnderImplied?: boolean;
     termTypes?: ReadonlySet<string> | null;
+    /** Origin walks: the model pick asks this role's question about the food. */
+    origin?: { role: OriginPickRole; food: string };
   } = {}
 ): Promise<{ facet: FacetDescriptorRef | null; detail: Record<string, unknown> }> {
   const allowRootFallback =
@@ -1878,7 +1912,8 @@ async function resolveClosedFacetPhrase(
       phrase,
       header,
       pickPool,
-      options.model
+      options.model,
+      options.origin
     );
     if (picked.code !== null) {
       const hit = pickPool.find((c) => c.code === picked.code) ?? {
@@ -2083,7 +2118,12 @@ async function placeOrigin(
             lookup,
             role === "organism" ? F01 : F27,
             ctx.implied,
-            { model: ctx.model, allowRootFallback: false, termTypes: ctx.memberTypes }
+            {
+              model: ctx.model,
+              allowRootFallback: false,
+              termTypes: ctx.memberTypes,
+              origin: { role: role === "organism" ? "source" : "made_from", food: ctx.input },
+            }
           );
     attempts.push(resolved.detail);
     if (resolved.facet !== null && addFacet(ctx, resolved.facet)) {
