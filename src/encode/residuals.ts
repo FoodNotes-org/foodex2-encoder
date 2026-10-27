@@ -241,24 +241,78 @@ const ORIGIN_PICKS: FacetPickExtra[] = [
 ];
 
 /**
- * Foodstuff common-name meaning when the locked base is only a broader shelf.
- * Properties are unsorted: the facet picker decides where each goes.
- * Miss → drop (world knowledge, not input parse).
+ * What a named foodstuff must come from beyond its base term, one list per
+ * origin facet (guidance §3.1.2 definitions, Table 8): source → F01, source
+ * commodities → F27, ingredients → F04. Miss → drop (world knowledge, not
+ * input parse).
  */
-const SYSTEM_NAME_MEANING = `You are a food and nutrition ontology expert.
+const SYSTEM_ORIGIN = `You are an expert in food and nutrition classification.
 
-You are given a food name and the locked catalogue base term (a broader shelf that does not fully name that food).
+Task: name what any foodstuff called \`name\` must come from, beyond what its base term already says, in three lists, so that each entry can be looked up in a food list:
+- \`source\`: the live plant or animal it was harvested, slaughtered or collected from, when it is a raw food that no process has changed.
+- \`sourceCommodities\`: the raw food it was obtained from by a process that changed its nature.
+- \`ingredients\`: the ingredients combined in it by a recipe that make it different from other foods in its base term's group.
 
-State briefly what the name conventionally means. Imagine the densest catalogue-style name for that meaning. List only characterising properties that denser name would carry beyond the locked base: for each, the \`phrase\` it comes from and, as \`name\`, a short catalogue-style name of the food, organism, substance, treatment or attribute it states.
+Given:
+- \`name\`: the name of a foodstuff, possibly with a qualifier that disambiguates it.
+- \`baseTerm\`: the catalogue food group it is classified under, with the descriptors that always apply to that group (\`implicit\`).
 
-Give more than one property for a phrase only when the phrase itself states more than one.
+Judgement:
+- Include only what a foodstuff must come from to be called \`name\`, not what it typically or often does.
+- Leave out what is true of every food in the base term's group, or what an implicit descriptor already says.
+- Put each food in one list only. Give one food per entry.
 
-If the base already covers the name, return an empty property list.
-Do not list properties already captured in \`covered\`.
+Reply with JSON only; any list may be empty:
+{"source":["<plant or animal>"],"sourceCommodities":["<raw food>"],"ingredients":["<ingredient>"]}
+`;
+
+/** Origin-question lists, each placed in its own facet only. */
+const ORIGIN_LISTS = [
+  { list: "source", role: "organism", kind: "source" },
+  { list: "sourceCommodities", role: "made_from", kind: "made_from" },
+  { list: "ingredients", role: "contains", kind: "ingredient" },
+] as const satisfies ReadonlyArray<{ list: string; role: OriginRole; kind: GapPropertyKind }>;
+
+type OriginList = (typeof ORIGIN_LISTS)[number]["list"];
+
+function parseOriginLists(content: unknown): Record<OriginList, string[]> {
+  const body = content !== null && typeof content === "object" ? (content as Record<string, unknown>) : {};
+  const strings = (raw: unknown): string[] =>
+    Array.isArray(raw)
+      ? raw.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter((x) => x !== "")
+      : [];
+  return {
+    source: strings(body.source),
+    sourceCommodities: strings(body.sourceCommodities),
+    ingredients: strings(body.ingredients),
+  };
+}
+
+/** The food's name without treatment / packing / preparation words, asked before the origin question. */
+const SYSTEM_FOOD_NAME = `You are an expert in food and in lexical semantics.
+
+Task: give the name of the food in a food description, without the words that describe how it is treated, packed or prepared, so that the food itself can be looked up.
+
+Given:
+- \`description\`: a food description as written.
+
+Judgement:
+- Keep every word that is part of what the food is called.
+- Copy the name exactly as it appears in \`description\`.
 
 Reply with JSON only:
-{"definition":"<text>","properties":[{"phrase":"<text>","name":"<text>"},...]}
+{"name":"<text>"}
 `;
+
+/** The answered name, or null when it is empty or not found in `description`. */
+export function parseFoodName(content: unknown, description: string): string | null {
+  const raw =
+    content !== null && typeof content === "object" ? (content as { name?: unknown }).name : null;
+  if (typeof raw !== "string") return null;
+  const name = raw.trim();
+  if (name === "" || !description.toLowerCase().includes(name.toLowerCase())) return null;
+  return name;
+}
 
 /**
  * Fortification / enrichment / supplementation — asked before ingredient/source
@@ -468,7 +522,7 @@ export type AssignResidualsResult = AssignResidualsOk | AssignResidualsRejected;
 
 type LexHit = Pick<SearchCandidate, "code" | "name" | "score">;
 
-interface PlaceContext {
+export interface PlaceContext {
   cat: Catalogue;
   baseCode: string;
   baseName: string;
@@ -2099,16 +2153,38 @@ function pushFreeText(entries: FreeTextEntry[], label: string, value: string): v
   entries.push({ label: lab, value: val });
 }
 
-/** Origin route: base type (or the model) orders F01 / F27 / F04; the first role that places wins. */
-async function placeOrigin(
+/**
+ * Origin route: base type (or the model) orders F01 / F27 / F04; the first role
+ * that places wins. `fixedRole` (origin question) skips that routing; the base
+ * type's roles are still recorded so disagreements show in the audit.
+ */
+export async function placeOrigin(
   ctx: PlaceContext,
   lookup: string,
   kind: GapPropertyKind,
   rejectUnderImplied: boolean,
-  attempts: Record<string, unknown>[]
+  attempts: Record<string, unknown>[],
+  fixedRole?: OriginRole
 ): Promise<{ facet: FacetDescriptorRef | null; role: OriginRole | null }> {
-  const { roles, detail } = await originRolesFor(ctx, lookup, kind);
-  attempts.push(detail);
+  let roles: OriginRole[];
+  if (fixedRole !== undefined) {
+    roles = [fixedRole];
+    const baseTypeRoles = originRolesForBaseType(ctx.baseTermType, ctx.descriptionKind, kind);
+    attempts.push({
+      via: "origin_role",
+      phrase: lookup,
+      kind,
+      roles,
+      decidedBy: "origin_question",
+      baseTermType: ctx.baseTermType,
+      baseTypeRoles,
+      ...(baseTypeRoles !== null && baseTypeRoles[0] !== fixedRole ? { disagrees: true } : {}),
+    });
+  } else {
+    const routed = await originRolesFor(ctx, lookup, kind);
+    roles = routed.roles;
+    attempts.push(routed.detail);
+  }
   for (const role of roles) {
     const resolved =
       role === "contains"
@@ -2145,56 +2221,116 @@ async function placeOrigin(
  * side: free text only (no plate-companion facet in MTX).
  * other: Facets dimension open → walk selected headers (excl. F07/F09/F11/F26).
  * onMiss: essence drops (dish= covers identity); input vs base → free text.
+ *
+ * Runs as two passes (placeFacetsPass, then finishPlacement) so a caller can
+ * place every property's Facets dimensions before any origin facet.
  */
 async function placeByKind(
   ctx: PlaceContext,
   property: GapProperty,
   onMiss: "freeText" | "drop" = "freeText"
 ): Promise<Record<string, unknown>> {
+  return finishPlacement(ctx, await placeFacetsPass(ctx, property, onMiss));
+}
+
+/**
+ * Facets whose descriptor names a food in a role (packed in it, risky in it).
+ * The role is the more specific statement, so it replaces F04 for that food.
+ */
+const ROLE_FACET_HEADERS = new Set(["F06", "F25"]);
+
+/** A property after its Facets pass; origin placement and fallbacks are still to come. */
+interface FacetsPass {
+  property: GapProperty;
+  onMiss: "freeText" | "drop";
+  /** Essence / name meaning: F04 uses specify-vs-restate under an implied parent.
+   * Origin trees (F01/F27) must still allow naming a child organism/commodity
+   * under a broad implied source (deer under mammals-as-animal). */
+  rejectUnderImplied: boolean;
+  attempts: Record<string, unknown>[];
+  placed: FacetDescriptorRef[];
+  /** Origin routes still to try: picker extras, or the property's own kind. */
+  originKinds: GapPropertyKind[];
+  walkedHeaders: string[];
+  member: boolean;
+  otherLabel: string | null;
+  /** Set when the Facets pass already settled the property. */
+  result: Record<string, unknown> | null;
+}
+
+function claimedByRole(pass: FacetsPass): boolean {
+  return pass.placed.some((f) => ROLE_FACET_HEADERS.has(f.header));
+}
+
+function contentWords(text: string): Set<string> {
+  return new Set([...contentTokens(text)].filter((t) => !FUNCTION_WORDS.has(t)));
+}
+
+/** Every content word of `inner` appears in `outer` ("brine" in "in brine"). */
+export function wordsWithin(inner: string, outer: string): boolean {
+  const words = contentWords(inner);
+  if (words.size === 0) return false;
+  const outerWords = contentWords(outer);
+  for (const w of words) if (!outerWords.has(w)) return false;
+  return true;
+}
+
+async function placeFacetsPass(
+  ctx: PlaceContext,
+  property: GapProperty,
+  onMiss: "freeText" | "drop"
+): Promise<FacetsPass> {
   const { phrase, kind } = property;
   const lookup = property.name ?? phrase;
   const food = { input: ctx.input, baseTerm: ctx.baseName };
   const attempts: Record<string, unknown>[] = [];
-  /** Essence / name meaning: F04 uses specify-vs-restate under an implied parent.
-   * Origin trees (F01/F27) must still allow naming a child organism/commodity
-   * under a broad implied source (deer under mammals-as-animal). */
   const rejectUnderImplied = onMiss === "drop";
   const walkAccept = (header: string, code: string): boolean =>
     acceptClosedDescriptor(ctx.cat, header, code, ctx.implied, {
       rejectUnderImplied,
     }) === "keep";
+  const pass: FacetsPass = {
+    property,
+    onMiss,
+    rejectUnderImplied,
+    attempts,
+    placed: [],
+    originKinds: [],
+    walkedHeaders: [],
+    member: false,
+    otherLabel: null,
+    result: null,
+  };
+  const settle = (result: Record<string, unknown>): FacetsPass => ({ ...pass, result });
 
   if (kind === "side") {
     if (onMiss === "drop") {
-      return { phrase, kind, placed: "dropped", attempts };
+      return settle({ phrase, kind, placed: "dropped", attempts });
     }
     const value = phrase.replace(/^(with|and)\s+/i, "").trim() || phrase;
     pushFreeText(ctx.freeText, "side", value);
-    return {
+    return settle({
       phrase,
       kind,
       placed: "freeText",
       freeText: { label: "side", value },
       attempts,
-    };
+    });
   }
-
-  let originRole: OriginRole | null = null;
-  let otherLabel: string | null = null;
 
   if (isCategoryMember(ctx.descriptionKind, kind)) {
     if (onMiss === "drop") {
-      return { phrase, kind, placed: "dropped", reason: "category_member", attempts };
+      return settle({ phrase, kind, placed: "dropped", reason: "category_member", attempts });
     }
     pushFreeText(ctx.freeText, "member", phrase);
-    return {
+    return settle({
       phrase,
       kind,
       placed: "freeText",
       reason: "category_member",
       freeText: { label: "member", value: phrase },
       attempts,
-    };
+    });
   }
 
   if (kind === "unsorted") {
@@ -2204,69 +2340,34 @@ async function placeByKind(
       food,
     });
     attempts.push(picked.detail);
-    const placed: FacetDescriptorRef[] = [];
-    let member = false;
     for (const code of picked.codes) {
       if (code === "made_from" || code === "added") {
-        if (isCategoryMember(ctx.descriptionKind, code)) {
-          member = true;
-          continue;
-        }
-        const origin = await placeOrigin(ctx, lookup, code, rejectUnderImplied, attempts);
-        originRole ??= origin.role;
-        if (origin.facet !== null) placed.push(origin.facet);
+        if (isCategoryMember(ctx.descriptionKind, code)) pass.member = true;
+        else pass.originKinds.push(code);
         continue;
       }
+      pass.walkedHeaders.push(code);
       const walked = await resolveFacetWalk(ctx.cat, phrase, [code], {
         model: ctx.model,
         accept: walkAccept,
         food,
       });
       attempts.push(walked.detail);
-      if (walked.facet !== null && addFacet(ctx, walked.facet)) placed.push(walked.facet);
+      if (walked.facet !== null && addFacet(ctx, walked.facet)) pass.placed.push(walked.facet);
     }
-    if (placed.length > 0) {
-      return {
-        phrase,
-        kind,
-        placed: "facet",
-        facet: placed[0],
-        facets: placed,
-        attempts,
-      };
+    if (claimedByRole(pass) && pass.originKinds.length > 0) {
+      attempts.push({ via: "origin_skipped", reason: "role_facet", originKinds: pass.originKinds });
+      pass.originKinds = [];
     }
-    if (member) {
-      if (onMiss === "drop") {
-        return { phrase, kind, placed: "dropped", reason: "category_member", attempts };
-      }
-      pushFreeText(ctx.freeText, "member", phrase);
-      return {
-        phrase,
-        kind,
-        placed: "freeText",
-        reason: "category_member",
-        freeText: { label: "member", value: phrase },
-        attempts,
-      };
-    }
-    const walkedHeaders = picked.codes.filter((c) => c !== "made_from" && c !== "added");
-    if (originRole === null && walkedHeaders.length === 1) {
-      otherLabel = ctx.cat.facetCategory(walkedHeaders[0]!)?.label ?? walkedHeaders[0]!;
-    }
-  } else if (kind === "ingredient" || kind === "source" || kind === "made_from" || kind === "added") {
-    const origin = await placeOrigin(ctx, lookup, kind, rejectUnderImplied, attempts);
-    originRole = origin.role;
-    if (origin.facet !== null) {
-      return {
-        phrase,
-        kind,
-        originRole: origin.role,
-        placed: "facet",
-        facet: origin.facet,
-        attempts,
-      };
-    }
-  } else if (kind === "process") {
+    return pass;
+  }
+
+  if (kind === "ingredient" || kind === "source" || kind === "made_from" || kind === "added") {
+    pass.originKinds.push(kind);
+    return pass;
+  }
+
+  if (kind === "process") {
     const process = await resolveFacetWalk(ctx.cat, lookup, [F28], {
       model: ctx.model,
       accept: walkAccept,
@@ -2274,7 +2375,7 @@ async function placeByKind(
     });
     attempts.push(process.detail);
     if (process.facet !== null && addFacet(ctx, process.facet)) {
-      return { phrase, kind, placed: "facet", facet: process.facet, attempts };
+      return settle({ phrase, kind, placed: "facet", facet: process.facet, attempts });
     }
   } else if (kind === "other") {
     const dimensions = facetDimensions(ctx.cat);
@@ -2291,23 +2392,80 @@ async function placeByKind(
     });
     attempts.push(walked.detail);
     if (walked.facet !== null && addFacet(ctx, walked.facet)) {
-      otherLabel =
-        ctx.cat.facetCategory(walked.facet.header)?.label ?? walked.facet.header;
-      return {
+      return settle({
         phrase,
         kind,
         header: walked.facet.header,
         placed: "facet",
         facet: walked.facet,
         attempts,
-      };
+      });
     }
     if (opened.headers.length === 1) {
-      otherLabel =
+      pass.otherLabel =
         ctx.cat.facetCategory(opened.headers[0]!)?.label ?? opened.headers[0]!;
     }
   }
+  return pass;
+}
 
+/**
+ * Origin facets for a property after its Facets pass, then the miss path.
+ * `skipOrigin`: the origin question or essence already placed this food, so
+ * the input's own origin wording is not placed again.
+ */
+async function finishPlacement(
+  ctx: PlaceContext,
+  pass: FacetsPass,
+  skipOrigin = false
+): Promise<Record<string, unknown>> {
+  if (pass.result !== null) return pass.result;
+  const { property, onMiss, attempts, placed } = pass;
+  const { phrase, kind } = property;
+  const lookup = property.name ?? phrase;
+  let originRole: OriginRole | null = null;
+  let otherLabel = pass.otherLabel;
+  const skipped = skipOrigin && pass.originKinds.length > 0;
+
+  if (skipped) {
+    attempts.push({ via: "origin_skipped", reason: "origin_already_placed", phrase: lookup });
+  } else {
+    for (const originKind of pass.originKinds) {
+      const origin = await placeOrigin(ctx, lookup, originKind, pass.rejectUnderImplied, attempts);
+      originRole ??= origin.role;
+      if (origin.facet !== null) placed.push(origin.facet);
+    }
+  }
+
+  if (kind === "unsorted") {
+    if (placed.length > 0) {
+      return { phrase, kind, placed: "facet", facet: placed[0], facets: placed, attempts };
+    }
+    if (pass.member) {
+      if (onMiss === "drop") {
+        return { phrase, kind, placed: "dropped", reason: "category_member", attempts };
+      }
+      pushFreeText(ctx.freeText, "member", phrase);
+      return {
+        phrase,
+        kind,
+        placed: "freeText",
+        reason: "category_member",
+        freeText: { label: "member", value: phrase },
+        attempts,
+      };
+    }
+    if (originRole === null && pass.walkedHeaders.length === 1) {
+      const header = pass.walkedHeaders[0]!;
+      otherLabel = ctx.cat.facetCategory(header)?.label ?? header;
+    }
+  } else if (placed.length > 0) {
+    return { phrase, kind, originRole, placed: "facet", facet: placed[0], attempts };
+  }
+
+  if (skipped) {
+    return { phrase, kind, placed: "dropped", reason: "origin_already_placed", attempts };
+  }
   if (onMiss === "drop") {
     return { phrase, kind, ...(originRole !== null ? { originRole } : {}), placed: "dropped", attempts };
   }
@@ -2583,81 +2741,72 @@ export async function assignResiduals(
   /** Dish / dish_type only: grounded span for essence + dish= identity. */
   let definingSpan: { start: number; end: number; span: string } | null = null;
 
-  if (!essenceKinds) {
-    const nameMeaning =
-      descriptionKind === "foodstuff" && options.fit === "broad";
+  /** World knowledge (origin question / dish essence), placed after the input's Facets pass. */
+  const known: Array<{ property: GapProperty; role: OriginRole | null; list: OriginList | null }> = [];
+  let knownFrom: "origin" | "essence" | null = null;
 
-    if (!nameMeaning) {
+  if (!essenceKinds) {
+    if (descriptionKind !== "foodstuff") {
       audit.push({
         step: "residuals_essence",
         detail: {
-          skipped:
-            descriptionKind === null
-              ? "no_route_kind"
-              : descriptionKind === "foodstuff"
-                ? "fit_not_broad"
-                : "not_dish_kind",
+          skipped: descriptionKind === null ? "no_route_kind" : "not_dish_kind",
           descriptionKind,
-          fit: options.fit ?? null,
         },
       });
     } else {
-      const foodName = (options.food?.trim() || input).trim();
-      const defined = await chatJson({
+      const description = (options.food?.trim() || input).trim();
+      const named = await chatJson({
         model,
-        system: SYSTEM_NAME_MEANING,
+        system: SYSTEM_FOOD_NAME,
+        user: JSON.stringify({ description }, null, 2),
+      });
+      const foodName = parseFoodName(named.content, description) ?? description;
+      audit.push({
+        step: "residuals_food_name",
+        detail: { model: named.model, description, answered: named.content, name: foodName },
+      });
+      const asked = await chatJson({
+        model,
+        system: SYSTEM_ORIGIN,
         user: JSON.stringify(
           {
             name: foodName,
-            baseTerm: { code: baseTerm.code, name: baseTerm.name },
-            implicits,
-            covered: {
-              facets: ctx.facets.map((f) => ({
-                header: f.header,
-                code: f.code,
-                name: f.name,
-              })),
-              ...(fortificationCover !== null ? { fortification: fortificationCover } : {}),
-              ...(numericCover !== null ? { numeric: numericCover } : {}),
+            baseTerm: {
+              name: ctx.baseName,
+              implicit: implicits.map(({ key, name }) => {
+                const header = key.split(".")[0] ?? key;
+                return `${cat.facetCategory(header)?.label ?? header}: ${name}`;
+              }),
             },
           },
           null,
           2
         ),
       });
-      const meaning = parseEssence(defined.content);
-      const meaningFiltered = dropEarlyClaimRestatements(
-        asUnsorted(meaning.properties),
+      const lists = parseOriginLists(asked.content);
+      const entries = ORIGIN_LISTS.flatMap(({ list, role, kind }) =>
+        lists[list].map((entry) => ({ list, role, property: { phrase: entry, kind, name: entry } }))
+      );
+      const filtered = dropEarlyClaimRestatements(
+        entries.map((e) => e.property),
         ctx.fortificationClaim,
         ctx.numericClaim
       );
+      const kept = entries.filter((e) => filtered.kept.includes(e.property));
       audit.push({
-        step: "residuals_name_meaning",
+        step: "residuals_origin",
         detail: {
-          model: defined.model,
+          model: asked.model,
           name: foodName,
-          definition: meaning.definition,
-          properties: meaningFiltered.kept,
-          fit: options.fit,
-          ...(meaningFiltered.dropped.length > 0
-            ? { droppedEarlyClaims: meaningFiltered.dropped }
-            : {}),
+          ...lists,
+          fit: options.fit ?? null,
+          ...(filtered.dropped.length > 0 ? { droppedEarlyClaims: filtered.dropped } : {}),
         },
       });
 
-      const meaningResolutions = [];
-      for (const property of meaningFiltered.kept) {
-        meaningResolutions.push(await placeByKind(ctx, property, "drop"));
-      }
-      audit.push({
-        step: "residuals_place",
-        detail: {
-          from: "name_meaning",
-          resolutions: meaningResolutions,
-          facets: [...ctx.facets],
-          freeText: [...ctx.freeText],
-        },
-      });
+      knownFrom = "origin";
+      for (const { list, role, property } of kept) known.push({ property, role, list });
     }
   } else {
     const dishPhrase = (options.food?.trim() || input).trim();
@@ -2708,7 +2857,7 @@ export async function assignResiduals(
       },
     });
 
-    const essenceResolutions = [];
+    knownFrom = "essence";
     if (essence.properties.length > 0) {
       const covered = await coverEssenceProperties(ctx, essence.properties);
       audit.push({
@@ -2731,104 +2880,151 @@ export async function assignResiduals(
         ctx.fortificationClaim,
         ctx.numericClaim
       ).kept) {
-        essenceResolutions.push(await placeByKind(ctx, property, "drop"));
+        known.push({ property, role: null, list: null });
       }
     }
     if (!foodMatchesBaseTerm(dishName, baseTerm.code, baseTerm.name)) {
       pushFreeText(ctx.freeText, "dish", dishName);
     }
+  }
+
+  // --- 2. Input vs base ---
+  // Always the full input; dish= identity does not hide modifiers. Facets
+  // dimensions from the input are placed first, then world knowledge (step 1)
+  // minus what a role facet claimed, then the input's own origin wording.
+  const gapInput = input;
+  const properties = await listInputProperties();
+
+  const passes: FacetsPass[] = [];
+  for (const property of properties) passes.push(await placeFacetsPass(ctx, property, "freeText"));
+
+  const roleClaims = passes
+    .filter(claimedByRole)
+    .flatMap((p) => [p.property.phrase, ...(p.property.name !== undefined ? [p.property.name] : [])]);
+  const knownResolutions = [];
+  const knownPlaced: string[] = [];
+  const claimedDropped: string[] = [];
+  for (const { property, role, list } of known) {
+    const lookup = property.name ?? property.phrase;
+    if (roleClaims.some((claim) => wordsWithin(lookup, claim))) {
+      claimedDropped.push(lookup);
+      continue;
+    }
+    if (role !== null) {
+      const attempts: Record<string, unknown>[] = [];
+      const placed = await placeOrigin(ctx, lookup, property.kind, true, attempts, role);
+      if (placed.facet !== null) knownPlaced.push(lookup);
+      knownResolutions.push({
+        list,
+        phrase: lookup,
+        placed: placed.facet !== null ? "facet" : "dropped",
+        ...(placed.facet !== null ? { facet: placed.facet } : {}),
+        attempts,
+      });
+    } else {
+      const resolution = await placeByKind(ctx, property, "drop");
+      if (resolution.placed === "facet" && isOriginKind(property.kind)) knownPlaced.push(lookup);
+      knownResolutions.push(resolution);
+    }
+  }
+  if (knownFrom !== null) {
     audit.push({
       step: "residuals_place",
       detail: {
-        from: "essence",
-        resolutions: essenceResolutions,
+        from: knownFrom,
+        resolutions: knownResolutions,
+        ...(claimedDropped.length > 0 ? { droppedClaimedByRole: claimedDropped } : {}),
         facets: [...ctx.facets],
         freeText: [...ctx.freeText],
       },
     });
   }
 
-  // --- 2. Input vs base ---
-  // Always the full input. Covered (facets + free text from step 1) dedupes
-  // essence / name-meaning claims; dish= identity does not hide modifiers.
-  const gapInput = input;
-
-  if (gapInput.trim() === "") {
-    audit.push({
-      step: "residuals_input",
-      detail: { skipped: "empty_gap_input", properties: [] },
-    });
-    return await finishResiduals(ctx, audit, { from: "input", resolutions: [] });
-  }
-
-  if (foodMatchesBaseTerm(gapInput, baseTerm.code, baseTerm.name)) {
-    audit.push({
-      step: "residuals_input",
-      detail: { skipped: "identical_wording", properties: [] },
-    });
-    return await finishResiduals(ctx, audit, { from: "input", resolutions: [] });
-  }
-
-  const covered = {
-    facets: ctx.facets.map((f) => ({
-      header: f.header,
-      code: f.code,
-      name: f.name,
-    })),
-    freeText: [...ctx.freeText],
-    ...(fortificationCover !== null ? { fortification: fortificationCover } : {}),
-    ...(numericCover !== null ? { numeric: numericCover } : {}),
-  };
-
-  const dish = isDishKind(descriptionKind);
-  const listed = await chatJson({
-    model,
-    system: dish ? systemInputVsBase() : systemInputRelations(descriptionKind),
-    user: JSON.stringify(
-      {
-        input: gapInput,
-        ...(definingSpan !== null ? { dishSpan: definingSpan.span } : {}),
-        baseTerm: { code: baseTerm.code, name: baseTerm.name },
-        implicits,
-        covered,
-        ...(descriptionKind !== null ? { descriptionKind } : {}),
-      },
-      null,
-      2
-    ),
-  });
-  const listedRaw = parseGapProperties(listed.content);
-  const omitted = parseGapOmitted(listed.content);
-  const forFilter = dish ? listedRaw : asUnsorted(listedRaw);
-  const { kept: inInput, dropped } = filterPropertiesToInput(forFilter, gapInput);
-  const claimDrop = dropEarlyClaimRestatements(
-    inInput,
-    ctx.fortificationClaim,
-    ctx.numericClaim
-  );
-  const properties = claimDrop.kept;
-  const droppedAll = [
-    ...dropped,
-    ...claimDrop.dropped.map((p) => ({
-      phrase: p.phrase,
-      kind: p.kind,
-      reason: "early_claim_already_placed",
-    })),
-  ];
-  audit.push({
-    step: "residuals_input",
-    detail: {
-      model: listed.model,
-      gapInput,
-      properties,
-      ...(omitted.length > 0 ? { omitted } : {}),
-      ...(droppedAll.length > 0 ? { dropped: droppedAll, raw: listedRaw } : {}),
-    },
-  });
-
   const inputResolutions = [];
-  for (const property of properties) {
-    inputResolutions.push(await placeByKind(ctx, property));
+  for (const pass of passes) {
+    const lookup = pass.property.name ?? pass.property.phrase;
+    const alreadyPlaced = knownPlaced.some((k) => wordsWithin(lookup, k) || wordsWithin(k, lookup));
+    inputResolutions.push(await finishPlacement(ctx, pass, alreadyPlaced));
   }
   return await finishResiduals(ctx, audit, { from: "input", resolutions: inputResolutions });
+
+  async function listInputProperties(): Promise<GapProperty[]> {
+    if (gapInput.trim() === "") {
+      audit.push({
+        step: "residuals_input",
+        detail: { skipped: "empty_gap_input", properties: [] },
+      });
+      return [];
+    }
+
+    if (foodMatchesBaseTerm(gapInput, baseTerm.code, baseTerm.name)) {
+      audit.push({
+        step: "residuals_input",
+        detail: { skipped: "identical_wording", properties: [] },
+      });
+      return [];
+    }
+
+    const covered = {
+      facets: ctx.facets.map((f) => ({
+        header: f.header,
+        code: f.code,
+        name: f.name,
+      })),
+      freeText: [...ctx.freeText],
+      ...(fortificationCover !== null ? { fortification: fortificationCover } : {}),
+      ...(numericCover !== null ? { numeric: numericCover } : {}),
+    };
+
+    const dish = isDishKind(descriptionKind);
+    const listed = await chatJson({
+      model,
+      system: dish ? systemInputVsBase() : systemInputRelations(descriptionKind),
+      user: JSON.stringify(
+        {
+          input: gapInput,
+          ...(definingSpan !== null ? { dishSpan: definingSpan.span } : {}),
+          baseTerm: { code: baseTerm.code, name: baseTerm.name },
+          implicits,
+          covered,
+          ...(descriptionKind !== null ? { descriptionKind } : {}),
+        },
+        null,
+        2
+      ),
+    });
+    const listedRaw = parseGapProperties(listed.content);
+    const omitted = parseGapOmitted(listed.content);
+    const forFilter = dish ? listedRaw : asUnsorted(listedRaw);
+    const { kept: inInput, dropped } = filterPropertiesToInput(forFilter, gapInput);
+    const claimDrop = dropEarlyClaimRestatements(
+      inInput,
+      ctx.fortificationClaim,
+      ctx.numericClaim
+    );
+    const properties = claimDrop.kept;
+    const droppedAll = [
+      ...dropped,
+      ...claimDrop.dropped.map((p) => ({
+        phrase: p.phrase,
+        kind: p.kind,
+        reason: "early_claim_already_placed",
+      })),
+    ];
+    audit.push({
+      step: "residuals_input",
+      detail: {
+        model: listed.model,
+        gapInput,
+        properties,
+        ...(omitted.length > 0 ? { omitted } : {}),
+        ...(droppedAll.length > 0 ? { dropped: droppedAll, raw: listedRaw } : {}),
+      },
+    });
+    return properties;
+  }
+}
+
+function isOriginKind(kind: GapPropertyKind): boolean {
+  return kind === "ingredient" || kind === "source" || kind === "made_from" || kind === "added";
 }

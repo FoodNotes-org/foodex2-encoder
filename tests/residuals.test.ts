@@ -30,6 +30,8 @@ import {
   parseOriginRole,
   recallIngredF04,
   siblingChildrenForF26,
+  parseFoodName,
+  wordsWithin,
   type FortificationClaim,
 } from "../src/encode/residuals.js";
 import type { FacetDescriptorRef } from "../src/encode/types.js";
@@ -311,6 +313,39 @@ describe("parseFortification", () => {
 
   it("treats an empty agent list as bare", () => {
     assert.deepEqual(parseFortification({ fortification: { agents: [] } }), { status: "bare" });
+  });
+});
+
+describe("wordsWithin", () => {
+  it("matches a food named inside a role phrase", () => {
+    assert.equal(wordsWithin("brine", "in brine"), true);
+    assert.equal(wordsWithin("Sunflower oil", "in sunflower oil"), true);
+    assert.equal(wordsWithin("olives", "in olive oil"), true);
+  });
+
+  it("needs every content word", () => {
+    assert.equal(wordsWithin("olive oil", "in sunflower oil"), false);
+    assert.equal(wordsWithin("water buffalo milk", "buffalo"), false);
+    assert.equal(wordsWithin("buffalo", "water buffalo milk"), true);
+  });
+
+  it("ignores function words and empty input", () => {
+    assert.equal(wordsWithin("in", "in brine"), false);
+    assert.equal(wordsWithin("", "in brine"), false);
+  });
+});
+
+describe("parseFoodName", () => {
+  it("keeps a name found in the description", () => {
+    assert.equal(parseFoodName({ name: "breakfast cereal" }, "fortified breakfast cereal"), "breakfast cereal");
+    assert.equal(parseFoodName({ name: " Tuna " }, "tuna in brine, canned"), "Tuna");
+  });
+
+  it("rejects a name not in the description, empty or malformed", () => {
+    assert.equal(parseFoodName({ name: "cereal flakes" }, "fortified breakfast cereal"), null);
+    assert.equal(parseFoodName({ name: "" }, "tuna"), null);
+    assert.equal(parseFoodName({ name: 3 }, "tuna"), null);
+    assert.equal(parseFoodName(null, "tuna"), null);
   });
 });
 
