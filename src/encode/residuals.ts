@@ -299,17 +299,15 @@ export type FortificationClaim =
   | { status: "agents"; agents: string[] };
 
 /** Input vs locked base → kind-tagged properties not yet captured. */
-export function systemInputVsBase(allowSide: boolean): string {
+export function systemInputVsBase(): string {
   const kinds = [
     "- ingredient — a characterising constituent of this food",
     "- source — plant/animal/commodity the food comes from",
     "- process — treatment or preparation",
-    ...(allowSide ? ["- side — another food served with it"] : []),
+    "- side — another food served with it",
     "- other — any other distinctness (fat level, part, packaging, production method, …)",
   ].join("\n");
-  const kindEnum = allowSide
-    ? '"ingredient"|"source"|"process"|"side"|"other"'
-    : '"ingredient"|"source"|"process"|"other"';
+  const kindEnum = '"ingredient"|"source"|"process"|"side"|"other"';
   return `You are a food and nutrition ontology expert.
 
 You are given a food description (\`input\`) and what is already captured (\`baseTerm\`, \`implicits\`, \`covered\`).
@@ -358,7 +356,7 @@ Reply with JSON only:
 `;
 }
 
-function sideAllowedForKind(descriptionKind: DescriptionKind | null): boolean {
+function isDishKind(descriptionKind: DescriptionKind | null): boolean {
   return descriptionKind === "dish" || descriptionKind === "dish_type";
 }
 
@@ -2742,10 +2740,10 @@ export async function assignResiduals(
     ...(numericCover !== null ? { numeric: numericCover } : {}),
   };
 
-  const allowSide = sideAllowedForKind(descriptionKind);
+  const dish = isDishKind(descriptionKind);
   const listed = await chatJson({
     model,
-    system: allowSide ? systemInputVsBase(true) : systemInputRelations(descriptionKind),
+    system: dish ? systemInputVsBase() : systemInputRelations(descriptionKind),
     user: JSON.stringify(
       {
         input: gapInput,
@@ -2761,7 +2759,7 @@ export async function assignResiduals(
   });
   const listedRaw = parseGapProperties(listed.content);
   const omitted = parseGapOmitted(listed.content);
-  const forFilter = allowSide ? listedRaw : asUnsorted(listedRaw);
+  const forFilter = dish ? listedRaw : asUnsorted(listedRaw);
   const { kept: inInput, dropped } = filterPropertiesToInput(forFilter, gapInput);
   const claimDrop = dropEarlyClaimRestatements(
     inInput,
@@ -2784,7 +2782,6 @@ export async function assignResiduals(
       gapInput,
       properties,
       ...(omitted.length > 0 ? { omitted } : {}),
-      ...(allowSide ? {} : { sideKind: "disallowed" }),
       ...(droppedAll.length > 0 ? { dropped: droppedAll, raw: listedRaw } : {}),
     },
   });
