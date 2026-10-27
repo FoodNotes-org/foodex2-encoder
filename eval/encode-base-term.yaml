@@ -213,6 +213,25 @@ cases:
     tags: soft, facets
     note: Soft — F27 members are required; model sometimes also adds F28 Mixing (same-nature mix is not Mixing)
 
+  - id: encode-half-and-half
+    input: half and half (food product)
+    expected: A04NN, A02MM
+    method: traversal
+    require_f04_under: F04.A02LT
+    forbid_facets: F02.A06BA
+    capability: Encodes half-and-half as a milk-and-cream mix or as a cream, with milk named as an ingredient.
+    tags: facets
+    note: US product; two defensible readings. Mix — Milk, whey and cream + F04 milk + F04 cream (§5.7.2; F27 cannot hold cream). Cream — Cream with other ingredients + F04 milk (USDA files it under dairy fats; matches the Calories mapping). Cream as an F04 is not required, so a mix without it still passes. Never F02 Cream on the mix base
+
+  - id: encode-cream-soda
+    input: cream soda
+    expected: A03EX
+    method: traversal
+    require_facets: F04.A06VS
+    capability: Adds the flavour that defines a named drink as an ingredient, and does not read the name literally.
+    tags: soft, facets
+    note: Soft drink, flavoured, no fruit + F04 Vanilla flavour. Cream soda is vanilla-flavoured and contains no cream. F04 Vanilla (the spice) is also defensible, so soft
+
   - id: encode-fresh-and-frozen-shellfish
     input: fresh and frozen shellfish
     expected: A026T
@@ -237,17 +256,19 @@ cases:
     expected: A04KT
     method: traversal
     forbid_pick: A04KS
-    capability: Falls back to the correct not-listed bucket when no dedicated leaf exists.
-    tags: gap
-    note: Cereal flours not separately listed
+    require_facets: F27.A000R
+    capability: Falls back to the correct not-listed bucket when no dedicated leaf exists, and names the grain it is made from.
+    tags: gap, facets
+    note: Cereal flours not separately listed + F27 Quinoa grain; the base implies only Cereal grains
 
   - id: encode-kangaroo-meat
     input: kangaroo meat
     expected: A01RS, A0EYF
     method: traversal
+    forbid_facets: F01.A057V
     capability: Reads a catalogue default qualifier (fresh) as part of the plain name, without requiring it.
     tags: any_of
-    note: Kangaroo fresh meat (preferred; fresh is the catalogue default for the meat, as with chicken) or Mammals meat + F01 Kangaroos
+    note: Kangaroo fresh meat (preferred; fresh is the catalogue default for the meat, as with chicken; implies F01 Kangaroo) or Mammals meat + F01 Kangaroo (as animal). Never F01 Kangaroos, a hierarchy term not reportable in Source
 
   - id: encode-spirits-volume
     input: Spirits, 40% volume
