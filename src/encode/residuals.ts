@@ -241,51 +241,57 @@ const ORIGIN_PICKS: FacetPickExtra[] = [
 ];
 
 /**
- * What a named foodstuff must come from beyond its base term, one list per
- * origin facet (guidance §3.1.2 definitions, Table 8): source → F01, source
- * commodities → F27, ingredients → F04. Miss → drop (world knowledge, not
- * input parse).
+ * A named food's direct origin, as the differentia of a genus–differentia
+ * definition with the base term as genus (guidance §3.1.5: "from what has this
+ * food been obtained?", direct source only). Which facet each entry goes in
+ * (F01 / F27 / F04) is the base term's type, not the model's. Miss → drop.
  */
-const SYSTEM_ORIGIN = `You are an expert in food and nutrition classification.
+const SYSTEM_ORIGIN = `You are an expert in food and in lexical semantics.
 
-Task: name what any foodstuff called \`name\` must come from, beyond what its base term already says, in three lists, so that each entry can be looked up in a food list:
-- \`source\`: the live plant or animal it was harvested, slaughtered or collected from, when it is a raw food that no process has changed.
-- \`sourceCommodities\`: the raw food it was obtained from by a process that changed its nature.
-- \`ingredients\`: the ingredients combined in it by a recipe that make it different from other foods in its base term's group.
+Task: define the food called \`name\` by genus and differentia, with its base term as the genus, giving as differentia only what the food is directly obtained or prepared from, so that each entry can be looked up in a food list.
 
 Given:
-- \`name\`: the name of a foodstuff, possibly with a qualifier that disambiguates it.
-- \`baseTerm\`: the catalogue food group it is classified under, with the descriptors that always apply to that group (\`implicit\`).
+- \`name\`: the name of a food.
+- \`baseTerm\`: the catalogue food group it belongs to, the genus, with the descriptors that are part of that group's definition (\`implicit\`) and, when those do not say it, what every food in the group is obtained or prepared from (\`madeFrom\`).
 
 Judgement:
-- Include only what a foodstuff must come from to be called \`name\`, not what it typically or often does.
-- Leave out what is true of every food in the base term's group, or what an implicit descriptor already says.
-- Put each food in one list only. Give one food per entry.
+- The differentia is what sets the food apart from other foods in its genus.
+- The differentia must not be circular.
 
-Reply with JSON only; any list may be empty:
-{"source":["<plant or animal>"],"sourceCommodities":["<raw food>"],"ingredients":["<ingredient>"]}
+Reply with JSON only; \`from\` is empty when the genus already defines the food:
+{"definition":"<text>","from":["<food>"]}
 `;
 
-/** Origin-question lists, each placed in its own facet only. */
-const ORIGIN_LISTS = [
-  { list: "source", role: "organism", kind: "source" },
-  { list: "sourceCommodities", role: "made_from", kind: "made_from" },
-  { list: "ingredients", role: "contains", kind: "ingredient" },
-] as const satisfies ReadonlyArray<{ list: string; role: OriginRole; kind: GapPropertyKind }>;
+/**
+ * What every food in a base term's group is made from, for base terms whose
+ * implicit descriptors name no origin (F01 / F27 / F04). Without it the origin
+ * question treats what the group entails (cereal grains, flour, sugar) as a
+ * differentia.
+ */
+const SYSTEM_GROUP_ORIGIN = `You are an expert in food and nutrition classification.
 
-type OriginList = (typeof ORIGIN_LISTS)[number]["list"];
+Task: name what every food in a catalogue food group is directly obtained or prepared from.
 
-function parseOriginLists(content: unknown): Record<OriginList, string[]> {
+Given:
+- \`baseTerm\`: the food group, with the descriptors that always apply to it (\`implicit\`).
+
+Reply with JSON only; the list may be empty:
+{"from":["<food>"]}
+`;
+
+const ORIGIN_HEADERS = new Set([F01, F27, F04]);
+
+function stringList(raw: unknown): string[] {
+  return Array.isArray(raw)
+    ? raw.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter((x) => x !== "")
+    : [];
+}
+
+/** `from` entries of an origin or group-origin answer, plus the definition when given. */
+export function parseOriginAnswer(content: unknown): { definition: string | null; from: string[] } {
   const body = content !== null && typeof content === "object" ? (content as Record<string, unknown>) : {};
-  const strings = (raw: unknown): string[] =>
-    Array.isArray(raw)
-      ? raw.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter((x) => x !== "")
-      : [];
-  return {
-    source: strings(body.source),
-    sourceCommodities: strings(body.sourceCommodities),
-    ingredients: strings(body.ingredients),
-  };
+  const definition = typeof body.definition === "string" && body.definition.trim() !== "" ? body.definition.trim() : null;
+  return { definition, from: stringList(body.from) };
 }
 
 /** The food's name without treatment / packing / preparation words, asked before the origin question. */
@@ -522,7 +528,7 @@ export type AssignResidualsResult = AssignResidualsOk | AssignResidualsRejected;
 
 type LexHit = Pick<SearchCandidate, "code" | "name" | "score">;
 
-export interface PlaceContext {
+interface PlaceContext {
   cat: Catalogue;
   baseCode: string;
   baseName: string;
@@ -2155,36 +2161,18 @@ function pushFreeText(entries: FreeTextEntry[], label: string, value: string): v
 
 /**
  * Origin route: base type (or the model) orders F01 / F27 / F04; the first role
- * that places wins. `fixedRole` (origin question) skips that routing; the base
- * type's roles are still recorded so disagreements show in the audit.
+ * that places wins.
  */
-export async function placeOrigin(
+async function placeOrigin(
   ctx: PlaceContext,
   lookup: string,
   kind: GapPropertyKind,
   rejectUnderImplied: boolean,
-  attempts: Record<string, unknown>[],
-  fixedRole?: OriginRole
+  attempts: Record<string, unknown>[]
 ): Promise<{ facet: FacetDescriptorRef | null; role: OriginRole | null }> {
-  let roles: OriginRole[];
-  if (fixedRole !== undefined) {
-    roles = [fixedRole];
-    const baseTypeRoles = originRolesForBaseType(ctx.baseTermType, ctx.descriptionKind, kind);
-    attempts.push({
-      via: "origin_role",
-      phrase: lookup,
-      kind,
-      roles,
-      decidedBy: "origin_question",
-      baseTermType: ctx.baseTermType,
-      baseTypeRoles,
-      ...(baseTypeRoles !== null && baseTypeRoles[0] !== fixedRole ? { disagrees: true } : {}),
-    });
-  } else {
-    const routed = await originRolesFor(ctx, lookup, kind);
-    roles = routed.roles;
-    attempts.push(routed.detail);
-  }
+  const routed = await originRolesFor(ctx, lookup, kind);
+  const roles = routed.roles;
+  attempts.push(routed.detail);
   for (const role of roles) {
     const resolved =
       role === "contains"
@@ -2742,7 +2730,7 @@ export async function assignResiduals(
   let definingSpan: { start: number; end: number; span: string } | null = null;
 
   /** World knowledge (origin question / dish essence), placed after the input's Facets pass. */
-  const known: Array<{ property: GapProperty; role: OriginRole | null; list: OriginList | null }> = [];
+  const known: Array<{ property: GapProperty; origin: boolean }> = [];
   let knownFrom: "origin" | "essence" | null = null;
 
   if (!essenceKinds) {
@@ -2756,57 +2744,64 @@ export async function assignResiduals(
       });
     } else {
       const description = (options.food?.trim() || input).trim();
-      const named = await chatJson({
-        model,
-        system: SYSTEM_FOOD_NAME,
-        user: JSON.stringify({ description }, null, 2),
+      const implicit = implicits.map(({ key, name }) => {
+        const header = key.split(".")[0] ?? key;
+        return `${cat.facetCategory(header)?.label ?? header}: ${name}`;
       });
+      const statesOrigin = implicits.some(({ key }) => ORIGIN_HEADERS.has(key.split(".")[0] ?? ""));
+      const [named, groupAsked] = await Promise.all([
+        chatJson({
+          model,
+          system: SYSTEM_FOOD_NAME,
+          user: JSON.stringify({ description }, null, 2),
+        }),
+        statesOrigin
+          ? Promise.resolve(null)
+          : chatJson({
+              model,
+              system: SYSTEM_GROUP_ORIGIN,
+              user: JSON.stringify({ baseTerm: { name: ctx.baseName, implicit } }, null, 2),
+            }),
+      ]);
       const foodName = parseFoodName(named.content, description) ?? description;
       audit.push({
         step: "residuals_food_name",
         detail: { model: named.model, description, answered: named.content, name: foodName },
       });
+      const madeFrom = groupAsked === null ? null : parseOriginAnswer(groupAsked.content).from;
       const asked = await chatJson({
         model,
         system: SYSTEM_ORIGIN,
         user: JSON.stringify(
           {
             name: foodName,
-            baseTerm: {
-              name: ctx.baseName,
-              implicit: implicits.map(({ key, name }) => {
-                const header = key.split(".")[0] ?? key;
-                return `${cat.facetCategory(header)?.label ?? header}: ${name}`;
-              }),
-            },
+            baseTerm: { name: ctx.baseName, implicit, ...(madeFrom !== null ? { madeFrom } : {}) },
           },
           null,
           2
         ),
       });
-      const lists = parseOriginLists(asked.content);
-      const entries = ORIGIN_LISTS.flatMap(({ list, role, kind }) =>
-        lists[list].map((entry) => ({ list, role, property: { phrase: entry, kind, name: entry } }))
-      );
+      const answer = parseOriginAnswer(asked.content);
       const filtered = dropEarlyClaimRestatements(
-        entries.map((e) => e.property),
+        answer.from.map((entry): GapProperty => ({ phrase: entry, kind: "ingredient", name: entry })),
         ctx.fortificationClaim,
         ctx.numericClaim
       );
-      const kept = entries.filter((e) => filtered.kept.includes(e.property));
       audit.push({
         step: "residuals_origin",
         detail: {
           model: asked.model,
           name: foodName,
-          ...lists,
+          ...(madeFrom !== null ? { groupMadeFrom: madeFrom } : {}),
+          definition: answer.definition,
+          from: answer.from,
           fit: options.fit ?? null,
           ...(filtered.dropped.length > 0 ? { droppedEarlyClaims: filtered.dropped } : {}),
         },
       });
 
       knownFrom = "origin";
-      for (const { list, role, property } of kept) known.push({ property, role, list });
+      for (const property of filtered.kept) known.push({ property, origin: true });
     }
   } else {
     const dishPhrase = (options.food?.trim() || input).trim();
@@ -2880,7 +2875,7 @@ export async function assignResiduals(
         ctx.fortificationClaim,
         ctx.numericClaim
       ).kept) {
-        known.push({ property, role: null, list: null });
+        known.push({ property, origin: false });
       }
     }
     if (!foodMatchesBaseTerm(dishName, baseTerm.code, baseTerm.name)) {
@@ -2904,18 +2899,17 @@ export async function assignResiduals(
   const knownResolutions = [];
   const knownPlaced: string[] = [];
   const claimedDropped: string[] = [];
-  for (const { property, role, list } of known) {
+  for (const { property, origin } of known) {
     const lookup = property.name ?? property.phrase;
     if (roleClaims.some((claim) => wordsWithin(lookup, claim))) {
       claimedDropped.push(lookup);
       continue;
     }
-    if (role !== null) {
+    if (origin) {
       const attempts: Record<string, unknown>[] = [];
-      const placed = await placeOrigin(ctx, lookup, property.kind, true, attempts, role);
+      const placed = await placeOrigin(ctx, lookup, property.kind, true, attempts);
       if (placed.facet !== null) knownPlaced.push(lookup);
       knownResolutions.push({
-        list,
         phrase: lookup,
         placed: placed.facet !== null ? "facet" : "dropped",
         ...(placed.facet !== null ? { facet: placed.facet } : {}),

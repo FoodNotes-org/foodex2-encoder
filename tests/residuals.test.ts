@@ -31,6 +31,7 @@ import {
   recallIngredF04,
   siblingChildrenForF26,
   parseFoodName,
+  parseOriginAnswer,
   wordsWithin,
   type FortificationClaim,
 } from "../src/encode/residuals.js";
@@ -346,6 +347,22 @@ describe("parseFoodName", () => {
     assert.equal(parseFoodName({ name: "" }, "tuna"), null);
     assert.equal(parseFoodName({ name: 3 }, "tuna"), null);
     assert.equal(parseFoodName(null, "tuna"), null);
+  });
+});
+
+describe("parseOriginAnswer", () => {
+  it("reads the definition and trimmed from entries", () => {
+    assert.deepEqual(
+      parseOriginAnswer({ definition: " Mozzarella made from water buffalo milk ", from: [" water buffalo milk "] }),
+      { definition: "Mozzarella made from water buffalo milk", from: ["water buffalo milk"] }
+    );
+    assert.deepEqual(parseOriginAnswer({ from: ["flour", "eggs"] }), { definition: null, from: ["flour", "eggs"] });
+  });
+
+  it("drops empty and non-string entries; malformed answers give nothing", () => {
+    assert.deepEqual(parseOriginAnswer({ definition: "", from: ["", 3, "milk"] }), { definition: null, from: ["milk"] });
+    assert.deepEqual(parseOriginAnswer({ from: "milk" }), { definition: null, from: [] });
+    assert.deepEqual(parseOriginAnswer(null), { definition: null, from: [] });
   });
 });
 
