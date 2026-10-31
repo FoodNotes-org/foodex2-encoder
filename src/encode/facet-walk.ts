@@ -46,16 +46,16 @@ Reply with JSON only, listing the codes of those groups, or an empty list if the
  * Precision pick among recalled descriptors (possibly from several dimensions).
  * note is MTX scope text.
  */
-const SYSTEM_LEAF = `You are a food and nutrition ontology expert. Your task is to match a phrase from a food description to a catalogue term.
+const SYSTEM_LEAF = `You are an expert in food classification.
 
 Inputs:
 - \`description\`: the food description.
 - \`phrase\`: the phrase from the description.
 - \`terms\`: catalogue terms, each with a \`code\`, a \`name\`, the \`list\` it belongs to and, for some, a \`note\` from the catalogue on when to use it.
 
-A term matches when the description alone is enough to know the term is true of what the phrase says. Pick the narrowest matching term.
+Your task is to decide which term, if any, is the value the phrase states. If more than one is, pick the narrowest.
 
-Reply with JSON only, giving the code of that term, or null if no term matches:
+Reply with JSON only, giving the code of that term, or null if the phrase states none of them:
 {"code":"<code>"|null}
 `;
 
