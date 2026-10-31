@@ -29,14 +29,14 @@ const MAX_BRANCHES_PER_LEVEL = 4;
  * Branch open: which children are worth descending into.
  * Payload is name + direct child names only (no scope notes).
  */
-const SYSTEM_BRANCH = `You are a food and nutrition ontology expert. Your task is to decide which -if any- of the groups may contain a term applicable to the phrase.
+const SYSTEM_BRANCH = `You are an expert in food classification.
 
-Inputs:
+You are given the following inputs:
 - \`description\`: the food description.
 - \`phrase\`: the phrase from the description.
 - \`groups\`: groups of catalogue terms, each with a \`code\`, a \`name\`, and the names of the terms directly under it.
 
-Interpret the phrase in the context of the food description.
+Your task is to decide which groups may contain the value the phrase states.
 
 Reply with JSON only, listing the codes of those groups, or an empty list if there are none:
 {"codes":["<code>",...]}
@@ -326,20 +326,21 @@ export async function openFacetDimensions(
  * Which facets a leftover phrase speaks to, for this food. Several may apply
  * ("in sunflower oil" on canned tuna: surrounding medium and ingredient).
  */
-const SYSTEM_PICK_FACETS = `You are a food and nutrition ontology expert.
+const SYSTEM_PICK_FACETS = `You are an expert in food classification.
 
-We are coding a food in FoodEx2. Its base term is chosen; \`phrase\` is part of the food description the base term does not yet capture. Which facets does that phrase say something about, for this food? A phrase can speak to more than one facet.
+You are given the following inputs:
+- \`description\`: the food's full description.
+- \`phrase\`: a part of that description.
+- \`facets\`: candidate facets, each with a \`code\`, a \`name\`, and what it \`covers\`.
 
-Each candidate is a facet; its listed child names show what it covers.
+Each facet is one attribute of a food, such as how it was processed or what it is packed in. Your task is to decide which facets the phrase states a value for.
 
-Empty list if none apply.
-
-Reply with JSON only:
+Reply with JSON only, listing the codes, or an empty list if it states a value for none:
 {"codes":["<code>",...]}
 `;
 
 /** A picker option that is not a Facets dimension (routed by the caller). */
-export type FacetPickExtra = { code: string; name: string };
+export type FacetPickExtra = { code: string; name: string; covers: string };
 
 /**
  * Pick every option the phrase speaks to: walkable Facets dimensions (by
@@ -353,31 +354,31 @@ export async function pickFacets(
   options: FacetWalkOptions
 ): Promise<{ codes: string[]; detail: Record<string, unknown> }> {
   const walkable = walkableDimensions(dimensions);
-  const candidates = [
-    ...extras.map((e) => ({ code: e.code, name: e.name })),
-    ...walkable.map((d) => {
-      const hierarchy = hierarchyFor(cat, d.header);
-      const childNames =
-        hierarchy === null
-          ? []
-          : childCodes(cat, hierarchy, "root", d.header, options.accept).map(
-              (c) => cat.term(c)?.name ?? c
-            );
-      return {
-        code: d.header,
-        name: d.name,
-        ...(childNames.length > 0 ? { children: childNames } : {}),
-      };
-    }),
+  const facets: Array<{ code: string; name: string; covers: string }> = [
+    ...extras.map(({ code, name, covers }) => ({ code, name, covers })),
   ];
+  for (const d of walkable) {
+    const hierarchy = hierarchyFor(cat, d.header);
+    if (hierarchy === null) continue;
+    const childNames = childCodes(cat, hierarchy, "root", d.header, options.accept).map(
+      (c) => cat.term(c)?.name ?? c
+    );
+    /** Nothing under it to walk, so nothing it could place. */
+    if (childNames.length === 0) continue;
+    facets.push({ code: d.header, name: d.name, covers: childNames.join("; ") });
+  }
   /** pickAllowedCodes upper-cases replies; extras' codes need not be upper case. */
-  const byUpper = new Map(candidates.map((c) => [c.code.toUpperCase(), c.code]));
+  const byUpper = new Map(facets.map((c) => [c.code.toUpperCase(), c.code]));
   const allowed = new Set(byUpper.keys());
   const picked = await chatJson({
     model: options.model,
     system: SYSTEM_PICK_FACETS,
     user: JSON.stringify(
-      { phrase, ...(options.food ? { food: options.food } : {}), candidates },
+      {
+        ...(options.food ? { description: options.food.input } : {}),
+        phrase,
+        facets,
+      },
       null,
       2
     ),

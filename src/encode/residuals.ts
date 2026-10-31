@@ -235,9 +235,10 @@ Reply with JSON only:
 const ORIGIN_PICKS: FacetPickExtra[] = [
   {
     code: "made_from",
-    name: "Source or source-commodity: the plant, animal or commodity this food is, or is made from",
+    name: "Source",
+    covers: "the plant, animal or commodity this food is, or is made from",
   },
-  { code: "added", name: "Ingredient: a food or substance added to this food" },
+  { code: "added", name: "Ingredient", covers: "a food or substance added to this food" },
 ];
 
 /**
