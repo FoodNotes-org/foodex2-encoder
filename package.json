@@ -11,6 +11,7 @@
     "server": "tsx src/server.ts",
     "lexical-eval": "tsx scripts/lexical-eval.ts",
     "encode-eval": "tsx scripts/encode-eval.ts",
+    "draft-reference": "tsx scripts/draft-reference-set.ts",
     "test": "tsx --test tests/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
