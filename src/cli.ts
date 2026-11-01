@@ -31,7 +31,7 @@ function usage(): never {
   npm run cli -- term <CODE>
   npm run cli -- search <query> [--limit N]
   npm run cli -- semantic <query> [--limit N]
-  npm run cli -- encode <food description> [--lexical-only] [--base-only]
+  npm run cli -- encode <food description> [--country CC] [--lexical-only] [--base-only]
   npm run cli -- traverse <food description> [--audit]`);
   process.exit(2);
 }
@@ -185,20 +185,33 @@ function parseEncodeArgs(argv: string[]): {
   input: string;
   lexicalOnly: boolean;
   baseOnly: boolean;
+  country: string | undefined;
 } {
   const lexicalOnly = argv.includes("--lexical-only");
   const baseOnly = argv.includes("--base-only");
-  const parts = argv.filter((a) => a !== "--lexical-only" && a !== "--base-only");
+  const countryAt = argv.indexOf("--country");
+  const country = countryAt >= 0 ? argv[countryAt + 1] : undefined;
+  if (countryAt >= 0 && country === undefined) usage();
+  const parts = argv.filter(
+    (a, i) =>
+      a !== "--lexical-only" &&
+      a !== "--base-only" &&
+      (countryAt < 0 || (i !== countryAt && i !== countryAt + 1))
+  );
   const input = parts.join(" ").trim();
   if (input === "") usage();
-  return { input, lexicalOnly, baseOnly };
+  return { input, lexicalOnly, baseOnly, country };
 }
 
 async function cmdEncode(argv: string[]): Promise<void> {
   loadEnv();
-  const { input, lexicalOnly, baseOnly } = parseEncodeArgs(argv);
+  const { input, lexicalOnly, baseOnly, country } = parseEncodeArgs(argv);
   const started = performance.now();
-  const result = await encodeBaseTerm(input, { lexicalOnly, baseOnly });
+  const result = await encodeBaseTerm(input, {
+    lexicalOnly,
+    baseOnly,
+    ...(country !== undefined ? { country } : {}),
+  });
   const elapsedMs = Math.round(performance.now() - started);
   console.log(JSON.stringify({ elapsedMs, ...result }, null, 2));
   if (result.status === "rejected") process.exitCode = 1;

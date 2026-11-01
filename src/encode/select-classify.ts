@@ -5,6 +5,7 @@
  */
 
 import { Catalogue } from "../catalogue.js";
+import { countryContextLine } from "../country.js";
 import { chatJson, defaultModel } from "../llm.js";
 import { parseClassifications, pickAllowedCode } from "./answers.js";
 import {
@@ -22,11 +23,12 @@ import type {
 } from "./types.js";
 
 /** Shared classify ladder (classify-ladder.ts), asked over the whole recall pool. */
-function systemSelectClassify(descriptionKind: DescriptionKind | null): string {
+function systemSelectClassify(descriptionKind: DescriptionKind | null, withCountry: boolean): string {
   const noun = descriptionKindNoun(descriptionKind);
   return classifySystemPrompt({
     framing: `You are matching one ${noun} against terms in a food catalogue. The item text is that ${noun}.`,
     answerKey: "fit",
+    withCountry,
   });
 }
 
@@ -52,7 +54,11 @@ export interface AssessSelectClassifyResult {
 export async function assessSelectClassify(
   food: string,
   pool: BaseTermCandidate[],
-  options: { model?: string; descriptionKind?: DescriptionKind | null } = {}
+  options: {
+    model?: string;
+    descriptionKind?: DescriptionKind | null;
+    country?: string | null;
+  } = {}
 ): Promise<AssessSelectClassifyResult> {
   const audit: AuditEntry[] = [];
 
@@ -61,15 +67,17 @@ export async function assessSelectClassify(
   }
 
   const descriptionKind = options.descriptionKind ?? null;
+  const country = options.country ?? null;
   const payload = {
     item: food,
+    ...(country !== null ? { country } : {}),
     ...(descriptionKind !== null ? { descriptionKind } : {}),
     terms: pool.map((c) => classifyCandidatePayload(food, c)),
   };
 
   const { content, model } = await chatJson({
     model: options.model?.trim() || defaultModel(),
-    system: systemSelectClassify(descriptionKind),
+    system: systemSelectClassify(descriptionKind, country !== null),
     user: JSON.stringify(payload, null, 2),
   });
 
@@ -95,15 +103,17 @@ export async function assessSelectClassify(
   return { byCode, audit };
 }
 
-const SYSTEM_SELECT_PARENT = `As a food and nutrition ontology expert, you are choosing among catalogue base terms as possible shelves for the food.
+function systemSelectParent(withCountry: boolean): string {
+  return `As a food and nutrition ontology expert, you are choosing among catalogue base terms as possible shelves for the food.
 
 Each candidate has a \`code\`, a \`name\` and, for some, a \`note\` from the catalogue on when to use it.
-
+${withCountry ? `\n${countryContextLine("food")}\n` : ""}
 Pick the most specific candidate that the food is a kind of, in the strict sense. A candidate that names only one part of a mixture is not a kind of the whole. If no candidate is a kind-of cover, reply with null.
 
 Reply with JSON only:
 {"code":"<code>|null"}
 `;
+}
 
 export interface PickClosestParentResult {
   code: string | null;
@@ -114,7 +124,7 @@ export interface PickClosestParentResult {
 export async function pickClosestParent(
   food: string,
   parents: BaseTermCandidate[],
-  options: { model?: string } = {}
+  options: { model?: string; country?: string | null } = {}
 ): Promise<PickClosestParentResult> {
   const audit: AuditEntry[] = [];
   if (parents.length === 0) {
@@ -126,8 +136,10 @@ export async function pickClosestParent(
 
   const allowed = new Set(parents.map((c) => c.code));
   const cat = Catalogue.load();
+  const country = options.country ?? null;
   const payload = {
     food,
+    ...(country !== null ? { country } : {}),
     candidates: parents.map((c) => {
       const note = cat.term(c.code)?.scopeNote?.trim();
       return { ...candidatePayload(c), ...(note ? { note } : {}) };
@@ -136,7 +148,7 @@ export async function pickClosestParent(
 
   const { content, model } = await chatJson({
     model: options.model?.trim() || defaultModel(),
-    system: SYSTEM_SELECT_PARENT,
+    system: systemSelectParent(country !== null),
     user: JSON.stringify(payload, null, 2),
   });
 

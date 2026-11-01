@@ -80,6 +80,8 @@ export interface SelectOptions {
   model?: string;
   /** How the route read the description; frames the classify system prompt. */
   descriptionKind?: DescriptionKind | null;
+  /** English name of the country the description comes from. */
+  country?: string | null;
 }
 
 export interface SelectResult {

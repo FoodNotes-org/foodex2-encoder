@@ -64,6 +64,7 @@ import type {
   SelectFit,
 } from "./types.js";
 import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
+import { countryContextLine } from "../country.js";
 import { cardinalityKey, impliedRelation } from "../rules/index.js";
 import { catalogueLookup } from "../rules/catalogue-lookup.js";
 import { chatJson, defaultModel } from "../llm.js";
@@ -361,8 +362,12 @@ export type FortificationClaim =
   | { status: "bare" }
   | { status: "agents"; agents: string[] };
 
+function countryBlock(withCountry: boolean): string {
+  return withCountry ? `\n${countryContextLine("input")}\n` : "";
+}
+
 /** Input vs locked base → kind-tagged properties not yet captured. */
-export function systemInputVsBase(): string {
+export function systemInputVsBase(withCountry = false): string {
   const kinds = [
     "- ingredient — a characterising constituent of this food",
     "- source — plant/animal/commodity the food comes from",
@@ -374,7 +379,7 @@ export function systemInputVsBase(): string {
   return `You are a food and nutrition ontology expert.
 
 You are given a food description (\`input\`) and what is already captured (\`baseTerm\`, \`implicits\`, \`covered\`).
-
+${countryBlock(withCountry)}
 List only additional properties asserted by input that are not already represented by \`baseTerm\`, \`implicits\`, or \`covered\`. Omit wording that do not materially change the food. For each kept property: a short \`phrase\` and a \`kind\`. Put omitted candidates in \`omitted\` with a short \`reason\` so the omission is explicit.
 
 Kinds:
@@ -394,7 +399,10 @@ Reply with JSON only:
  * keep `systemInputVsBase`: there the base type already sends constituents to
  * F04, and relation wording made the model re-describe parts (fries → fried).
  */
-export function systemInputRelations(descriptionKind: DescriptionKind | null = null): string {
+export function systemInputRelations(
+  descriptionKind: DescriptionKind | null = null,
+  withCountry = false
+): string {
   const aggregate = descriptionKind === "category";
   const group = aggregate
     ? "\n`input` is an aggregate term: it names a group of foods, not one food. A property is something every food in the group has; mark wording that says which foods the group includes with `\"kind\":\"member\"`.\n"
@@ -405,7 +413,7 @@ export function systemInputRelations(descriptionKind: DescriptionKind | null = n
   return `You are a food and nutrition ontology expert.
 
 You are given a food description (\`input\`) and what is already captured (\`baseTerm\`, \`implicits\`, \`covered\`).
-${group}
+${countryBlock(withCountry)}${group}
 First, list the descriptors in the input that are not already expressed by \`baseTerm\`, \`implicits\` or \`covered\`. Put any other wording in \`omitted\`, with a short \`reason\`.
 
 Then, state each as a property of this food: the \`phrase\` from the input and, as \`name\`, a short catalogue-style name of the food, organism, substance, treatment or attribute it states.
@@ -508,6 +516,8 @@ export interface AssignResidualsOptions {
    * Lexical auto-accept and missing route → skip dish / foodstuff essence.
    */
   descriptionKind?: DescriptionKind | null;
+  /** English name of the country the description comes from. */
+  country?: string | null;
 }
 
 export interface AssignResidualsOk {
@@ -2972,12 +2982,16 @@ export async function assignResiduals(
     };
 
     const dish = isDishKind(descriptionKind);
+    const country = options.country ?? null;
     const listed = await chatJson({
       model,
-      system: dish ? systemInputVsBase() : systemInputRelations(descriptionKind),
+      system: dish
+        ? systemInputVsBase(country !== null)
+        : systemInputRelations(descriptionKind, country !== null),
       user: JSON.stringify(
         {
           input: gapInput,
+          ...(country !== null ? { country } : {}),
           ...(definingSpan !== null ? { dishSpan: definingSpan.span } : {}),
           baseTerm: { code: baseTerm.code, name: baseTerm.name },
           implicits,

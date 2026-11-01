@@ -143,7 +143,10 @@ async function main(): Promise<void> {
   const jobs = todo.flatMap((row) =>
     Array.from({ length: runs }, () => async (): Promise<EncodeUserResult> => {
       try {
-        return toUserEncodeResult(await encodeBaseTerm(row.description as string, {}));
+        const country = row.country?.trim();
+        return toUserEncodeResult(
+          await encodeBaseTerm(row.description as string, country ? { country } : {})
+        );
       } catch (err) {
         return { status: "rejected", message: `error: ${String(err)}` };
       }
@@ -155,7 +158,11 @@ async function main(): Promise<void> {
     const own = results.slice(i * runs, (i + 1) * runs);
     writeFileSync(
       join(sourceDir, `${row.source_food_id}.json`),
-      JSON.stringify({ description: row.description, coder, encoder, mtxRelease: release, runs: own }, null, 2) + "\n"
+      JSON.stringify(
+        { description: row.description, country: row.country || null, coder, encoder, mtxRelease: release, runs: own },
+        null,
+        2
+      ) + "\n"
     );
     const codes = own.flatMap((r) => (r.status === "ok" ? [r.code] : []));
     const first = codes[0];

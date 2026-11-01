@@ -6,6 +6,7 @@
  * and pick — lives in that stage.
  */
 
+import { countryContextLine } from "../country.js";
 import type { DescriptionKind, LadderLabel } from "./types.js";
 
 export const LADDER_LABELS: ReadonlySet<LadderLabel> = new Set<LadderLabel>([
@@ -32,10 +33,13 @@ export function classifySystemPrompt(options: {
   framing: string;
   answerKey: "match" | "fit";
   readSubcategories?: boolean;
+  /** The payload carries `country` next to `item`. */
+  withCountry?: boolean;
 }): string {
-  const { framing, answerKey, readSubcategories = false } = options;
+  const { framing, answerKey, readSubcategories = false, withCountry = false } = options;
   return [
     framing,
+    ...(withCountry ? [countryContextLine("item")] : []),
     ...(readSubcategories ? [READ_SUBCATEGORIES] : []),
     `For each term, answer its questions in order and assign ${answerKey}.`,
     `Reply with JSON only:\n{"classifications":[{"code":"<code>","${answerKey}":"exact|broad|narrow|related|none"}, ...]}\n`,

@@ -8,6 +8,7 @@
  */
 
 import { z } from "zod";
+import { COUNTRY_FORMAT } from "./country.js";
 import { encodeBaseTerm, MAX_ENCODE_INPUT_CHARS } from "./encode/base-term.js";
 import { toUserEncodeResult } from "./encode/user-result.js";
 
@@ -44,10 +45,18 @@ export const encodeTool = tool({
       .describe(
         `The food description, e.g. 'fried rice with chicken' (at most ${MAX_ENCODE_INPUT_CHARS} characters)`
       ),
+    country: z
+      .string()
+      .optional()
+      .describe(
+        `Optional but recommended: the country the food description comes from, as ${COUNTRY_FORMAT}. Food names can mean different foods in different countries, so pass it whenever it is known.`
+      ),
   },
   readOnly: true,
-  handler: async ({ description }) => {
-    const result = toUserEncodeResult(await encodeBaseTerm(description));
+  handler: async ({ description, country }) => {
+    const result = toUserEncodeResult(
+      await encodeBaseTerm(description, country !== undefined ? { country } : {})
+    );
     return json(result, result.status !== "ok");
   },
 });

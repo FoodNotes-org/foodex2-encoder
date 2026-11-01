@@ -22,6 +22,7 @@ import {
   EXPO_ROOT,
   isInExposureTree,
 } from "../catalogue.js";
+import { countryContextLine } from "../country.js";
 import { chatJson, defaultModel, LlmError } from "../llm.js";
 import { vectorIndexAvailable, vectorSearchBase } from "../search/vector.js";
 import { parseClassifications } from "./answers.js";
@@ -50,6 +51,8 @@ export interface TraverseOptions {
   model?: string;
   /** Top-K embedding hits used only as walk-seed hints (default 5). */
   embeddingSeedLimit?: number;
+  /** English name of the country the description comes from. */
+  country?: string | null;
 }
 
 type CandidateMatch = BaseTermCandidate["match"];
@@ -71,17 +74,19 @@ interface RawCandidate {
   match: CandidateMatch;
 }
 
-const SYSTEM_ROUTE = `Assign exactly one descriptionKind to the input:
+function routeSystem(withCountry: boolean): string {
+  return `Assign exactly one descriptionKind to the input:
 
 - "foodstuff": a food, beverage, food product or food commodity
 - "category": a food group or group of foods taken together for statistical reporting
 - "dish": a prepared dish or meal, including a named dish with sides or accompaniments
 - "dish_type": a type of dish, without a specific dish name
 - "mix": a product you can buy that is a blend of several foods
-
+${withCountry ? `\n${countryContextLine("input")}\n` : ""}
 Reply with JSON only:
 {"descriptionKind":"foodstuff|category|dish|dish_type|mix"}
 `;
+}
 
 /** Display name for the classify parent (quoted later via quote()). */
 function parentDisplayName(cat: Catalogue, parentCode: string): string {
@@ -115,11 +120,13 @@ function buildClassifyUser(
   item: string,
   children: TraversalChildView[],
   parentName: string,
-  descriptionKind: DescriptionKind | null
+  descriptionKind: DescriptionKind | null,
+  country: string | null
 ): string {
   return JSON.stringify(
     {
       item,
+      ...(country !== null ? { country } : {}),
       ...(descriptionKind !== null ? { descriptionKind } : {}),
       parent: parentName,
       terms: children.map((child) => classifyTermEntry(item, child)),
@@ -144,19 +151,26 @@ export function parseDescriptionKind(raw: unknown): DescriptionKind | null {
 }
 
 /** Recall classify prompt: `framing` names the item; the ladder answers as `match`. */
-function walkSystemPrompt(framing: string): string {
-  return classifySystemPrompt({ framing, answerKey: "match", readSubcategories: true });
+function walkSystemPrompt(framing: string, withCountry: boolean): string {
+  return classifySystemPrompt({
+    framing,
+    answerKey: "match",
+    readSubcategories: true,
+    withCountry,
+  });
 }
 
-function routeWalkSystem(descriptionKind: DescriptionKind | null): string {
+function routeWalkSystem(descriptionKind: DescriptionKind | null, withCountry: boolean): string {
   if (descriptionKind === null || descriptionKind === "foodstuff") {
     return walkSystemPrompt(
-      "You are matching one food or drink against terms in a food catalogue."
+      "You are matching one food or drink against terms in a food catalogue.",
+      withCountry
     );
   }
   const noun = descriptionKindNoun(descriptionKind);
   return walkSystemPrompt(
-    `You are matching a ${noun} against terms in a food catalogue. The item text is that ${noun}.`
+    `You are matching a ${noun} against terms in a food catalogue. The item text is that ${noun}.`,
+    withCountry
   );
 }
 
@@ -203,6 +217,7 @@ async function classifyAllChildren(
   compareAs: string,
   parentName: string,
   descriptionKind: DescriptionKind | null,
+  country: string | null,
   children: TraversalChildView[],
   allowed: Set<string>
 ): Promise<{ classifications: Map<string, LadderLabel>; model: string }> {
@@ -217,7 +232,7 @@ async function classifyAllChildren(
       const classified = await chatJson({
         model,
         system,
-        user: buildClassifyUser(compareAs, batch, parentName, descriptionKind),
+        user: buildClassifyUser(compareAs, batch, parentName, descriptionKind, country),
         maxTokens: classifyMaxTokens(batch.length),
       });
       const part = parseClassifications(classified.content, batchAllowed, "match", LADDER_LABELS);
@@ -416,6 +431,8 @@ interface WalkOptions {
   compareAs: string;
   /** From the route — shapes multi-item ladder wording; never re-asked here. */
   descriptionKind?: DescriptionKind | null;
+  /** English name of the country the description comes from. */
+  country: string | null;
 }
 
 /** Everything the walks read and write while collecting. */
@@ -501,6 +518,7 @@ async function walkFromSeeds(
             options.compareAs,
             node.parentName,
             descriptionKind,
+            options.country,
             node.childPayload,
             node.allowed
           );
@@ -652,10 +670,11 @@ export async function collectTraversalCandidates(
     detail: { root: EXPO_ROOT, hierarchy: DEFAULT_HIERARCHY, model },
   });
 
+  const country = options.country ?? null;
   const routed = await chatJson({
     model,
-    system: SYSTEM_ROUTE,
-    user: JSON.stringify({ input }, null, 2),
+    system: routeSystem(country !== null),
+    user: JSON.stringify({ input, ...(country !== null ? { country } : {}) }, null, 2),
   });
   const route = parseRoute(routed.content, input);
   const { descriptionKind } = route;
@@ -669,7 +688,7 @@ export async function collectTraversalCandidates(
     },
   });
 
-  const wholeSystem = routeWalkSystem(descriptionKind);
+  const wholeSystem = routeWalkSystem(descriptionKind, country !== null);
   const seedLimit = options.embeddingSeedLimit ?? DEFAULT_EMBEDDING_SEED_LIMIT;
   const embeddingSeeds = await embeddingWalkSeeds(input, seedLimit, audit);
   const wholeSeeds = [EXPO_ROOT, ...embeddingSeeds.filter((s) => s !== EXPO_ROOT)];
@@ -683,6 +702,7 @@ export async function collectTraversalCandidates(
       system: wholeSystem,
       compareAs: input,
       ...(descriptionKind !== null ? { descriptionKind } : {}),
+      country,
     },
     state
   );

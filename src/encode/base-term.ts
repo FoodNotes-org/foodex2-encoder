@@ -6,6 +6,7 @@
  */
 
 import { Catalogue } from "../catalogue.js";
+import { resolveCountry } from "../country.js";
 import { searchTerms } from "../search/lexical.js";
 import { isProviderInfraReason, LlmError } from "../llm.js";
 import { formatFoodEx2Code } from "./foodex2-code.js";
@@ -40,12 +41,15 @@ export interface EncodeBaseTermOptions {
   /** Skip residual facet / free-text assignment (base term only). */
   baseOnly?: boolean;
   model?: string;
+  /** ISO 3166-1 alpha-2 code of the country the description comes from. */
+  country?: string;
 }
 
 async function withFacets(
   input: string,
   base: Omit<EncodeOk, "facets" | "freeText" | "code">,
-  options: EncodeBaseTermOptions
+  options: EncodeBaseTermOptions,
+  country: string | null
 ): Promise<EncodeResult> {
   if (options.baseOnly) {
     return {
@@ -62,6 +66,7 @@ async function withFacets(
       fit: base.fit ?? null,
       food: base.food ?? input,
       descriptionKind: base.descriptionKind ?? null,
+      country,
     });
     base.audit.push(...assigned.audit);
     if (assigned.status === "rejected") {
@@ -116,7 +121,18 @@ export async function encodeBaseTerm(
   const audit: AuditEntry[] = [];
   const lexicalLimit = options.lexicalLimit ?? 10;
 
-  audit.push({ step: "input", detail: { input } });
+  let country: string | null = null;
+  if (options.country !== undefined && options.country.trim() !== "") {
+    const resolved = resolveCountry(options.country);
+    if (!resolved.ok) {
+      audit.push({ step: "input", detail: { input, country: options.country } });
+      return { status: "rejected", reason: "invalid_country", message: resolved.message, audit };
+    }
+    country = resolved.name;
+    audit.push({ step: "input", detail: { input, country: resolved.code } });
+  } else {
+    audit.push({ step: "input", detail: { input } });
+  }
 
   if (input === "") {
     return {
@@ -159,7 +175,7 @@ export async function encodeBaseTerm(
       "lexical",
       audit
     );
-    return withFacets(input, base, options);
+    return withFacets(input, base, options, country);
   }
 
   if (options.lexicalOnly) {
@@ -174,6 +190,7 @@ export async function encodeBaseTerm(
   try {
     const collected = await collectTraversalCandidates(input, {
       model: options.model,
+      country,
       ...(options.embeddingSeedLimit !== undefined
         ? { embeddingSeedLimit: options.embeddingSeedLimit }
         : {}),
@@ -200,6 +217,7 @@ export async function encodeBaseTerm(
     const selection = await scoreTraversalCandidates(input, candidates, {
       model: options.model,
       descriptionKind: collected.descriptionKind,
+      country,
     });
     audit.push(...selection.audit);
 
@@ -221,7 +239,7 @@ export async function encodeBaseTerm(
       walks: collected.walks,
       steps: collected.steps,
     });
-    return withFacets(input, base, options);
+    return withFacets(input, base, options, country);
   } catch (err: unknown) {
     return rejectFromError(err, audit);
   }
