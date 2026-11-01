@@ -1,13 +1,15 @@
 /**
  * Draft FoodEx2 codes for uncoded rows of a foodex2-reference-set data file.
  *
- *   npm run draft-reference -- <data.csv> [--limit 5] [--runs 2] [--concurrency 4]
+ *   npm run draft-reference -- <data.csv> --coder "<name>" [--limit 5] [--runs 2] [--concurrency 4]
  *
  * Takes the first <limit> rows with no code, status or notes, encodes each
  * description <runs> times, and writes the first run's code and free text back
- * as `draft`. Free text that only repeats the description is left out.
+ * as `draft`, coded by <name>: the person who answers for the code, not the tool.
+ * Free text that only repeats the description is left out.
  * When runs disagree, every distinct code goes into `notes` for the reviewer.
- * The full encoder output per run lands in _private/reference-set-drafts/.
+ * The full encoder output per run, with the encoder version, lands in
+ * _private/reference-set-drafts/.
  */
 
 import { execSync } from "node:child_process";
@@ -77,24 +79,35 @@ function encoderId(): string {
   }
 }
 
-function parseArgs(argv: string[]): { path: string; limit: number; runs: number; concurrency: number } {
+function parseArgs(argv: string[]): {
+  path: string;
+  coder: string;
+  limit: number;
+  runs: number;
+  concurrency: number;
+} {
   const opts = { limit: 5, runs: 2, concurrency: 4 };
   let path: string | undefined;
+  let coder: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i] as string;
     const key = arg.replace(/^--/, "") as keyof typeof opts;
-    if (arg.startsWith("--") && key in opts) {
+    if (arg === "--coder") {
+      coder = argv[++i]?.trim();
+    } else if (arg.startsWith("--") && key in opts) {
       const value = Number(argv[++i]);
       if (!Number.isInteger(value) || value < 1) throw new Error(`${arg} needs a positive whole number`);
       opts[key] = value;
     } else if (path === undefined) path = arg;
     else throw new Error(`unexpected argument: ${arg}`);
   }
-  if (path === undefined) {
-    console.error("Usage: npm run draft-reference -- <data.csv> [--limit 5] [--runs 2] [--concurrency 4]");
+  if (path === undefined || !coder) {
+    console.error(
+      'Usage: npm run draft-reference -- <data.csv> --coder "<name>" [--limit 5] [--runs 2] [--concurrency 4]'
+    );
     process.exit(2);
   }
-  return { path, ...opts };
+  return { path, coder, ...opts };
 }
 
 async function pool<T>(jobs: (() => Promise<T>)[], size: number): Promise<T[]> {
@@ -113,7 +126,7 @@ async function pool<T>(jobs: (() => Promise<T>)[], size: number): Promise<T[]> {
 
 async function main(): Promise<void> {
   loadEnv();
-  const { path, limit, runs, concurrency } = parseArgs(process.argv.slice(2));
+  const { path, coder, limit, runs, concurrency } = parseArgs(process.argv.slice(2));
   const { header, rows } = parseCsv(readFileSync(path, "utf8"));
   const todo = rows.filter((r) => !r.foodex2_code && !r.status && !r.notes).slice(0, limit);
   if (todo.length === 0) {
@@ -121,11 +134,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  const coder = encoderId();
+  const encoder = encoderId();
   const release = Catalogue.load().version;
   const sourceDir = join(DRAFTS_DIR, basename(path, ".csv"));
   mkdirSync(sourceDir, { recursive: true });
-  console.log(`Encoding ${todo.length} foods × ${runs} runs with ${coder}, MTX ${release}`);
+  console.log(`Encoding ${todo.length} foods × ${runs} runs with ${encoder}, MTX ${release}, for ${coder}`);
 
   const jobs = todo.flatMap((row) =>
     Array.from({ length: runs }, () => async (): Promise<EncodeUserResult> => {
@@ -142,7 +155,7 @@ async function main(): Promise<void> {
     const own = results.slice(i * runs, (i + 1) * runs);
     writeFileSync(
       join(sourceDir, `${row.source_food_id}.json`),
-      JSON.stringify({ description: row.description, coder, mtxRelease: release, runs: own }, null, 2) + "\n"
+      JSON.stringify({ description: row.description, coder, encoder, mtxRelease: release, runs: own }, null, 2) + "\n"
     );
     const codes = own.flatMap((r) => (r.status === "ok" ? [r.code] : []));
     const first = codes[0];
