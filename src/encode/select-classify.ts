@@ -4,6 +4,7 @@
  * one comparative pass that ranks candidates and supplies residual fit.
  */
 
+import { Catalogue } from "../catalogue.js";
 import { chatJson, defaultModel } from "../llm.js";
 import { parseClassifications, pickAllowedCode } from "./answers.js";
 import {
@@ -96,6 +97,8 @@ export async function assessSelectClassify(
 
 const SYSTEM_SELECT_PARENT = `As a food and nutrition ontology expert, you are choosing among catalogue base terms as possible shelves for the food.
 
+Each candidate has a \`code\`, a \`name\` and, for some, a \`note\` from the catalogue on when to use it.
+
 Pick the most specific candidate that the food is a kind of, in the strict sense. A candidate that names only one part of a mixture is not a kind of the whole. If no candidate is a kind-of cover, reply with null.
 
 Reply with JSON only:
@@ -122,9 +125,13 @@ export async function pickClosestParent(
   }
 
   const allowed = new Set(parents.map((c) => c.code));
+  const cat = Catalogue.load();
   const payload = {
     food,
-    candidates: parents.map((c) => candidatePayload(c)),
+    candidates: parents.map((c) => {
+      const note = cat.term(c.code)?.scopeNote?.trim();
+      return { ...candidatePayload(c), ...(note ? { note } : {}) };
+    }),
   };
 
   const { content, model } = await chatJson({
