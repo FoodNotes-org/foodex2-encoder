@@ -1,7 +1,7 @@
 /**
  * Draft FoodEx2 codes for uncoded rows of a foodex2-reference-set data file.
  *
- *   npm run draft-reference -- <data.csv> --coder "<name>" [--limit 5] [--runs 2] [--concurrency 4]
+ *   npm run draft-reference -- <data.csv> --coder "<name>" [--limit 5] [--runs 2] [--concurrency 10]
  *
  * Takes the first <limit> rows with no code, status or notes, encodes each
  * description <runs> times, and writes the first run's code and free text back
@@ -86,7 +86,7 @@ function parseArgs(argv: string[]): {
   runs: number;
   concurrency: number;
 } {
-  const opts = { limit: 5, runs: 2, concurrency: 4 };
+  const opts = { limit: 5, runs: 2, concurrency: 10 };
   let path: string | undefined;
   let coder: string | undefined;
   for (let i = 0; i < argv.length; i++) {
@@ -103,7 +103,7 @@ function parseArgs(argv: string[]): {
   }
   if (path === undefined || !coder) {
     console.error(
-      'Usage: npm run draft-reference -- <data.csv> --coder "<name>" [--limit 5] [--runs 2] [--concurrency 4]'
+      'Usage: npm run draft-reference -- <data.csv> --coder "<name>" [--limit 5] [--runs 2] [--concurrency 10]'
     );
     process.exit(2);
   }
