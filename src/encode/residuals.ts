@@ -406,7 +406,7 @@ export function systemInputRelations(descriptionKind: DescriptionKind | null = n
 
 You are given a food description (\`input\`) and what is already captured (\`baseTerm\`, \`implicits\`, \`covered\`).
 ${group}
-First, list what the input says about the food that is not already represented by \`baseTerm\`, \`implicits\`, or \`covered\`. Omit wording that does not materially change the food. Put omitted candidates in \`omitted\` with a short \`reason\`.
+First, list the descriptors in the input that are not already expressed by \`baseTerm\`, \`implicits\` or \`covered\`. Put any other wording in \`omitted\`, with a short \`reason\`.
 
 Then, state each as a property of this food: the \`phrase\` from the input and, as \`name\`, a short catalogue-style name of the food, organism, substance, treatment or attribute it states.
 

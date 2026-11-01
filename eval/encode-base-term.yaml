@@ -207,11 +207,11 @@ cases:
     input: mixed nuts (almonds, walnuts and hazelnuts)
     expected: A014C
     method: traversal
-    require_facets: F27.A014D,F27.A014R,F27.A014L
-    forbid_facets: F26.A07XE,F28.A0CRL
-    capability: Encodes a same-nature mix as the group plus F27 members (not Mixing / Other).
+    require_facets: F27.A014D|F27.A014F,F27.A014R,F27.A014L
+    forbid_facets: F26.A07XE
+    capability: Encodes a mix of whole nuts as the group plus F27 members (not Other).
     tags: soft, facets
-    note: Soft — F27 members are required; model sometimes also adds F28 Mixing (same-nature mix is not Mixing)
+    note: Soft — F27 members are required; Almonds sweet is fine, as bitter almonds are not sold as snack nuts. F28 Mixing is allowed — its scope note covers joining different foods; Blending is for a same-nature product such as blended oil
 
   - id: encode-half-and-half
     input: half and half (food product)

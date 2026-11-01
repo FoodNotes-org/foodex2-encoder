@@ -19,7 +19,7 @@ export interface EncodeEvalCase {
   forbid_pick?: string[];
   /** Facet keys Fxx.CODE that must not appear. */
   forbid_facets?: string[];
-  /** Facet keys Fxx.CODE that must all appear. */
+  /** Facet keys Fxx.CODE that must all appear; `A|B` accepts either. */
   require_facets?: string[];
   /** At least one added F04 must be under each of these F04.CODE ancestors. */
   require_f04_under?: string[];
@@ -112,7 +112,7 @@ export async function evaluateEncodeCase(c: EncodeEvalCase): Promise<EncodeCaseR
       const have = new Set(facets);
       const missing = c.require_facets
         .map((x) => x.toUpperCase())
-        .filter((f) => !have.has(f));
+        .filter((f) => !f.split("|").some((alt) => have.has(alt)));
       if (missing.length > 0) {
         facetsPass = false;
         facetDetail = `require_facets missing ${missing.join(", ")} (got ${facets.join(", ") || "none"})`;
