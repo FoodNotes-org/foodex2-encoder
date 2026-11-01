@@ -113,6 +113,20 @@ describe("acceptF04Descriptor", () => {
       "keep"
     );
   });
+
+  it("treats the base's implied source commodity as already stated", () => {
+    // Juice, grapefruit implies source Grapefruits.
+    assert.equal(acceptF04Descriptor(cat, "A01CY", [], { baseCode: "A03AL" }), "restate");
+    // Onions implies source Onions; "red onions" names no narrower onion term.
+    assert.equal(
+      acceptF04Descriptor(cat, "A0DND", [], {
+        baseCode: "A00HC",
+        rejectUnderImplied: true,
+        phrase: "red onions",
+      }),
+      "already_implied"
+    );
+  });
 });
 
 describe("recallIngredF04 rejectUnderImplied", () => {

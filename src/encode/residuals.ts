@@ -790,7 +790,17 @@ export function acceptF04Descriptor(
   const phrase = options.phrase?.trim() ?? "";
   const descName = cat.term(descriptorCode)?.name ?? descriptorCode;
 
-  for (const implied of impliedF04) {
+  // An implied source commodity (F27) is the food the base is made from, so an
+  // ingredient that names it restates the base as much as an implied F04 does.
+  const impliedSources =
+    options.baseCode === undefined
+      ? []
+      : cat
+          .impliedFacets(options.baseCode)
+          .filter((key) => key.startsWith(`${F27}.`))
+          .map((key) => key.slice(F27.length + 1));
+
+  for (const implied of [...impliedF04, ...impliedSources]) {
     if (descriptorCode === implied) return "restate";
     if (cat.isAncestor(descriptorCode, implied, INGRED_HIERARCHY)) return "broader";
     if (

@@ -288,5 +288,5 @@ export function resolveCountry(raw: string): CountryResult {
  * input key that holds the food description in that prompt.
  */
 export function countryContextLine(textField: string): string {
-  return `\`country\` is the country \`${textField}\` comes from. Read its wording as it is meant there.`;
+  return `\`${textField}\` is to be understood in the geographic context of \`country\`.`;
 }
