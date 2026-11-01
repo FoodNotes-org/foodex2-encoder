@@ -5,7 +5,7 @@
 import { Catalogue } from "../catalogue.js";
 import { encodeBaseTerm } from "../encode/base-term.js";
 import { formatFreeText } from "../encode/free-text.js";
-import { diffUsage, isProviderInfraReason, llmUsageTotals, type LlmUsage } from "../llm.js";
+import { isProviderInfraReason, withUsageScope, type LlmUsage } from "../llm.js";
 
 const INGRED_HIERARCHY = "ingred";
 
@@ -73,10 +73,8 @@ export function formatExpected(codes: string[]): string {
 
 export async function evaluateEncodeCase(c: EncodeEvalCase): Promise<EncodeCaseResult> {
   const started = performance.now();
-  const usageBefore = llmUsageTotals();
-  const result = await encodeBaseTerm(c.input);
+  const { result, usage } = await withUsageScope(() => encodeBaseTerm(c.input));
   const elapsedMs = Math.round(performance.now() - started);
-  const usage = diffUsage(usageBefore, llmUsageTotals());
   const pick = result.status === "ok" ? (result.baseTerm?.code ?? null) : null;
   const pickName = result.status === "ok" ? (result.baseTerm?.name ?? null) : null;
   const method = result.status === "ok" ? (result.method ?? null) : null;

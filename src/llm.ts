@@ -14,6 +14,8 @@
  * process-wide running total.
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 export type LlmErrorKind =
   | "provider_credits"
   | "provider_rate_limit"
@@ -69,9 +71,9 @@ export interface ChatJsonResult {
 const totals: LlmUsage = { calls: 0, promptTokens: 0, completionTokens: 0, costUsd: 0 };
 
 /**
- * Running total of every call made in this process. Callers that own a
- * sequential stretch of work (the eval runs one case at a time) diff two
- * snapshots to attribute usage to it.
+ * Running total of every call made in this process. Diffing two snapshots
+ * attributes usage only to a stretch of work that runs alone; concurrent
+ * work needs `withUsageScope`.
  */
 export function llmUsageTotals(): LlmUsage {
   return { ...totals };
@@ -99,15 +101,36 @@ export function parseUsage(usage: unknown): LlmUsage | null {
   return { calls: 1, promptTokens, completionTokens, costUsd: num(u.cost) };
 }
 
-function recordUsage(usage: LlmUsage | null): void {
-  totals.calls += 1;
+const scopes = new AsyncLocalStorage<LlmUsage>();
+
+/**
+ * Run `fn` with its own usage tally: every call made inside it, however
+ * deeply awaited, counts towards the returned `usage`. Lets concurrent runs
+ * be attributed separately, which snapshot diffs cannot do.
+ */
+export async function withUsageScope<T>(
+  fn: () => Promise<T>
+): Promise<{ result: T; usage: LlmUsage }> {
+  const usage: LlmUsage = { calls: 0, promptTokens: 0, completionTokens: 0, costUsd: 0 };
+  const result = await scopes.run(usage, fn);
+  return { result, usage };
+}
+
+function addUsage(target: LlmUsage, usage: LlmUsage | null): void {
+  target.calls += 1;
   if (usage === null) return;
-  totals.promptTokens += usage.promptTokens;
-  totals.completionTokens += usage.completionTokens;
-  // One unpriced call makes the process total unknowable.
-  if (totals.costUsd !== null) {
-    totals.costUsd = usage.costUsd === null ? null : totals.costUsd + usage.costUsd;
+  target.promptTokens += usage.promptTokens;
+  target.completionTokens += usage.completionTokens;
+  // One unpriced call makes the total unknowable.
+  if (target.costUsd !== null) {
+    target.costUsd = usage.costUsd === null ? null : target.costUsd + usage.costUsd;
   }
+}
+
+function recordUsage(usage: LlmUsage | null): void {
+  addUsage(totals, usage);
+  const scoped = scopes.getStore();
+  if (scoped !== undefined) addUsage(scoped, usage);
 }
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";

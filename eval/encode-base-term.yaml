@@ -195,13 +195,13 @@ cases:
 
   - id: encode-fortified-two-agents
     input: orange juice fortified with calcium and vitamin D
-    expected: A03AM
+    expected: A03AM, A03DH
     method: traversal
     require_facets: F09.A0EXH,F09.A0EXM
     forbid_facets: F04.A0EXH,F10.A0F6C
     capability: Places two named fortification agents as F09 and does not also add bare Fortified or Calcium as F04.
     tags: facets
-    note: Juice, orange + Calcium + Vitamin D; agents imply fortified so F10 Fortified is redundant
+    note: Juice, orange + Calcium + Vitamin D; agents imply fortified so F10 Fortified is redundant. Multivitamin juices (F04 orange) is also accepted — the catalogue is inconsistent here. Its scope note says "any type of juice with added vitamins", but the name says multivitamin and it sits under Mixed juices with added ingredients, whose own note again says "any type of juices with added ingredients"
 
   - id: encode-mixed-nuts
     input: mixed nuts (almonds, walnuts and hazelnuts)

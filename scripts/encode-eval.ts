@@ -1,7 +1,7 @@
 /**
  * Run end-to-end encode eval on eval/encode-base-term.yaml.
  *
- *   npm run encode-eval
+ *   npm run encode-eval [-- --concurrency N]   (default 8 cases at a time)
  *
  * Needs a configured model (see README Setup).
  * On a complete run (no early infra stop), writes eval/results/encode-base-term.json.
@@ -263,6 +263,16 @@ function writeResultsArtifact(
   console.log(`Wrote ${RESULTS_PATH}`);
 }
 
+function concurrencyArg(argv: string[]): number {
+  const at = argv.indexOf("--concurrency");
+  if (at < 0) return 8;
+  const n = Number(argv[at + 1]);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error("--concurrency needs a whole number of at least 1");
+  }
+  return n;
+}
+
 async function main(): Promise<void> {
   loadEnv();
   const path = join(ROOT, "eval", "encode-base-term.yaml");
@@ -275,19 +285,27 @@ async function main(): Promise<void> {
   const model = defaultModel();
   console.log(`Encode eval (${cases.length} cases, MTX v${cat.version}, model ${model})\n`);
 
-  const results: EncodeCaseResult[] = [];
+  const concurrency = concurrencyArg(process.argv.slice(2));
+  const slots: Array<EncodeCaseResult | undefined> = new Array(cases.length);
   let stoppedForInfra = false;
-  for (const c of cases) {
-    console.log(`${c.id}…`);
-    const result = await evaluateEncodeCase(c);
-    results.push(result);
-    console.log(`  → ${result.elapsedMs} ms; ${result.usage.calls} calls; $${usd(result.usage.costUsd)}`);
-    if (result.infra) {
-      console.log(`  → ${result.reason ?? "provider error"}; stopping eval early`);
-      stoppedForInfra = true;
-      break;
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (!stoppedForInfra && next < cases.length) {
+      const i = next++;
+      const c = cases[i]!;
+      const result = await evaluateEncodeCase(c);
+      slots[i] = result;
+      console.log(
+        `${c.id} → ${result.elapsedMs} ms; ${result.usage.calls} calls; $${usd(result.usage.costUsd)}`
+      );
+      if (result.infra && !stoppedForInfra) {
+        console.log(`  → ${result.reason ?? "provider error"}; stopping eval early`);
+        stoppedForInfra = true;
+      }
     }
   }
+  await Promise.all(Array.from({ length: Math.min(concurrency, cases.length) }, worker));
+  const results = slots.filter((r): r is EncodeCaseResult => r !== undefined);
 
   console.log("");
   printTable(results);
