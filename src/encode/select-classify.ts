@@ -104,14 +104,17 @@ export async function assessSelectClassify(
 }
 
 function systemSelectParent(withCountry: boolean): string {
-  return `As a food and nutrition ontology expert, you are choosing among catalogue base terms as possible shelves for the food.
+  return `You are a food and nutrition ontology expert.
 
-Each candidate has a \`code\`, a \`name\` and, for some, a \`note\` from the catalogue on when to use it.
+Your task is to choose among catalogue terms as possible shelves for the food.
+First, find the \`candidates\`, if any, that subsumes \`food\`.
+
+Given:
+- \`food\`: the food as described.
+- \`candidates\`: catalogue terms, each with a \`code\`, a \`name\` and, for some, a \`note\` on what the term means and how to use it.
 ${withCountry ? `\n${countryContextLine("food")}\n` : ""}
-Pick the most specific candidate that the food is a kind of, in the strict sense. A candidate that names only one part of a mixture is not a kind of the whole. If no candidate is a kind-of cover, reply with null.
-
-Reply with JSON only:
-{"code":"<code>|null"}
+Reply with JSON only, with the code of that term, or null if \`food\` belongs to none of them:
+{"code":"<code>"|null}
 `;
 }
 
@@ -120,7 +123,7 @@ export interface PickClosestParentResult {
   audit: AuditEntry[];
 }
 
-/** Among shelf candidates (broad, and related under those broads), pick the tightest. */
+/** Among the broad shelf candidates passed in, pick one. */
 export async function pickClosestParent(
   food: string,
   parents: BaseTermCandidate[],

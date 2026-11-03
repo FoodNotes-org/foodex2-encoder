@@ -5,10 +5,9 @@
  * Classify against the full input. Residuals also see that input.
  *
  * 1. One model pass: fit class per candidate (exact|broad|narrow|related|none).
- * 2. Prefer exact, else broad; related under a winning broad weighs with that
- *    shelf (same points) and joins the tightest-shelf pick.
- * 3. Shelf pick pool = winning broads + those related children (parents kept);
- *    the model picks the tightest kind-of cover when more than one.
+ * 2. Prefer exact, else broad. Narrow, related, and none stay on the audit.
+ * 3. When more than one broad remains, the model picks one of those broads.
+ *    Related terms are not passed on.
  * 4. Otherwise within the winning class, C/E/P detail-level bonus may prefer a
  *    denser term; ties → deterministic tie-breaks (specificity, non-specific P,
  *    core/extended, code).
@@ -124,26 +123,6 @@ export function selectableFitTier(
     if (codes.size > 0) return { fit, codes };
   }
   return null;
-}
-
-/**
- * Related-fit candidates that sit under at least one of the broad shelf codes.
- * Used to reopen tightest-shelf pick when classify parked a cover as related.
- */
-export function relatedUnderBroad(
-  cat: Catalogue,
-  byCode: Map<string, CandidateFit>,
-  pool: BaseTermCandidate[],
-  broadCodes: Set<string>
-): BaseTermCandidate[] {
-  return pool.filter((c) => {
-    if ((byCode.get(c.code) ?? "none") !== "related") return false;
-    if (broadCodes.has(c.code)) return false;
-    for (const broad of broadCodes) {
-      if (cat.isAncestor(broad, c.code, DEFAULT_HIERARCHY)) return true;
-    }
-    return false;
-  });
 }
 
 /** Lower rank is better. Compared only among score-tied candidates. */
@@ -291,26 +270,18 @@ export async function scoreTraversalCandidates(
   }
 
   const tierPool = pool.filter((c) => tier.codes.has(c.code));
-  const promotedRelated =
-    tier.fit === "broad"
-      ? relatedUnderBroad(cat, byCode, pool, tier.codes)
-      : [];
-  // Do not densify: related children must not drop their broad parent before
-  // the model sees the pool. The parent-pick prompt decides the cover.
-  const shelfPickPool =
-    promotedRelated.length > 0 ? [...tierPool, ...promotedRelated] : tierPool;
 
   let shortlistCodes: Set<string>;
   let shortlist: BaseTermCandidate[];
   let maxScore: number;
   let parentPickVia: "model" | "tie_break" | null = null;
 
-  if (tier.fit === "broad" && shelfPickPool.length > 1) {
-    const parentPick = await pickClosestParent(input, shelfPickPool, options);
+  if (tier.fit === "broad" && tierPool.length > 1) {
+    const parentPick = await pickClosestParent(input, tierPool, options);
     audit.push(...parentPick.audit);
     const chosen =
       parentPick.code !== null
-        ? shelfPickPool.find((c) => c.code === parentPick.code) ?? null
+        ? tierPool.find((c) => c.code === parentPick.code) ?? null
         : null;
     if (chosen !== null) {
       shortlistCodes = new Set([chosen.code]);
@@ -318,13 +289,8 @@ export async function scoreTraversalCandidates(
       maxScore = scores.get(chosen.code)!.score;
       parentPickVia = "model";
     } else {
-      // Model abstained — prefer winning broads still in the pool, not related
-      // siblings that densest/tie-break would otherwise elevate.
-      const broadInPool = shelfPickPool.filter((c) => tier.codes.has(c.code));
-      const fallback =
-        broadInPool.length > 0 ? broadInPool : shelfPickPool;
-      shortlistCodes = new Set(fallback.map((c) => c.code));
-      shortlist = [...fallback].sort((a, b) =>
+      shortlistCodes = new Set(tierPool.map((c) => c.code));
+      shortlist = [...tierPool].sort((a, b) =>
         compareTieBreak(
           tieBreakRank(cat, a, shortlistCodes).rank,
           tieBreakRank(cat, b, shortlistCodes).rank
@@ -333,8 +299,8 @@ export async function scoreTraversalCandidates(
       maxScore = scores.get(shortlist[0]!.code)!.score;
       parentPickVia = "tie_break";
     }
-  } else if (tier.fit === "broad" && shelfPickPool.length === 1) {
-    const only = shelfPickPool[0]!;
+  } else if (tier.fit === "broad" && tierPool.length === 1) {
+    const only = tierPool[0]!;
     shortlistCodes = new Set([only.code]);
     shortlist = [only];
     maxScore = scores.get(only.code)!.score;
@@ -386,13 +352,9 @@ export async function scoreTraversalCandidates(
       winningFit: tier.fit,
       maxScore,
       tierSize: tier.codes.size,
-      ...(promotedRelated.length > 0
+      ...(tier.fit === "broad" && tierPool.length > 1
         ? {
-            promotedRelated: promotedRelated.map((c) => ({
-              code: c.code,
-              name: c.name,
-            })),
-            shelfPickPool: shelfPickPool.map((c) => ({
+            shelfPickPool: tierPool.map((c) => ({
               code: c.code,
               name: c.name,
             })),

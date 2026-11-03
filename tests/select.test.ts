@@ -8,7 +8,6 @@ import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
 import {
   selectableFitTier,
-  relatedUnderBroad,
   tieBreakRank,
   selectScore,
   fitPoints,
@@ -55,50 +54,6 @@ describe("selectable fit tier", () => {
       ["A03YL", "none"],
     ]);
     assert.equal(selectableFitTier(byCode, pool), null);
-  });
-});
-
-describe("related under broad", () => {
-  it("promotes related descendants of the broad shelf", () => {
-    const cat = Catalogue.load();
-    const pool: BaseTermCandidate[] = [
-      { code: "A03YJ", name: "Egg based dishes", match: "broad" },
-      { code: "A03YQ", name: "Omelette with vegetables", match: "broad" },
-      { code: "A03YK", name: "Cheese omelette", match: "related" },
-      { code: "A031S", name: "Hen egg yolk", match: "related" },
-    ];
-    const byCode = new Map<string, CandidateFit>([
-      ["A03YJ", "broad"],
-      ["A03YQ", "related"],
-      ["A03YK", "related"],
-      ["A031S", "related"],
-    ]);
-    const promoted = relatedUnderBroad(
-      cat,
-      byCode,
-      pool,
-      new Set(["A03YJ"])
-    );
-    assert.deepEqual(
-      promoted.map((c) => c.code).sort(),
-      ["A03YK", "A03YQ"]
-    );
-  });
-
-  it("promotes nothing when related is not under the broad", () => {
-    const cat = Catalogue.load();
-    const pool: BaseTermCandidate[] = [
-      { code: "A03YJ", name: "Egg based dishes", match: "broad" },
-      { code: "A031S", name: "Hen egg yolk", match: "related" },
-    ];
-    const byCode = new Map<string, CandidateFit>([
-      ["A03YJ", "broad"],
-      ["A031S", "related"],
-    ]);
-    assert.deepEqual(
-      relatedUnderBroad(cat, byCode, pool, new Set(["A03YJ"])),
-      []
-    );
   });
 });
 

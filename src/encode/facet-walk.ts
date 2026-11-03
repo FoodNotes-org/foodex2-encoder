@@ -4,8 +4,7 @@
  * Two stages (same idea as base-term recall → select):
  * 1. Recall — under each opened header, branch-open only; collect candidate
  *    descriptors (leaves at visited levels + opened internals).
- * 2. Select — one pick over the union (name + scope note). If the winner
- *    is an internal node, pick among its direct children, level by level.
+ * 2. Select — one pick over that pool: the term, if any, that the phrase states.
  *
  * Separate from base-term traverse.ts — phrase-vs-descriptor, not food-vs-term.
  */
@@ -53,7 +52,7 @@ Inputs:
 - \`phrase\`: the phrase from the description.
 - \`terms\`: catalogue terms, each with a \`code\`, a \`name\`, the \`list\` it belongs to and, for some, a \`note\` from the catalogue on when to use it.
 
-Your task is to decide which term, if any, is the value the phrase states. If more than one is, pick the narrowest.
+Your task is to decide which term, if any, is the value the phrase states.
 
 Reply with JSON only, giving the code of that term, or null if the phrase states none of them:
 {"code":"<code>"|null}
@@ -62,29 +61,25 @@ Reply with JSON only, giving the code of that term, or null if the phrase states
 /** How the picked term relates to the food in an origin walk. */
 export type OriginPickRole = "source" | "made_from" | "ingredient";
 
-const ORIGIN_RELATION: Record<OriginPickRole, string> = {
-  source: "is it the plant or animal `food` comes from?",
-  made_from: "is `food` made from it?",
+const ORIGIN_TASK: Record<OriginPickRole, string> = {
+  source: "which term, if any, is the plant or animal `food` comes from, that `lookingFor` states",
+  made_from: "which term, if any, is what `food` is made from, that `lookingFor` states",
   ingredient:
-    "is it a characterising ingredient of `food`: one that makes it different from other foods of its kind?",
+    "which term, if any, is the characterising ingredient of `food` that `lookingFor` states",
 };
 
-/** Final pick for origin walks: asks about the food, not about the search phrase. */
+/** Final pick for origin walks: the term that `lookingFor` states, in this role. */
 export function systemOriginPick(role: OriginPickRole): string {
-  return `You are an expert in food and nutrition.
+  return `You are an expert in food classification.
 
-Task: decide which of the given terms holds for a food, so that the most specific one can be recorded.
+Task: ${ORIGIN_TASK[role]}?
 
 Given:
 - \`food\`: the food as described.
 - \`lookingFor\`: what we are trying to identify; it may be worded loosely.
 - \`terms\`: candidate terms, each with a \`code\` and a \`name\`.
 
-Judgement:
-- A term holds when the answer to this question is yes: ${ORIGIN_RELATION[role]}
-- Of the terms that hold and match \`lookingFor\`, pick the most specific.
-
-Reply with JSON only, with the code of that term, or null when no term holds:
+Reply with JSON only, with the code of that term, or null if none of them is:
 {"code":"<code>"|null}
 `;
 }
@@ -524,45 +519,6 @@ async function selectAmong(
 }
 
 /**
- * After a pick of an internal node, select among its direct children only;
- * keep the node when none matches. Repeats while the pick has children.
- */
-async function densify(
-  cat: Catalogue,
-  phrase: string,
-  current: RecalledCandidate,
-  options: FacetWalkOptions,
-  steps: WalkStep[]
-): Promise<RecalledCandidate> {
-  const hierarchy = hierarchyFor(cat, current.header);
-  if (hierarchy === null) return current;
-
-  const maxDepth = options.maxDepth ?? MAX_DEPTH;
-  let chosen = current;
-
-  for (let depth = 0; depth < maxDepth; depth++) {
-    const kids = childCodes(cat, hierarchy, chosen.code, chosen.header, options.accept);
-    if (kids.length === 0) return chosen;
-
-    const pool: RecalledCandidate[] = kids.map((code) => ({ header: chosen.header, code }));
-    const candidates = selectPayload(cat, pool);
-    const picked = await askSelect(phrase, candidates, options);
-    steps.push({
-      via: "select_densify",
-      parent: chosen.code,
-      candidates: candidates.map((c) => ({ code: c.code, name: c.name })),
-      picked: picked.code,
-      model: picked.model,
-    });
-    const next = pool.find((c) => c.code === picked.code);
-    if (next === undefined) return chosen;
-    chosen = next;
-  }
-
-  return chosen;
-}
-
-/**
  * Recall under every header, then one precision select over the union.
  */
 export async function resolveFacetWalk(
@@ -623,14 +579,6 @@ export async function resolveFacetWalk(
         steps,
       },
     };
-  }
-
-  const hierarchy = hierarchyFor(cat, picked.header);
-  if (
-    hierarchy !== null &&
-    childCodes(cat, hierarchy, picked.code, picked.header, undefined).length > 0
-  ) {
-    picked = await densify(cat, phrase, picked, options, steps);
   }
 
   const facet: FacetDescriptorRef = {
