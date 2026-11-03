@@ -47,12 +47,12 @@ Reply with JSON only, listing the codes of those groups, or an empty list if the
  */
 const SYSTEM_LEAF = `You are an expert in food classification.
 
-Inputs:
+Your given inputs:
 - \`description\`: the food description.
 - \`phrase\`: the phrase from the description.
 - \`terms\`: catalogue terms, each with a \`code\`, a \`name\`, the \`list\` it belongs to and, for some, a \`note\` from the catalogue on when to use it.
 
-Your task is to decide which term, if any, is the value the phrase states.
+Your task is to decide which term, if any, is the value of the phrase taken as one statement. An alternative inside the phrase is not itself the value.
 
 Reply with JSON only, giving the code of that term, or null if the phrase states none of them:
 {"code":"<code>"|null}
