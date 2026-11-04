@@ -114,6 +114,13 @@ describe("acceptF04Descriptor", () => {
     );
   });
 
+  it("does not record a narrower kind of the base as an ingredient", () => {
+    assert.equal(
+      acceptF04Descriptor(cat, "A045L", [], { baseCode: "A045K" }),
+      "kind_of_base"
+    );
+  });
+
   it("treats the base's implied source commodity as already stated", () => {
     // Juice, grapefruit implies source Grapefruits.
     assert.equal(acceptF04Descriptor(cat, "A01CY", [], { baseCode: "A03AL" }), "restate");

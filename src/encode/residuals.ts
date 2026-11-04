@@ -803,6 +803,7 @@ export function acceptF04Descriptor(
   | "keep"
   | "restate"
   | "broader"
+  | "kind_of_base"
   | "already_implied"
   | "not_ingredient"
   | "composite_on_composite" {
@@ -814,9 +815,13 @@ export function acceptF04Descriptor(
   }
   if (options.baseCode !== undefined) {
     if (descriptorCode === options.baseCode) return "restate";
-    // Descriptor is a parent of the base on ingred → broader restatement.
+    // A parent of the base restates it more vaguely. A child is a narrower kind
+    // of the same food (low-fat salad dressing), not an ingredient of it.
     if (cat.isAncestor(descriptorCode, options.baseCode, INGRED_HIERARCHY)) {
       return "broader";
+    }
+    if (cat.isAncestor(options.baseCode, descriptorCode, INGRED_HIERARCHY)) {
+      return "kind_of_base";
     }
   }
 
