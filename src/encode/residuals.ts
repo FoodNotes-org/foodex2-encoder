@@ -16,6 +16,10 @@
  *     code snaps to the nearest catalogue bucket. Soft claims without a number
  *     are left for later residual passes.
  * 2. Input vs base — what the input still expresses; covered includes step 1.
+ *    A foodstuff also receives `called`, the name already resolved. A phrase
+ *    that only denotes that food is not listed again. Descriptors drawn from
+ *    the name are not covered here: they are still unplaced, and a word such
+ *    as "red" is not the same fact as "red grapefruits".
  *    Outside dishes (and in 1b), leftovers are unsorted: one facet pick per
  *    phrase over the Facets dimensions (excl. F07/F09/F11/F26, owned by earlier
  *    steps) plus two origin options, every pick placed. Origin options use the
@@ -182,7 +186,7 @@ export function memberTermTypes(
  * Fallback when the base type leaves the origin facet open:
  * organism → F01, made-from → F27, contains → F04.
  */
-const SYSTEM_ORIGIN_ROLE = `You are a food and nutrition ontology expert.
+const SYSTEM_ORIGIN_ROLE = `You are an expert in food classification.
 
 Relative to the locked food, does this property point to:
 (1) which organism the food comes from
@@ -199,7 +203,7 @@ Reply with JSON only:
 `;
 
 /** Named-dish unstated essence → kind-tagged properties to place. */
-const SYSTEM_ESSENCE = `You are a food and nutrition ontology expert.
+const SYSTEM_ESSENCE = `You are an expert in food classification.
 
 Give a concise definition of this named dish or dish type that only captures the essential characteristics of the dish – only the ones that strictly define it.
 
@@ -219,7 +223,7 @@ Reply with JSON only:
  * Does the base term itself already entail each essence property?
  * Catalogue implicits are applied later, code-to-code, when placing.
  */
-const SYSTEM_ESSENCE_COVER = `You are a food and nutrition ontology expert.
+const SYSTEM_ESSENCE_COVER = `You are an expert in food classification.
 
 A food has been assigned the given base term. Each property is a candidate attribute.
 
@@ -248,7 +252,7 @@ const ORIGIN_PICKS: FacetPickExtra[] = [
  * food been obtained?", direct source only). Which facet each entry goes in
  * (F01 / F27 / F04) is the base term's type, not the model's. Miss → drop.
  */
-const SYSTEM_ORIGIN = `You are an expert in food and in lexical semantics.
+const SYSTEM_ORIGIN = `You are an expert in food classification.
 
 Task: define the food called \`name\` by genus and differentia, with its base term as the genus, giving as differentia only what the food is directly obtained or prepared from, so that each entry can be looked up in a food list.
 
@@ -270,7 +274,7 @@ Reply with JSON only; \`from\` is empty when the genus already defines the food:
  * question treats what the group entails (cereal grains, flour, sugar) as a
  * differentia.
  */
-const SYSTEM_GROUP_ORIGIN = `You are an expert in food and nutrition classification.
+const SYSTEM_GROUP_ORIGIN = `You are an expert in food classification.
 
 Task: name what every food in a catalogue food group is directly obtained or prepared from.
 
@@ -297,7 +301,7 @@ export function parseOriginAnswer(content: unknown): { definition: string | null
 }
 
 /** The food's name without treatment / packing / preparation words, asked before the origin question. */
-const SYSTEM_FOOD_NAME = `You are an expert in food and in lexical semantics.
+const SYSTEM_FOOD_NAME = `You are an expert in food classification.
 
 Task: give the name of the food in a food description, without the words that describe how it is treated, packed or prepared, so that the food itself can be looked up.
 
@@ -326,7 +330,7 @@ export function parseFoodName(content: unknown, description: string): string | n
  * Fortification / enrichment / supplementation — asked before ingredient/source
  * placement so those routes do not claim the same wording as F04.
  */
-const SYSTEM_FORTIFICATION = `You are a food and nutrition ontology expert.
+const SYSTEM_FORTIFICATION = `You are an expert in food classification.
 
 Does this food description state that the food is fortified, enriched, or supplemented — including a nutrient or substance added for that purpose?
 
@@ -343,7 +347,7 @@ Reply with JSON only:
  * place the same wording via F10 soft claims or a facet walk of F07/F11.
  * Soft labels without a number (low fat, alcohol free) stay null here.
  */
-const SYSTEM_NUMERIC_CONTENT = `You are a food and nutrition ontology expert.
+const SYSTEM_NUMERIC_CONTENT = `You are an expert in food classification.
 
 Does this food description state a fat percentage and/or an alcohol-by-volume percentage?
 
@@ -376,7 +380,7 @@ export function systemInputVsBase(withCountry = false): string {
     "- other — any other distinctness (fat level, part, packaging, production method, …)",
   ].join("\n");
   const kindEnum = '"ingredient"|"source"|"process"|"side"|"other"';
-  return `You are a food and nutrition ontology expert.
+  return `You are an expert in food classification.
 
 You are given a food description (\`input\`) and what is already captured (\`baseTerm\`, \`implicits\`, \`covered\`).
 ${countryBlock(withCountry)}
@@ -393,16 +397,17 @@ Reply with JSON only:
 }
 
 /**
- * Input vs locked base for anything but a dish. Leftovers are unsorted: the
- * facet picker decides which facets each phrase speaks to, so one phrase can
- * carry several (in sunflower oil → surrounding medium and ingredient). Dishes
- * keep `systemInputVsBase`: there the base type already sends constituents to
- * F04, and relation wording made the model re-describe parts (fries → fried).
+ * Leftovers for anything but a dish. The facet picker decides which facets
+ * each phrase speaks to, so one phrase can carry several (in sunflower oil →
+ * surrounding medium and ingredient). A foodstuff is asked which characterising
+ * descriptors remain once `called` denotes the food. Dishes keep
+ * `systemInputVsBase`.
  */
 export function systemInputRelations(
   descriptionKind: DescriptionKind | null = null,
   withCountry = false
 ): string {
+  if (descriptionKind === "foodstuff") return systemFoodstuffInput(withCountry);
   const aggregate = descriptionKind === "category";
   const group = aggregate
     ? "\n`input` is an aggregate term: it names a group of foods, not one food. A property is something every food in the group has; mark wording that says which foods the group includes with `\"kind\":\"member\"`.\n"
@@ -410,7 +415,7 @@ export function systemInputRelations(
   const shape = aggregate
     ? '{"phrase":"<text>","name":"<text>","kind":"member"?}'
     : '{"phrase":"<text>","name":"<text>"}';
-  return `You are a food and nutrition ontology expert.
+  return `You are an expert in food classification.
 
 You are given a food description (\`input\`) and what is already captured (\`baseTerm\`, \`implicits\`, \`covered\`).
 ${countryBlock(withCountry)}${group}
@@ -424,6 +429,34 @@ If nothing is left to keep, return an empty properties list.
 
 Reply with JSON only:
 {"properties":[${shape},...],"omitted":[{"phrase":"<text>","reason":"<text>"},...]}
+`;
+}
+
+/** Foodstuff leftovers. `called` denotes the food; words inside it can still be further descriptors. */
+function systemFoodstuffInput(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Which characterising descriptors does this food description still assert, so each one can be recorded?
+
+Given:
+- \`input\`: the food description, in full. Read every phrase in this context.
+- \`called\`: the part of \`input\` that denotes the food. This denotation has already been resolved.
+- \`baseTerm\`: the food group already chosen for it.
+- \`implicits\`: the descriptors that group already carries.
+- \`covered\`: the descriptors already recorded.
+${countryBlock(withCountry)}
+\`called\` denotes the food. A phrase that denotes that same food is not a further descriptor. A phrase that states a further descriptor is one, including when it is written inside \`called\`, unless \`baseTerm\`, \`implicits\`, or \`covered\` already record it.
+
+Omit wording that does not change the food. Put each omission in \`omitted\` with a short reason.
+
+For each descriptor kept, give \`phrase\` as written in \`input\`, and \`name\` as a short catalogue-style name of the food, organism, substance, treatment, or attribute it states.
+
+Give more than one property for a phrase only when that phrase states more than one descriptor.
+
+If none remain, \`properties\` is empty.
+
+Reply with JSON only:
+{"properties":[{"phrase":"<text>","name":"<text>"},...],"omitted":[{"phrase":"<text>","reason":"<text>"},...]}
 `;
 }
 
@@ -464,7 +497,7 @@ const GAP_KINDS = new Set<GapPropertyKind>([
 ]);
 
 /** Closed-facet pick (F01/F27/F09/…): same thing as a candidate, or null. */
-const SYSTEM_CLOSED_PICK = `You are a food and nutrition ontology expert.
+const SYSTEM_CLOSED_PICK = `You are an expert in food classification.
 
 Does the phrase mean the same thing as one of the candidates?
 
@@ -481,7 +514,7 @@ Reply with JSON only:
  * F26: how the input relates to the base's direct children. The answer decides
  * Other vs Unspecified in code (see decideF26); the model does not pick F26.
  */
-const SYSTEM_F26_RELATION = `You are a food and nutrition ontology expert.
+const SYSTEM_F26_RELATION = `You are an expert in food classification.
 
 You are given a food description (\`input\`), the catalogue term chosen for it (\`baseTerm\`), and the terms directly under that term (\`children\`).
 
@@ -2749,6 +2782,8 @@ export async function assignResiduals(
 
   /** Dish / dish_type only: grounded span for essence + dish= identity. */
   let definingSpan: { start: number; end: number; span: string } | null = null;
+  /** Foodstuff: the name already resolved. */
+  let called: string | null = null;
 
   /** World knowledge (origin question / dish essence), placed after the input's Facets pass. */
   const known: Array<{ property: GapProperty; origin: boolean }> = [];
@@ -2822,6 +2857,7 @@ export async function assignResiduals(
       });
 
       knownFrom = "origin";
+      called = foodName;
       for (const property of filtered.kept) known.push({ property, origin: true });
     }
   } else {
@@ -3002,6 +3038,7 @@ export async function assignResiduals(
         {
           input: gapInput,
           ...(country !== null ? { country } : {}),
+          ...(called !== null ? { called } : {}),
           ...(definingSpan !== null ? { dishSpan: definingSpan.span } : {}),
           baseTerm: { code: baseTerm.code, name: baseTerm.name },
           implicits,
@@ -3035,6 +3072,7 @@ export async function assignResiduals(
       detail: {
         model: listed.model,
         gapInput,
+        ...(called !== null ? { called } : {}),
         properties,
         ...(omitted.length > 0 ? { omitted } : {}),
         ...(droppedAll.length > 0 ? { dropped: droppedAll, raw: listedRaw } : {}),

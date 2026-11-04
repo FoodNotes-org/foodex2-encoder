@@ -104,7 +104,7 @@ export async function assessSelectClassify(
 }
 
 function systemSelectParent(withCountry: boolean): string {
-  return `You are a food and nutrition ontology expert.
+  return `You are an expert in food classification.
 
 Your task is to choose among catalogue terms as possible shelves for the food.
 First, find the \`candidates\`, if any, that subsumes \`food\`.
