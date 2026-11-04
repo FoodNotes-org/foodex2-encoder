@@ -290,3 +290,14 @@ export function resolveCountry(raw: string): CountryResult {
 export function countryContextLine(textField: string): string {
   return `\`${textField}\` is to be understood in the geographic context of \`country\`.`;
 }
+
+/**
+ * The country sentence as its own paragraph.
+ *
+ * Put the call on its own line between two sections. With no country, the
+ * newlines around the call stay one blank line. With a country, the sentence
+ * sits between blank lines.
+ */
+export function countryParagraph(withCountry: boolean, textField: string): string {
+  return withCountry ? `\n${countryContextLine(textField)}\n` : "";
+}

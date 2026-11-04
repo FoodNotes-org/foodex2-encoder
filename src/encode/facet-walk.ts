@@ -10,6 +10,7 @@
  */
 
 import { Catalogue } from "../catalogue.js";
+import { countryParagraph } from "../country.js";
 import { chatJson } from "../llm.js";
 import { pickAllowedCode, pickAllowedCodes } from "./answers.js";
 import { F07, F11 } from "./numeric-facets.js";
@@ -28,35 +29,39 @@ const MAX_BRANCHES_PER_LEVEL = 4;
  * Branch open: which children are worth descending into.
  * Payload is name + direct child names only (no scope notes).
  */
-const SYSTEM_BRANCH = `You are an expert in food classification.
+function systemBranch(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
 You are given the following inputs:
 - \`description\`: the food description.
 - \`phrase\`: the phrase from the description.
 - \`groups\`: groups of catalogue terms, each with a \`code\`, a \`name\`, and the names of the terms directly under it.
-
+${countryParagraph(withCountry, "description")}
 Your task is to decide which groups may contain the value the phrase states.
 
 Reply with JSON only, listing the codes of those groups, or an empty list if there are none:
 {"codes":["<code>",...]}
 `;
+}
 
 /**
  * Precision pick among recalled descriptors (possibly from several dimensions).
  * note is MTX scope text.
  */
-const SYSTEM_LEAF = `You are an expert in food classification.
+function systemLeaf(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
 Your given inputs:
 - \`description\`: the food description.
 - \`phrase\`: the phrase from the description.
 - \`terms\`: catalogue terms, each with a \`code\`, a \`name\`, the \`list\` it belongs to and, for some, a \`note\` from the catalogue on when to use it.
-
+${countryParagraph(withCountry, "description")}
 Your task is to decide which term, if any, is the value of the phrase taken as one statement. An alternative inside the phrase is not itself the value.
 
 Reply with JSON only, giving the code of that term, or null if the phrase states none of them:
 {"code":"<code>"|null}
 `;
+}
 
 /** How the picked term relates to the food in an origin walk. */
 export type OriginPickRole = "source" | "made_from" | "ingredient";
@@ -69,7 +74,7 @@ const ORIGIN_TASK: Record<OriginPickRole, string> = {
 };
 
 /** Final pick for origin walks: the term that `lookingFor` states, in this role. */
-export function systemOriginPick(role: OriginPickRole): string {
+export function systemOriginPick(role: OriginPickRole, withCountry = false): string {
   return `You are an expert in food classification.
 
 Task: ${ORIGIN_TASK[role]}?
@@ -78,7 +83,7 @@ Given:
 - \`food\`: the food as described.
 - \`lookingFor\`: what we are trying to identify; it may be worded loosely.
 - \`terms\`: candidate terms, each with a \`code\` and a \`name\`.
-
+${countryParagraph(withCountry, "food")}
 Reply with JSON only, with the code of that term, or null if none of them is:
 {"code":"<code>"|null}
 `;
@@ -105,7 +110,17 @@ export type FacetWalkOptions = {
   seeds?: Array<{ header: string; code: string }>;
   /** Origin walks: the final pick asks this role's question about `food`. */
   originRole?: OriginPickRole;
+  /** English country name. Omitted from the prompt when absent. */
+  country?: string | null;
 };
+
+function hasCountry(options: FacetWalkOptions): boolean {
+  return options.country != null && options.country !== "";
+}
+
+function countryField(options: FacetWalkOptions): { country: string } | Record<string, never> {
+  return hasCountry(options) ? { country: options.country as string } : {};
+}
 
 type WalkStep = Record<string, unknown>;
 
@@ -179,10 +194,11 @@ async function askBranch(
   const allowed = new Set(groups.map((c) => c.code));
   const picked = await chatJson({
     model: options.model,
-    system: SYSTEM_BRANCH,
+    system: systemBranch(hasCountry(options)),
     user: JSON.stringify(
       {
         ...(options.food ? { description: options.food.input } : {}),
+        ...countryField(options),
         phrase,
         groups,
       },
@@ -205,10 +221,11 @@ async function askSelect(
   if (options.originRole !== undefined && options.food !== undefined) {
     const picked = await chatJson({
       model: options.model,
-      system: systemOriginPick(options.originRole),
+      system: systemOriginPick(options.originRole, hasCountry(options)),
       user: JSON.stringify(
         {
           food: options.food.input,
+          ...countryField(options),
           lookingFor: phrase,
           terms: terms.map(({ code, name }) => ({ code, name })),
         },
@@ -220,10 +237,11 @@ async function askSelect(
   }
   const picked = await chatJson({
     model: options.model,
-    system: SYSTEM_LEAF,
+    system: systemLeaf(hasCountry(options)),
     user: JSON.stringify(
       {
         ...(options.food ? { description: options.food.input } : {}),
+        ...countryField(options),
         phrase,
         terms,
       },
@@ -321,18 +339,20 @@ export async function openFacetDimensions(
  * Which facets a leftover phrase speaks to, for this food. Several may apply
  * ("in sunflower oil" on canned tuna: surrounding medium and ingredient).
  */
-const SYSTEM_PICK_FACETS = `You are an expert in food classification.
+function systemPickFacets(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
 You are given the following inputs:
 - \`description\`: the food's full description.
 - \`phrase\`: a part of that description.
 - \`facets\`: candidate facets, each with a \`code\`, a \`name\`, and what it \`covers\`.
-
+${countryParagraph(withCountry, "description")}
 Each facet is one attribute of a food, such as how it was processed or what it is packed in. Your task is to decide which facets the phrase states a value for.
 
 Reply with JSON only, listing the codes, or an empty list if it states a value for none:
 {"codes":["<code>",...]}
 `;
+}
 
 /** A picker option that is not a Facets dimension (routed by the caller). */
 export type FacetPickExtra = { code: string; name: string; covers: string };
@@ -367,10 +387,11 @@ export async function pickFacets(
   const allowed = new Set(byUpper.keys());
   const picked = await chatJson({
     model: options.model,
-    system: SYSTEM_PICK_FACETS,
+    system: systemPickFacets(hasCountry(options)),
     user: JSON.stringify(
       {
         ...(options.food ? { description: options.food.input } : {}),
+        ...countryField(options),
         phrase,
         facets,
       },

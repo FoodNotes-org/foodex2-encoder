@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolveCountry } from "../src/country.js";
+import { countryContextLine, countryParagraph, resolveCountry } from "../src/country.js";
 
 describe("resolveCountry", () => {
   it("resolves an ISO code to its English name, case-insensitively", () => {
@@ -17,6 +17,11 @@ describe("resolveCountry", () => {
     const result = resolveCountry("UK");
     assert.equal(result.ok, false);
     assert.match(!result.ok ? result.message : "", /For United Kingdom, use GB\./);
+  });
+
+  it("keeps the country sentence as its own paragraph", () => {
+    assert.equal(countryParagraph(false, "name"), "");
+    assert.equal(countryParagraph(true, "name"), `\n${countryContextLine("name")}\n`);
   });
 
   it("rejects codes ISO 3166-1 does not assign to a country", () => {

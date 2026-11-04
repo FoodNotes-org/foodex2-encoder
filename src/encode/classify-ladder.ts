@@ -6,7 +6,6 @@
  * and pick — lives in that stage.
  */
 
-import { countryContextLine } from "../country.js";
 import type { DescriptionKind, LadderLabel } from "./types.js";
 
 export const LADDER_LABELS: ReadonlySet<LadderLabel> = new Set<LadderLabel>([
@@ -21,13 +20,11 @@ export function quote(value: string): string {
   return `"${value.replace(/"/g, "'")}"`;
 }
 
-const READ_SUBCATEGORIES = `When a category lists directSubcategories before its questions, read that list to see what the category covers; subcategory names are catalogue structure, not ingredients of the search item.`;
-
 /**
  * System prompt for one classify call. `framing` says what the item is and what
  * it is matched against; `answerKey` is the JSON key the model answers under
- * (recall: match, selection: fit). Recall walks also get the note on reading
- * directSubcategories.
+ * (recall: match, selection: fit). Recall walks also describe `parent` and
+ * `directSubcategories`, which the selection payload does not carry.
  */
 export function classifySystemPrompt(options: {
   framing: string;
@@ -37,11 +34,22 @@ export function classifySystemPrompt(options: {
   withCountry?: boolean;
 }): string {
   const { framing, answerKey, readSubcategories = false, withCountry = false } = options;
+  const givens = [
+    "- `item`: the food or drink as described.",
+    ...(withCountry ? ["- `country`: where `item` was reported."] : []),
+    "- `descriptionKind`: which kind of description `item` is: a foodstuff, a category, a dish, a dish type, or a mix.",
+    ...(readSubcategories ? ["- `parent`: the catalogue term these terms sit under."] : []),
+    readSubcategories
+      ? "- `terms`: the catalogue terms to judge. Each has a `code`, a `name` and `questions`. A term that has children also has `directSubcategories`: the names of the terms directly under it. Those names show what the term covers. They are catalogue structure, not ingredients of `item`."
+      : "- `terms`: the catalogue terms to judge. Each has a `code`, a `name` and `questions`.",
+  ];
+  const opening = withCountry
+    ? `${framing}\n\`item\` is reported from this country: \`country\`.`
+    : framing;
   return [
-    framing,
-    ...(withCountry ? [countryContextLine("item")] : []),
-    ...(readSubcategories ? [READ_SUBCATEGORIES] : []),
-    `For each term, answer its questions in order and assign ${answerKey}.`,
+    opening,
+    `You are given:\n${givens.join("\n")}`,
+    `For each term, answer its questions in order and assign ${answerKey}, at the level of detail the description itself states, not an inferred more specific kind.`,
     `Reply with JSON only:\n{"classifications":[{"code":"<code>","${answerKey}":"exact|broad|narrow|related|none"}, ...]}\n`,
   ].join("\n\n");
 }

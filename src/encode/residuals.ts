@@ -68,7 +68,7 @@ import type {
   SelectFit,
 } from "./types.js";
 import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
-import { countryContextLine } from "../country.js";
+import { countryParagraph } from "../country.js";
 import { cardinalityKey, impliedRelation } from "../rules/index.js";
 import { catalogueLookup } from "../rules/catalogue-lookup.js";
 import { chatJson, defaultModel } from "../llm.js";
@@ -186,7 +186,8 @@ export function memberTermTypes(
  * Fallback when the base type leaves the origin facet open:
  * organism → F01, made-from → F27, contains → F04.
  */
-const SYSTEM_ORIGIN_ROLE = `You are an expert in food classification.
+function systemOriginRole(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
 Relative to the locked food, does this property point to:
 (1) which organism the food comes from
@@ -197,13 +198,15 @@ Use (1) when specifying the live plant or animal (species on fish/meat, plant on
 Use (2) when the locked food is made from a raw foodstuff (milk for cheese, grain for flour, seed for oil) — even if the property only names the animal or plant.
 Use (3) when the property is an inclusion in a composite or mixed food.
 If unclear, return null.
-
+${countryBlock(withCountry)}
 Reply with JSON only:
 {"role":"organism"|"made_from"|"contains"|null}
 `;
+}
 
 /** Named-dish unstated essence → kind-tagged properties to place. */
-const SYSTEM_ESSENCE = `You are an expert in food classification.
+function systemEssence(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
 Give a concise definition of this named dish or dish type that only captures the essential characteristics of the dish – only the ones that strictly define it.
 
@@ -214,10 +217,11 @@ Kinds:
 - source — plant/animal/commodity the food comes from
 - process — treatment or preparation
 - other — any other distinctness (fat level, part, packaging, production method, …)
-
+${countryBlock(withCountry, "name")}
 Reply with JSON only:
 {"definition":"<text>","properties":[{"phrase":"<text>","kind":"ingredient"|"source"|"process"|"other"},...]}
 `;
+}
 
 /**
  * Does the base term itself already entail each essence property?
@@ -252,14 +256,15 @@ const ORIGIN_PICKS: FacetPickExtra[] = [
  * food been obtained?", direct source only). Which facet each entry goes in
  * (F01 / F27 / F04) is the base term's type, not the model's. Miss → drop.
  */
-const SYSTEM_ORIGIN = `You are an expert in food classification.
+function systemOrigin(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
 Task: define the food called \`name\` by genus and differentia, with its base term as the genus, giving as differentia only what the food is directly obtained or prepared from, so that each entry can be looked up in a food list.
 
 Given:
 - \`name\`: the name of a food.
 - \`baseTerm\`: the catalogue food group it belongs to, the genus, with the descriptors that are part of that group's definition (\`implicit\`) and, when those do not say it, what every food in the group is obtained or prepared from (\`madeFrom\`).
-
+${countryBlock(withCountry, "name")}
 Judgement:
 - The differentia is what sets the food apart from other foods in its genus.
 - The differentia must not be circular.
@@ -267,6 +272,7 @@ Judgement:
 Reply with JSON only; \`from\` is empty when the genus already defines the food:
 {"definition":"<text>","from":["<food>"]}
 `;
+}
 
 /**
  * What every food in a base term's group is made from, for base terms whose
@@ -301,13 +307,14 @@ export function parseOriginAnswer(content: unknown): { definition: string | null
 }
 
 /** The food's name without treatment / packing / preparation words, asked before the origin question. */
-const SYSTEM_FOOD_NAME = `You are an expert in food classification.
+function systemFoodName(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
 Task: give the name of the food in a food description, without the words that describe how it is treated, packed or prepared, so that the food itself can be looked up.
 
 Given:
 - \`description\`: a food description as written.
-
+${countryBlock(withCountry, "description")}
 Judgement:
 - Keep every word that is part of what the food is called.
 - Copy the name exactly as it appears in \`description\`.
@@ -315,6 +322,7 @@ Judgement:
 Reply with JSON only:
 {"name":"<text>"}
 `;
+}
 
 /** The answered name, or null when it is empty or not found in `description`. */
 export function parseFoodName(content: unknown, description: string): string | null {
@@ -330,24 +338,27 @@ export function parseFoodName(content: unknown, description: string): string | n
  * Fortification / enrichment / supplementation — asked before ingredient/source
  * placement so those routes do not claim the same wording as F04.
  */
-const SYSTEM_FORTIFICATION = `You are an expert in food classification.
+function systemFortification(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
 Does this food description state that the food is fortified, enriched, or supplemented — including a nutrient or substance added for that purpose?
 
 If no: return null.
 If yes but no fortifying agent is named: return "bare".
 If yes and one or more agents are named: list each agent as a short phrase (the nutrient or substance only).
-
+${countryBlock(withCountry)}
 Reply with JSON only:
 {"fortification":null|"bare"|{"agents":["<phrase>",...]}}
 `;
+}
 
 /**
  * Stated fat % / alcohol % v/v — asked early so later residual passes do not
  * place the same wording via F10 soft claims or a facet walk of F07/F11.
  * Soft labels without a number (low fat, alcohol free) stay null here.
  */
-const SYSTEM_NUMERIC_CONTENT = `You are an expert in food classification.
+function systemNumericContent(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
 Does this food description state a fat percentage and/or an alcohol-by-volume percentage?
 
@@ -355,10 +366,11 @@ If a fat percentage is stated, set fatPercent to that number (ranges → midpoin
 If an alcohol-by-volume percentage is stated (including ABV or "% volume" on drinks), set alcoholPercent similarly.
 If only a soft claim is present with no number (low fat, alcohol free, …), leave that field null.
 If neither percentage is stated, both fields are null.
-
+${countryBlock(withCountry)}
 Reply with JSON only:
 {"fatPercent":<number>|null,"alcoholPercent":<number>|null}
 `;
+}
 
 /** Detected fortification claim; facet placement comes in a later step. */
 export type FortificationClaim =
@@ -366,8 +378,8 @@ export type FortificationClaim =
   | { status: "bare" }
   | { status: "agents"; agents: string[] };
 
-function countryBlock(withCountry: boolean): string {
-  return withCountry ? `\n${countryContextLine("input")}\n` : "";
+function countryBlock(withCountry: boolean, textField = "input"): string {
+  return countryParagraph(withCountry, textField);
 }
 
 /** Input vs locked base → kind-tagged properties not yet captured. */
@@ -497,7 +509,8 @@ const GAP_KINDS = new Set<GapPropertyKind>([
 ]);
 
 /** Closed-facet pick (F01/F27/F09/…): same thing as a candidate, or null. */
-const SYSTEM_CLOSED_PICK = `You are an expert in food classification.
+function systemClosedPick(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
 Does the phrase mean the same thing as one of the candidates?
 
@@ -505,19 +518,21 @@ Candidates may include codingGuidance: catalogue instructions for when to use or
 
 If yes, return that candidate's code. Prefer a more specific candidate when the phrase still means the same thing; do not pick a candidate that adds detail the phrase does not support.
 If none, return null.
-
+${countryBlock(withCountry, "phrase")}
 Reply with JSON only:
 {"code":"<CODE>"|null}
 `;
+}
 
 /**
  * F26: how the input relates to the base's direct children. The answer decides
  * Other vs Unspecified in code (see decideF26); the model does not pick F26.
  */
-const SYSTEM_F26_RELATION = `You are an expert in food classification.
+function systemF26Relation(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
 You are given a food description (\`input\`), the catalogue term chosen for it (\`baseTerm\`), and the terms directly under that term (\`children\`).
-
+${countryBlock(withCountry)}
 First, consider what food \`input\` identifies.
 
 Then, consider what kinds of \`baseTerm\` the children are.
@@ -532,6 +547,7 @@ Then, decide how \`input\` relates to the children:
 Reply with JSON only:
 {"relation":"same"|"within"|"sibling"|"parent"|"none"}
 `;
+}
 
 export interface AssignResidualsOptions {
   model?: string;
@@ -591,6 +607,8 @@ interface PlaceContext {
   limitedSlots: Set<string>;
   model: string;
   input: string;
+  /** English country name, when the caller passed one. */
+  country: string | null;
   fit: SelectFit | null;
   /** Step 0 claim; later leftover phrases that restate it are not placed again. */
   fortificationClaim: FortificationClaim;
@@ -659,12 +677,13 @@ async function originRolesFor(
 
   const answered = await chatJson({
     model: ctx.model,
-    system: SYSTEM_ORIGIN_ROLE,
+    system: systemOriginRole(ctx.country !== null),
     user: JSON.stringify(
       {
         food: ctx.baseName,
         property: phrase,
         input: ctx.input,
+        ...(ctx.country !== null ? { country: ctx.country } : {}),
       },
       null,
       2
@@ -1005,10 +1024,11 @@ async function askFortification(
 ): Promise<{ claim: FortificationClaim; detail: Record<string, unknown> }> {
   const answered = await chatJson({
     model: ctx.model,
-    system: SYSTEM_FORTIFICATION,
+    system: systemFortification(ctx.country !== null),
     user: JSON.stringify(
       {
         input: foodDescription,
+        ...(ctx.country !== null ? { country: ctx.country } : {}),
         baseTerm: { code: ctx.baseCode, name: ctx.baseName },
       },
       null,
@@ -1066,6 +1086,7 @@ async function applyFortification(
     const resolved = await resolveClosedFacetPhrase(ctx.cat, agent, F09, ctx.implied, {
       model: ctx.model,
       allowRootFallback: false,
+      country: ctx.country,
     });
     if (resolved.facet !== null && addFacet(ctx, resolved.facet)) {
       placed.push({ agent, facet: resolved.facet });
@@ -1097,10 +1118,11 @@ async function askNumericContent(
 ): Promise<{ claim: NumericContentClaim; detail: Record<string, unknown> }> {
   const answered = await chatJson({
     model: ctx.model,
-    system: SYSTEM_NUMERIC_CONTENT,
+    system: systemNumericContent(ctx.country !== null),
     user: JSON.stringify(
       {
         input: foodDescription,
+        ...(ctx.country !== null ? { country: ctx.country } : {}),
         baseTerm: { code: ctx.baseCode, name: ctx.baseName },
       },
       null,
@@ -1683,6 +1705,7 @@ async function resolveF04Phrase(
     model: ctx.model,
     accept,
     food: { input: ctx.input, baseTerm: ctx.baseName },
+    country: ctx.country,
     seeds,
     originRole: "ingredient",
   });
@@ -1898,16 +1921,19 @@ async function modelPickClosedDescriptor(
   header: string,
   candidates: LexHit[],
   model: string,
-  origin?: { role: OriginPickRole; food: string }
+  origin?: { role: OriginPickRole; food: string },
+  country: string | null = null
 ): Promise<{ code: string | null; model: string; detail: Record<string, unknown> }> {
   const allowed = new Set(candidates.map((c) => c.code));
+  const withCountry = country !== null;
   if (origin !== undefined) {
     const picked = await chatJson({
       model,
-      system: systemOriginPick(origin.role),
+      system: systemOriginPick(origin.role, withCountry),
       user: JSON.stringify(
         {
           food: origin.food,
+          ...(withCountry ? { country } : {}),
           lookingFor: phrase,
           terms: candidates.map((c) => ({ code: c.code, name: cat.term(c.code)?.name ?? c.name })),
         },
@@ -1946,8 +1972,12 @@ async function modelPickClosedDescriptor(
   };
   const picked = await chatJson({
     model,
-    system: SYSTEM_CLOSED_PICK,
-    user: JSON.stringify(payload, null, 2),
+    system: systemClosedPick(withCountry),
+    user: JSON.stringify(
+      { ...payload, ...(withCountry ? { country } : {}) },
+      null,
+      2
+    ),
   });
   const code = pickAllowedCode(picked.content, allowed);
   return {
@@ -1994,6 +2024,8 @@ async function resolveClosedFacetPhrase(
     termTypes?: ReadonlySet<string> | null;
     /** Origin walks: the model pick asks this role's question about the food. */
     origin?: { role: OriginPickRole; food: string };
+    /** English country name, when the caller passed one. */
+    country?: string | null;
   } = {}
 ): Promise<{ facet: FacetDescriptorRef | null; detail: Record<string, unknown> }> {
   const allowRootFallback =
@@ -2032,7 +2064,8 @@ async function resolveClosedFacetPhrase(
       header,
       pickPool,
       options.model,
-      options.origin
+      options.origin,
+      options.country ?? null
     );
     if (picked.code !== null) {
       const hit = pickPool.find((c) => c.code === picked.code) ?? {
@@ -2246,6 +2279,7 @@ async function placeOrigin(
               allowRootFallback: false,
               termTypes: ctx.memberTypes,
               origin: { role: role === "organism" ? "source" : "made_from", food: ctx.input },
+              country: ctx.country,
             }
           );
     attempts.push(resolved.detail);
@@ -2385,6 +2419,7 @@ async function placeFacetsPass(
       model: ctx.model,
       accept: walkAccept,
       food,
+      country: ctx.country,
     });
     attempts.push(picked.detail);
     for (const code of picked.codes) {
@@ -2398,6 +2433,7 @@ async function placeFacetsPass(
         model: ctx.model,
         accept: walkAccept,
         food,
+        country: ctx.country,
       });
       attempts.push(walked.detail);
       if (walked.facet !== null && addFacet(ctx, walked.facet)) pass.placed.push(walked.facet);
@@ -2419,6 +2455,7 @@ async function placeFacetsPass(
       model: ctx.model,
       accept: walkAccept,
       food,
+      country: ctx.country,
     });
     attempts.push(process.detail);
     if (process.facet !== null && addFacet(ctx, process.facet)) {
@@ -2430,12 +2467,14 @@ async function placeFacetsPass(
       model: ctx.model,
       accept: walkAccept,
       food,
+      country: ctx.country,
     });
     attempts.push(opened.detail);
     const walked = await resolveFacetWalk(ctx.cat, lookup, opened.headers, {
       model: ctx.model,
       accept: walkAccept,
       food,
+      country: ctx.country,
     });
     attempts.push(walked.detail);
     if (walked.facet !== null && addFacet(ctx, walked.facet)) {
@@ -2547,7 +2586,7 @@ export function siblingChildrenForF26(
   return out;
 }
 
-/** How the input relates to the base's children (SYSTEM_F26_RELATION). */
+/** How the input relates to the base's children (systemF26Relation). */
 export type F26Relation = "same" | "within" | "sibling" | "parent" | "none";
 
 const F26_RELATIONS = new Set<F26Relation>(["same", "within", "sibling", "parent", "none"]);
@@ -2601,7 +2640,7 @@ export async function chooseF26(
   cat: Catalogue,
   input: string,
   baseCode: string,
-  options: { model: string }
+  options: { model: string; country?: string | null }
 ): Promise<{ facet: FacetDescriptorRef | null; detail: Record<string, unknown> }> {
   if ([...impliedKeys(cat, baseCode)].some((key) => key.startsWith(`${F26}.`))) {
     return { facet: null, detail: { reason: "already_implied" } };
@@ -2612,13 +2651,15 @@ export async function chooseF26(
 
   let relation: F26Relation | null = null;
   let model: string | undefined;
+  const country = options.country ?? null;
   if (children.length > 0) {
     const answered = await chatJson({
       model: options.model,
-      system: SYSTEM_F26_RELATION,
+      system: systemF26Relation(country !== null),
       user: JSON.stringify(
         {
           input,
+          ...(country !== null ? { country } : {}),
           baseTerm: baseTerm?.name ?? baseCode,
           children: children.map((c) => c.name),
         },
@@ -2669,7 +2710,10 @@ async function finishResiduals(
       },
     });
   } else {
-    const f26 = await chooseF26(ctx.cat, ctx.input, ctx.baseCode, { model: ctx.model });
+    const f26 = await chooseF26(ctx.cat, ctx.input, ctx.baseCode, {
+      model: ctx.model,
+      country: ctx.country,
+    });
     const applied = f26.facet !== null && addFacet(ctx, f26.facet);
     audit.push({
       step: "residuals_f26",
@@ -2752,6 +2796,7 @@ export async function assignResiduals(
     limitedSlots: new Set(),
     model,
     input,
+    country: options.country ?? null,
     fit: options.fit ?? null,
     fortificationClaim: { status: "none" },
     numericClaim: { fatPercent: null, alcoholPercent: null },
@@ -2810,11 +2855,16 @@ export async function assignResiduals(
         return `${cat.facetCategory(header)?.label ?? header}: ${name}`;
       });
       const statesOrigin = implicits.some(({ key }) => ORIGIN_HEADERS.has(key.split(".")[0] ?? ""));
+      const country = ctx.country;
       const [named, groupAsked] = await Promise.all([
         chatJson({
           model,
-          system: SYSTEM_FOOD_NAME,
-          user: JSON.stringify({ description }, null, 2),
+          system: systemFoodName(country !== null),
+          user: JSON.stringify(
+            { description, ...(country !== null ? { country } : {}) },
+            null,
+            2
+          ),
         }),
         statesOrigin
           ? Promise.resolve(null)
@@ -2832,10 +2882,11 @@ export async function assignResiduals(
       const madeFrom = groupAsked === null ? null : parseOriginAnswer(groupAsked.content).from;
       const asked = await chatJson({
         model,
-        system: SYSTEM_ORIGIN,
+        system: systemOrigin(country !== null),
         user: JSON.stringify(
           {
             name: foodName,
+            ...(country !== null ? { country } : {}),
             baseTerm: { name: ctx.baseName, implicit, ...(madeFrom !== null ? { madeFrom } : {}) },
           },
           null,
@@ -2900,8 +2951,12 @@ export async function assignResiduals(
 
     const defined = await chatJson({
       model,
-      system: SYSTEM_ESSENCE,
-      user: JSON.stringify({ name: dishName }, null, 2),
+      system: systemEssence(ctx.country !== null),
+      user: JSON.stringify(
+        { name: dishName, ...(ctx.country !== null ? { country: ctx.country } : {}) },
+        null,
+        2
+      ),
     });
     const essence = parseEssence(defined.content);
     audit.push({
