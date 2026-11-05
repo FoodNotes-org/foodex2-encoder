@@ -6,7 +6,9 @@
  * traversed as a whole — the base term is chosen against that full string.
  *
  * Embeddings tip the walk toward opaque branches: a few high cosine hits contribute
- * their expo parents as extra seeds. Neither mints pool candidates with a preset
+ * their expo parents as extra seeds. The search query is an English rendering of
+ * the description when that is not already its English name; the walk still
+ * classifies the description as reported. Neither mints pool candidates with a preset
  * match — only the classify ladder assigns exact/broad/narrow/related. Related is
  * collected and descended when it has children. Broad is always collected (the
  * shelf judgment); children are enqueued only if that node was not already
@@ -26,6 +28,7 @@ import { countryContextLine } from "../country.js";
 import { chatJson, defaultModel, LlmError } from "../llm.js";
 import { vectorIndexAvailable, vectorSearchBase } from "../search/vector.js";
 import { parseClassifications } from "./answers.js";
+import { renderEmbeddingQuery, type EmbeddingQuery } from "./embed-query.js";
 import {
   LADDER_LABELS,
   classifyQuestions,
@@ -323,7 +326,7 @@ export function resolveEmbeddingWalkSeeds(
 }
 
 async function embeddingWalkSeeds(
-  input: string,
+  rendered: EmbeddingQuery,
   limit: number,
   audit: AuditEntry[]
 ): Promise<string[]> {
@@ -344,8 +347,13 @@ async function embeddingWalkSeeds(
   }
 
   const cat = Catalogue.load();
+  const renderDetail = {
+    query: rendered.query,
+    english: rendered.english,
+    ...(rendered.error !== undefined ? { renderError: rendered.error } : {}),
+  };
   try {
-    const hits = await vectorSearchBase(input, limit);
+    const hits = await vectorSearchBase(rendered.query, limit);
     const seeds = resolveEmbeddingWalkSeeds(
       cat,
       hits.map((h) => h.code)
@@ -354,6 +362,7 @@ async function embeddingWalkSeeds(
       step: "embedding_seeds",
       detail: {
         limit,
+        ...renderDetail,
         hits: hits.map((h) => ({
           code: h.code,
           name: cat.term(h.code)?.name ?? h.code,
@@ -371,7 +380,7 @@ async function embeddingWalkSeeds(
     const message = err instanceof Error ? err.message : String(err);
     audit.push({
       step: "embedding_seeds",
-      detail: { skipped: true, reason: "error", message },
+      detail: { skipped: true, reason: "error", message, ...renderDetail },
     });
     return [];
   }
@@ -671,6 +680,11 @@ export async function collectTraversalCandidates(
   });
 
   const country = options.country ?? null;
+  const seedLimit = options.embeddingSeedLimit ?? DEFAULT_EMBEDDING_SEED_LIMIT;
+  const searchEmbeddings = seedLimit > 0 && vectorIndexAvailable();
+  const renderedPromise = searchEmbeddings
+    ? renderEmbeddingQuery(input, country, model)
+    : Promise.resolve<EmbeddingQuery>({ english: null, query: input });
   const routed = await chatJson({
     model,
     system: routeSystem(country !== null),
@@ -689,8 +703,8 @@ export async function collectTraversalCandidates(
   });
 
   const wholeSystem = routeWalkSystem(descriptionKind, country !== null);
-  const seedLimit = options.embeddingSeedLimit ?? DEFAULT_EMBEDDING_SEED_LIMIT;
-  const embeddingSeeds = await embeddingWalkSeeds(input, seedLimit, audit);
+  const rendered = await renderedPromise;
+  const embeddingSeeds = await embeddingWalkSeeds(rendered, seedLimit, audit);
   const wholeSeeds = [EXPO_ROOT, ...embeddingSeeds.filter((s) => s !== EXPO_ROOT)];
 
   await walkFromSeeds(
