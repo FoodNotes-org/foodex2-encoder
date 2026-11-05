@@ -19,6 +19,13 @@ describe("resolveCountry", () => {
     assert.match(!result.ok ? result.message : "", /For United Kingdom, use GB\./);
   });
 
+  it("reads food names in the sense they have in that country's nomenclature", () => {
+    assert.equal(
+      countryContextLine("item"),
+      "Read the food names in `item` in the sense they have in `country`'s food nomenclature."
+    );
+  });
+
   it("keeps the country sentence as its own paragraph", () => {
     assert.equal(countryParagraph(false, "name"), "");
     assert.equal(countryParagraph(true, "name"), `\n${countryContextLine("name")}\n`);

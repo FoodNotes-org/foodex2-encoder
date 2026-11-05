@@ -284,11 +284,11 @@ export function resolveCountry(raw: string): CountryResult {
 }
 
 /**
- * Prompt line naming the `country` input as context for `textField`, the
- * input key that holds the food description in that prompt.
+ * Prompt line for `textField`, the input key that holds the food description.
+ * Country fixes the sense of the food names, not which kind is most often sold.
  */
 export function countryContextLine(textField: string): string {
-  return `\`${textField}\` is to be understood in the geographic context of \`country\`.`;
+  return `Read the food names in \`${textField}\` in the sense they have in \`country\`'s food nomenclature.`;
 }
 
 /**

@@ -5,15 +5,11 @@
  */
 
 import { Catalogue, DEFAULT_HIERARCHY, EXPO_ROOT } from "../catalogue.js";
-import { countryContextLine } from "../country.js";
 import { chatJson, defaultModel } from "../llm.js";
 import { parseClassifications, pickAllowedCode } from "./answers.js";
 import {
   LADDER_LABELS,
-  classifyQuestions,
   classifySystemPrompt,
-  descriptionKindNoun,
-  quote,
 } from "./classify-ladder.js";
 import type {
   AuditEntry,
@@ -23,10 +19,8 @@ import type {
 } from "./types.js";
 
 /** Shared classify ladder (classify-ladder.ts), asked over the whole recall pool. */
-function systemSelectClassify(descriptionKind: DescriptionKind | null, withCountry: boolean): string {
-  const noun = descriptionKindNoun(descriptionKind);
+function systemSelectClassify(withCountry: boolean): string {
   return classifySystemPrompt({
-    framing: `You are matching one ${noun} against terms in a food catalogue. The item text is that ${noun}.`,
     answerKey: "fit",
     withCountry,
   });
@@ -49,21 +43,23 @@ export function otherSiblingFields(
   const parentCode = cat.parent(code, DEFAULT_HIERARCHY);
   if (parentCode === null) return undefined;
   const parent = parentCode === EXPO_ROOT ? "Food" : cat.term(parentCode)?.name;
-  if (parent === undefined || parent.trim() === "") return undefined;
+  if (parent == null || parent.trim() === "") return undefined;
   const siblings = cat
     .children(parentCode, DEFAULT_HIERARCHY)
     .filter((child) => child !== code && !cat.isDeprecated(child))
     .map((child) => cat.term(child)?.name)
-    .filter((sibling): sibling is string => sibling !== undefined && sibling.trim() !== "");
+    .filter((sibling): sibling is string => sibling != null && sibling.trim() !== "");
   return { parent, siblings };
 }
 
-function classifyCandidatePayload(food: string, candidate: BaseTermCandidate) {
-  const other = otherSiblingFields(Catalogue.load(), candidate.code, candidate.name);
+function classifyCandidatePayload(candidate: BaseTermCandidate) {
+  const cat = Catalogue.load();
+  const other = otherSiblingFields(cat, candidate.code, candidate.name);
+  const note = cat.term(candidate.code)?.scopeNote?.trim();
   return {
     ...candidatePayload(candidate),
+    ...(note ? { note } : {}),
     ...(other !== undefined ? other : {}),
-    questions: classifyQuestions(quote(food), quote(candidate.name), null),
   };
 }
 
@@ -93,12 +89,12 @@ export async function assessSelectClassify(
     item: food,
     ...(country !== null ? { country } : {}),
     ...(descriptionKind !== null ? { descriptionKind } : {}),
-    terms: pool.map((c) => classifyCandidatePayload(food, c)),
+    terms: pool.map((c) => classifyCandidatePayload(c)),
   };
 
   const { content, model } = await chatJson({
     model: options.model?.trim() || defaultModel(),
-    system: systemSelectClassify(descriptionKind, country !== null),
+    system: systemSelectClassify(country !== null),
     user: JSON.stringify(payload, null, 2),
   });
 
@@ -125,15 +121,21 @@ export async function assessSelectClassify(
 }
 
 function systemSelectParent(withCountry: boolean): string {
-  return `You are an expert in food classification.
+  const food = withCountry
+    ? "- `food`: the food description, to be understood in the food nomenclature of the country `country`."
+    : "- `food`: the food as described.";
+  const opening = withCountry
+    ? "You are an expert in food classification. Read `food` in the food nomenclature of `country`."
+    : "You are an expert in food classification.";
+  return `${opening}
 
 Your task is to choose among catalogue terms as possible shelves for the food.
-First, find the \`candidates\`, if any, that subsumes \`food\`.
+First, find the \`candidates\`, if any, that subsume \`food\`.
 
 Given:
-- \`food\`: the food as described.
+${food}
 - \`candidates\`: catalogue terms, each with a \`code\`, a \`name\` and, for some, a \`note\` on what the term means and how to use it.
-${withCountry ? `\n${countryContextLine("food")}\n` : ""}
+
 Reply with JSON only, with the code of that term, or null if \`food\` belongs to none of them:
 {"code":"<code>"|null}
 `;

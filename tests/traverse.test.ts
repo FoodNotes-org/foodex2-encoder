@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
-import { classifyQuestions, classifySystemPrompt } from "../src/encode/classify-ladder.js";
+import { classifySystemPrompt } from "../src/encode/classify-ladder.js";
 import {
   embeddingHitWalkSeed,
   parseDescriptionKind,
@@ -71,28 +71,6 @@ describe("parseDescriptionKind", () => {
   });
 });
 
-describe("classifyQuestions", () => {
-  it("always offers related, with sibling cue when subcategories exist", () => {
-    const withKids = classifyQuestions('"venison"', '"Mammals meat"', [
-      '"Deer fresh meat"',
-      '"Cattle meat"',
-    ]);
-    assert.ok(withKids.some((q) => q.includes('"related"') && q.includes("natural sibling")));
-    assert.equal(withKids.at(-1), `5. Otherwise: assign "none".`);
-
-    const leaf = classifyQuestions('"venison"', '"Deer fresh meat"', null);
-    assert.ok(
-      leaf.some(
-        (q) =>
-          q.includes('"related"') &&
-          q.includes("similar, with neither being a kind of the other")
-      )
-    );
-    assert.ok(!leaf.some((q) => q.includes("natural sibling")));
-    assert.equal(leaf.at(-1), `5. Otherwise: assign "none".`);
-  });
-});
-
 describe("embeddingHitWalkSeed", () => {
   const cat = Catalogue.load();
 
@@ -114,13 +92,30 @@ describe("embeddingHitWalkSeed", () => {
 
 describe("classifySystemPrompt", () => {
   const walkOther =
-    'If a term in `terms` contains the word "other" in its `name`, interpret it as denoting the kinds under `parent` that are not denoted by the other terms in `terms`.';
+    'When a term\'s name contains the word "other", the term denotes the members of `parent` that are not members of the sibling terms in `terms`.';
   const pickOther =
-    'If a term\'s `name` contains the word "other", interpret it as denoting the kinds under that term\'s `parent` that are not denoted by that term\'s `siblings`.';
+    'When a term\'s name contains the word "other", the term denotes the members of that term\'s `parent` that are not members of that term\'s `siblings`.';
+
+  it("asks once for one relation, in hypernym and hyponym terms", () => {
+    const prompt = classifySystemPrompt({
+      answerKey: "match",
+      readSubcategories: true,
+    });
+    assert.equal(prompt.includes("A hypernym is the broader class."), false);
+    assert.ok(
+      prompt.includes(
+        "Compare `item` with the class the term denotes. Use the term's name and, when present, its `directSubcategories` and its `note`."
+      )
+    );
+    assert.ok(prompt.includes("- broad: the term is a hypernym of `item`"));
+    assert.ok(prompt.includes("- narrow: the term is a hyponym of `item`"));
+    assert.equal(prompt.includes("in order"), false);
+    assert.equal(prompt.includes("skip the other"), false);
+    assert.equal(prompt.includes("strict sense"), false);
+  });
 
   it("defines other from the sibling list when the terms are one parent's children", () => {
     const prompt = classifySystemPrompt({
-      framing: "You are matching one food or drink against terms in a food catalogue.",
       answerKey: "match",
       readSubcategories: true,
     });
@@ -130,11 +125,23 @@ describe("classifySystemPrompt", () => {
 
   it("defines other from each term's own parent and siblings in a mixed pool", () => {
     const prompt = classifySystemPrompt({
-      framing: "You are matching one food or drink against terms in a food catalogue.",
       answerKey: "fit",
     });
     assert.ok(prompt.includes(pickOther));
     assert.ok(prompt.includes("`siblings`"));
     assert.equal(prompt.includes(walkOther), false);
+  });
+
+  it("reads the food description in the country's nomenclature", () => {
+    const prompt = classifySystemPrompt({
+      answerKey: "match",
+      readSubcategories: true,
+      withCountry: true,
+    });
+    const line =
+      "- `item`: the food description, to be understood in the food nomenclature of the country `country`.";
+    assert.equal(prompt.split(line).length - 1, 1);
+    assert.ok(prompt.startsWith("You are an expert in food classification. Read `item` in the food nomenclature of `country`."));
+    assert.equal(prompt.includes("not an inferred more specific kind"), false);
   });
 });

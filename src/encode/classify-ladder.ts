@@ -6,7 +6,7 @@
  * and pick — lives in that stage.
  */
 
-import type { DescriptionKind, LadderLabel } from "./types.js";
+import type { LadderLabel } from "./types.js";
 
 export const LADDER_LABELS: ReadonlySet<LadderLabel> = new Set<LadderLabel>([
   "exact",
@@ -16,103 +16,53 @@ export const LADDER_LABELS: ReadonlySet<LadderLabel> = new Set<LadderLabel>([
   "none",
 ]);
 
-export function quote(value: string): string {
-  return `"${value.replace(/"/g, "'")}"`;
-}
-
 /**
- * System prompt for one classify call. `framing` says what the item is and what
- * it is matched against; `answerKey` is the JSON key the model answers under
- * (recall: match, selection: fit). Recall walks also describe `parent` and
- * `directSubcategories`, which the selection payload does not carry.
+ * System prompt for one classify call. `answerKey` is the JSON key the model
+ * answers under (recall: match, selection: fit). Recall walks also describe
+ * `parent` and `directSubcategories`, which the selection payload does not carry.
  */
 export function classifySystemPrompt(options: {
-  framing: string;
   answerKey: "match" | "fit";
   readSubcategories?: boolean;
   /** The payload carries `country` next to `item`. */
   withCountry?: boolean;
 }): string {
-  const { framing, answerKey, readSubcategories = false, withCountry = false } = options;
+  const { answerKey, readSubcategories = false, withCountry = false } = options;
+  const item = withCountry
+    ? "- `item`: the food description, to be understood in the food nomenclature of the country `country`."
+    : "- `item`: the food description.";
   const givens = [
-    "- `item`: the food or drink as described.",
-    ...(withCountry ? ["- `country`: where `item` was reported."] : []),
+    item,
     "- `descriptionKind`: which kind of description `item` is: a foodstuff, a category, a dish, a dish type, or a mix.",
     ...(readSubcategories ? ["- `parent`: the catalogue term these terms sit under."] : []),
     readSubcategories
-      ? "- `terms`: the catalogue terms to judge. Each has a `code`, a `name` and `questions`. A term that has children also has `directSubcategories`: the names of the terms directly under it. Those names show what the term covers. They are catalogue structure, not ingredients of `item`."
-      : "- `terms`: the catalogue terms to judge. Each has a `code`, a `name` and `questions`. A term whose `name` contains the word \"other\" also has `parent`, the term it sits under, and `siblings`, the other terms directly under that parent. Those names are catalogue structure, not ingredients of `item`.",
+      ? "- `terms`: the catalogue terms to judge. Each has a `code` and a `name`. A term that has children also has `directSubcategories`: the names of the terms directly under it. A term that has a scope note also has `note`. Those names and notes show what the term covers. They are catalogue structure, not ingredients of `item`."
+      : "- `terms`: the catalogue terms to judge. Each has a `code` and a `name`. A term that has a scope note also has `note`. A term whose `name` contains the word \"other\" also has `parent`, the term it sits under, and `siblings`, the other terms directly under that parent. Those names and notes are catalogue structure, not ingredients of `item`.",
   ];
-  const opening = withCountry
-    ? `${framing}\n\`item\` is reported from this country: \`country\`.`
-    : framing;
   // The walk lists one parent's children as `terms`. Selection mixes branches,
   // so there "other" is defined by fields on that term, not by the whole list.
   const other = readSubcategories
-    ? `If a term in \`terms\` contains the word "other" in its \`name\`, interpret it as denoting the kinds under \`parent\` that are not denoted by the other terms in \`terms\`.`
-    : `If a term's \`name\` contains the word "other", interpret it as denoting the kinds under that term's \`parent\` that are not denoted by that term's \`siblings\`.`;
+    ? `When a term's name contains the word "other", the term denotes the members of \`parent\` that are not members of the sibling terms in \`terms\`.`
+    : `When a term's name contains the word "other", the term denotes the members of that term's \`parent\` that are not members of that term's \`siblings\`.`;
+  const choice = [
+    "Compare `item` with the class the term denotes. Use the term's name and, when present, its `directSubcategories` and its `note`. Do not forget to consider the `country`'s nomenclature for correct understanding of the `item`.",
+    `For each term, assign one ${answerKey}.`,
+    [
+      "- exact: `item` and the term denote the same class",
+      "- broad: the term is a hypernym of `item`",
+      "- narrow: the term is a hyponym of `item`",
+      "- related: associated, and neither is a hypernym or a hyponym of the other",
+      "- none: none of these",
+    ].join("\n"),
+  ].join("\n\n");
+  const opening = withCountry
+    ? "You are an expert in food classification. \n\nYour task is to match a food description in the food nomenclature of `country` against terms in a food catalogue."
+    : "You are an expert in food classification.\n\nYour task is to match a food description against terms in a food catalogue.";
   return [
     opening,
     `You are given:\n${givens.join("\n")}`,
-    [
-      `For each term, answer its questions in order and assign ${answerKey}, at the level of detail the description itself states, not an inferred more specific kind.`,
-      ...(other !== null ? [other] : []),
-    ].join("\n\n"),
+    `${choice}\n\n${other}`,
     `Reply with JSON only:\n{"classifications":[{"code":"<code>","${answerKey}":"exact|broad|narrow|related|none"}, ...]}\n`,
   ].join("\n\n");
 }
 
-/**
- * Per-term ladder questions. Item / term names only — subcategories live on the
- * term row. Related is always offered (SKOS-style association when neither
- * kind-of fits); with directSubcategories the cue is siblinghood under the term.
- *
- * Questions always name the actual item text so we don't abstract it into
- * "this food with additions".
- *
- * Catalogue-default qualifiers (*Deer fresh meat* for *venison*): literal ≠
- * conventional exact, and either reading is accepted (lenient, by decision;
- * see WORK_DOC). Do not paper over with example-heavy prompt wording.
- */
-export function classifyQuestions(
-  itemQ: string,
-  termQ: string,
-  subcategoryQs: string[] | null
-): string[] {
-  const questions: string[] = [
-    `1. Are ${itemQ} and ${termQ} the same item, at the same level of detail? If yes: assign "exact" and skip the other options in this evaluation.`,
-    `2. Is ${itemQ} a kind of ${termQ}, in the strict sense? If yes: assign "broad" and skip the other options in this evaluation.`,
-    `3. Is ${termQ} a kind of ${itemQ}, in the strict sense? If yes: assign "narrow" and skip the other options in this evaluation.`,
-  ];
-
-  if (subcategoryQs !== null && subcategoryQs.length > 0) {
-    const elements = subcategoryQs.join(", ");
-    questions.push(
-      `4. Would ${itemQ} be a natural sibling of ${elements} under ${termQ}? If yes: assign "related" and skip the other options in this evaluation.`
-    );
-  } else {
-    questions.push(
-      `4. Are ${itemQ} and ${termQ} similar, with neither being a kind of the other? If yes: assign "related" and skip the other options in this evaluation.`
-    );
-  }
-
-  questions.push(`5. Otherwise: assign "none".`);
-  return questions;
-}
-
-/** Noun used to frame the item in a classify system prompt. */
-export function descriptionKindNoun(kind: DescriptionKind | null): string {
-  switch (kind) {
-    case "dish":
-      return "dish";
-    case "dish_type":
-      return "dish type";
-    case "mix":
-      return "mix";
-    case "category":
-      return "food category";
-    case "foodstuff":
-    case null:
-      return "food or drink";
-  }
-}

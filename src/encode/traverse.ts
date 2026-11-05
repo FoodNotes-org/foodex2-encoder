@@ -31,10 +31,7 @@ import { parseClassifications } from "./answers.js";
 import { renderEmbeddingQuery, type EmbeddingQuery } from "./embed-query.js";
 import {
   LADDER_LABELS,
-  classifyQuestions,
   classifySystemPrompt,
-  descriptionKindNoun,
-  quote,
 } from "./classify-ladder.js";
 import type {
   AuditEntry,
@@ -70,6 +67,8 @@ interface TraversalChildView {
   name: string;
   /** Direct subgroup names — present when this item has children. */
   contains?: string[];
+  /** Catalogue scope note, when the term has one. */
+  note?: string;
 }
 
 interface RawCandidate {
@@ -91,31 +90,23 @@ Reply with JSON only:
 `;
 }
 
-/** Display name for the classify parent (quoted later via quote()). */
+/** Display name for the classify parent. */
 function parentDisplayName(cat: Catalogue, parentCode: string): string {
   if (parentCode === EXPO_ROOT) return "Food";
   return cat.term(parentCode)?.name ?? parentCode;
 }
 
-function classifyTermEntry(
-  item: string,
-  child: TraversalChildView
-): Record<string, unknown> {
-  const itemQ = quote(item);
-  const termQ = quote(child.name);
-
+function classifyTermEntry(child: TraversalChildView): Record<string, unknown> {
   const entry: Record<string, unknown> = {
     code: child.code,
     name: child.name,
   };
-
-  let subcategoryQs: string[] | null = null;
   if (child.contains !== undefined && child.contains.length > 0) {
     entry.directSubcategories = child.contains;
-    subcategoryQs = child.contains.map(quote);
   }
-
-  entry.questions = classifyQuestions(itemQ, termQ, subcategoryQs);
+  if (child.note !== undefined && child.note !== "") {
+    entry.note = child.note;
+  }
   return entry;
 }
 
@@ -132,7 +123,7 @@ function buildClassifyUser(
       ...(country !== null ? { country } : {}),
       ...(descriptionKind !== null ? { descriptionKind } : {}),
       parent: parentName,
-      terms: children.map((child) => classifyTermEntry(item, child)),
+      terms: children.map((child) => classifyTermEntry(child)),
     },
     null,
     2
@@ -153,28 +144,13 @@ export function parseDescriptionKind(raw: unknown): DescriptionKind | null {
     : null;
 }
 
-/** Recall classify prompt: `framing` names the item; the ladder answers as `match`. */
-function walkSystemPrompt(framing: string, withCountry: boolean): string {
+/** Recall classify prompt: the ladder answers as `match`. */
+function routeWalkSystem(withCountry: boolean): string {
   return classifySystemPrompt({
-    framing,
     answerKey: "match",
     readSubcategories: true,
     withCountry,
   });
-}
-
-function routeWalkSystem(descriptionKind: DescriptionKind | null, withCountry: boolean): string {
-  if (descriptionKind === null || descriptionKind === "foodstuff") {
-    return walkSystemPrompt(
-      "You are matching one food or drink against terms in a food catalogue.",
-      withCountry
-    );
-  }
-  const noun = descriptionKindNoun(descriptionKind);
-  return walkSystemPrompt(
-    `You are matching a ${noun} against terms in a food catalogue. The item text is that ${noun}.`,
-    withCountry
-  );
 }
 
 function listChildren(cat: Catalogue, parent: string): ChildRef[] {
@@ -190,7 +166,8 @@ function listChildren(cat: Catalogue, parent: string): ChildRef[] {
 function traversalChildView(cat: Catalogue, code: string): TraversalChildView {
   const term = cat.term(code);
   const subgroups = listChildren(cat, code).map((c) => c.name);
-  const base = { code, name: term?.name ?? code };
+  const note = term?.scopeNote?.trim();
+  const base = { code, name: term?.name ?? code, ...(note ? { note } : {}) };
   if (subgroups.length > 0) {
     return { ...base, contains: subgroups };
   }
@@ -702,7 +679,7 @@ export async function collectTraversalCandidates(
     },
   });
 
-  const wholeSystem = routeWalkSystem(descriptionKind, country !== null);
+  const wholeSystem = routeWalkSystem(country !== null);
   const rendered = await renderedPromise;
   const embeddingSeeds = await embeddingWalkSeeds(rendered, seedLimit, audit);
   const wholeSeeds = [EXPO_ROOT, ...embeddingSeeds.filter((s) => s !== EXPO_ROOT)];
