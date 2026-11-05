@@ -41,15 +41,23 @@ export function classifySystemPrompt(options: {
     ...(readSubcategories ? ["- `parent`: the catalogue term these terms sit under."] : []),
     readSubcategories
       ? "- `terms`: the catalogue terms to judge. Each has a `code`, a `name` and `questions`. A term that has children also has `directSubcategories`: the names of the terms directly under it. Those names show what the term covers. They are catalogue structure, not ingredients of `item`."
-      : "- `terms`: the catalogue terms to judge. Each has a `code`, a `name` and `questions`.",
+      : "- `terms`: the catalogue terms to judge. Each has a `code`, a `name` and `questions`. A term whose `name` contains the word \"other\" also has `parent`, the term it sits under, and `siblings`, the other terms directly under that parent. Those names are catalogue structure, not ingredients of `item`.",
   ];
   const opening = withCountry
     ? `${framing}\n\`item\` is reported from this country: \`country\`.`
     : framing;
+  // The walk lists one parent's children as `terms`. Selection mixes branches,
+  // so there "other" is defined by fields on that term, not by the whole list.
+  const other = readSubcategories
+    ? `If a term in \`terms\` contains the word "other" in its \`name\`, interpret it as denoting the kinds under \`parent\` that are not denoted by the other terms in \`terms\`.`
+    : `If a term's \`name\` contains the word "other", interpret it as denoting the kinds under that term's \`parent\` that are not denoted by that term's \`siblings\`.`;
   return [
     opening,
     `You are given:\n${givens.join("\n")}`,
-    `For each term, answer its questions in order and assign ${answerKey}, at the level of detail the description itself states, not an inferred more specific kind.`,
+    [
+      `For each term, answer its questions in order and assign ${answerKey}, at the level of detail the description itself states, not an inferred more specific kind.`,
+      ...(other !== null ? [other] : []),
+    ].join("\n\n"),
     `Reply with JSON only:\n{"classifications":[{"code":"<code>","${answerKey}":"exact|broad|narrow|related|none"}, ...]}\n`,
   ].join("\n\n");
 }

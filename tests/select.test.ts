@@ -13,7 +13,26 @@ import {
   fitPoints,
   DETAIL_LEVEL_BONUS,
 } from "../src/encode/select.js";
+import { otherSiblingFields } from "../src/encode/select-classify.js";
 import type { BaseTermCandidate, CandidateFit } from "../src/encode/types.js";
+
+describe("otherSiblingFields", () => {
+  const cat = Catalogue.load();
+
+  it("names the parent and the other children for a term called other", () => {
+    assert.deepEqual(otherSiblingFields(cat, "A023X", "Cooked other poultry meat"), {
+      parent: "Cooked cured (or seasoned) poultry meat",
+      siblings: ["Cooked turkey meat", "Corned turkey"],
+    });
+  });
+
+  it("adds nothing when the name does not say other", () => {
+    assert.equal(
+      otherSiblingFields(cat, "A023S", "Cooked cured (or seasoned) poultry meat"),
+      undefined
+    );
+  });
+});
 
 describe("selectable fit tier", () => {
   it("prefers exact over broad", () => {

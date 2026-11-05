@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
-import { classifyQuestions } from "../src/encode/classify-ladder.js";
+import { classifyQuestions, classifySystemPrompt } from "../src/encode/classify-ladder.js";
 import {
   embeddingHitWalkSeed,
   parseDescriptionKind,
@@ -109,5 +109,32 @@ describe("embeddingHitWalkSeed", () => {
     // Kangaroo fresh meat + Dog meat both seed Mammals meat; parent hit adds nothing new
     const seeds = resolveEmbeddingWalkSeeds(cat, ["A01RS", "A0F6A", "A0EYF"]);
     assert.deepEqual(seeds, ["A0EYF"]);
+  });
+});
+
+describe("classifySystemPrompt", () => {
+  const walkOther =
+    'If a term in `terms` contains the word "other" in its `name`, interpret it as denoting the kinds under `parent` that are not denoted by the other terms in `terms`.';
+  const pickOther =
+    'If a term\'s `name` contains the word "other", interpret it as denoting the kinds under that term\'s `parent` that are not denoted by that term\'s `siblings`.';
+
+  it("defines other from the sibling list when the terms are one parent's children", () => {
+    const prompt = classifySystemPrompt({
+      framing: "You are matching one food or drink against terms in a food catalogue.",
+      answerKey: "match",
+      readSubcategories: true,
+    });
+    assert.ok(prompt.includes(walkOther));
+    assert.equal(prompt.includes(pickOther), false);
+  });
+
+  it("defines other from each term's own parent and siblings in a mixed pool", () => {
+    const prompt = classifySystemPrompt({
+      framing: "You are matching one food or drink against terms in a food catalogue.",
+      answerKey: "fit",
+    });
+    assert.ok(prompt.includes(pickOther));
+    assert.ok(prompt.includes("`siblings`"));
+    assert.equal(prompt.includes(walkOther), false);
   });
 });

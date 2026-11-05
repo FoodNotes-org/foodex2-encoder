@@ -4,7 +4,7 @@
  * one comparative pass that ranks candidates and supplies residual fit.
  */
 
-import { Catalogue } from "../catalogue.js";
+import { Catalogue, DEFAULT_HIERARCHY, EXPO_ROOT } from "../catalogue.js";
 import { countryContextLine } from "../country.js";
 import { chatJson, defaultModel } from "../llm.js";
 import { parseClassifications, pickAllowedCode } from "./answers.js";
@@ -39,9 +39,30 @@ function candidatePayload(candidate: BaseTermCandidate) {
   };
 }
 
+/** Parent and siblings for a term whose name contains "other". Absent otherwise. */
+export function otherSiblingFields(
+  cat: Catalogue,
+  code: string,
+  name: string
+): { parent: string; siblings: string[] } | undefined {
+  if (!/\bother\b/i.test(name)) return undefined;
+  const parentCode = cat.parent(code, DEFAULT_HIERARCHY);
+  if (parentCode === null) return undefined;
+  const parent = parentCode === EXPO_ROOT ? "Food" : cat.term(parentCode)?.name;
+  if (parent === undefined || parent.trim() === "") return undefined;
+  const siblings = cat
+    .children(parentCode, DEFAULT_HIERARCHY)
+    .filter((child) => child !== code && !cat.isDeprecated(child))
+    .map((child) => cat.term(child)?.name)
+    .filter((sibling): sibling is string => sibling !== undefined && sibling.trim() !== "");
+  return { parent, siblings };
+}
+
 function classifyCandidatePayload(food: string, candidate: BaseTermCandidate) {
+  const other = otherSiblingFields(Catalogue.load(), candidate.code, candidate.name);
   return {
     ...candidatePayload(candidate),
+    ...(other !== undefined ? other : {}),
     questions: classifyQuestions(quote(food), quote(candidate.name), null),
   };
 }
