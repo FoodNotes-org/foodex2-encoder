@@ -1,9 +1,11 @@
 /**
  * Optional country context for a food description. Callers pass an ISO 3166-1
- * alpha-2 code; prompts get the English country name, never the code.
+ * alpha-2 code, or EU for the European Union. Prompts get the English name,
+ * never the code.
  *
- * A fixed table, not Intl.DisplayNames: that accepts non-ISO codes (UK, EU,
- * ZZ) and its names vary with the runtime's ICU build.
+ * A fixed table, not Intl.DisplayNames: that accepts other non-ISO codes (UK,
+ * ZZ) and its names vary with the runtime's ICU build. EU is the one reserved
+ * code accepted here: ISO 3166-1 exceptionally reserves it for the European Union.
  */
 
 const COUNTRY_NAMES: Readonly<Record<string, string>> = {
@@ -258,13 +260,21 @@ const COUNTRY_NAMES: Readonly<Record<string, string>> = {
   ZW: "Zimbabwe",
 };
 
+/**
+ * Not an assigned country code. ISO 3166-1 exceptionally reserves EU for the
+ * European Union.
+ */
+const ALSO_ACCEPTED: Readonly<Record<string, string>> = {
+  EU: "European Union",
+};
+
 /** Codes people reach for that ISO 3166-1 does not assign to that country. */
 const COMMON_MISTAKES: Readonly<Record<string, string>> = {
   UK: "GB",
 };
 
 export const COUNTRY_FORMAT =
-  "a two-letter ISO 3166-1 alpha-2 country code, e.g. US, GB (United Kingdom) or IT";
+  "a two-letter ISO 3166-1 alpha-2 country code, e.g. US, GB (United Kingdom) or IT, or EU for the European Union";
 
 export type CountryResult =
   | { ok: true; code: string; name: string }
@@ -273,7 +283,7 @@ export type CountryResult =
 /** Validate a caller's country code (case-insensitive) and resolve its English name. */
 export function resolveCountry(raw: string): CountryResult {
   const code = raw.trim().toUpperCase();
-  const name = COUNTRY_NAMES[code];
+  const name = COUNTRY_NAMES[code] ?? ALSO_ACCEPTED[code];
   if (name !== undefined) return { ok: true, code, name };
   const instead = COMMON_MISTAKES[code];
   const hint = instead !== undefined ? ` For ${COUNTRY_NAMES[instead]}, use ${instead}.` : "";

@@ -19,6 +19,10 @@ describe("resolveCountry", () => {
     assert.match(!result.ok ? result.message : "", /For United Kingdom, use GB\./);
   });
 
+  it("accepts EU for the European Union", () => {
+    assert.deepEqual(resolveCountry("eu"), { ok: true, code: "EU", name: "European Union" });
+  });
+
   it("reads food names in the sense they have in that country's nomenclature", () => {
     assert.equal(
       countryContextLine("item"),
@@ -32,7 +36,7 @@ describe("resolveCountry", () => {
   });
 
   it("rejects codes ISO 3166-1 does not assign to a country", () => {
-    for (const code of ["XX", "EU", "ZZ", "USA", ""]) {
+    for (const code of ["XX", "ZZ", "USA", ""]) {
       assert.equal(resolveCountry(code).ok, false, code);
     }
   });

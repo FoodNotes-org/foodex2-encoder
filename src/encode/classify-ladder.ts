@@ -29,7 +29,7 @@ export function classifySystemPrompt(options: {
 }): string {
   const { answerKey, readSubcategories = false, withCountry = false } = options;
   const item = withCountry
-    ? "- `item`: the food description, to be understood in the food nomenclature of the country `country`."
+    ? "- `item`: the food description, to be understood in the food nomenclature in: `country`."
     : "- `item`: the food description.";
   const givens = [
     item,
@@ -56,7 +56,7 @@ export function classifySystemPrompt(options: {
     ].join("\n"),
   ].join("\n\n");
   const opening = withCountry
-    ? "You are an expert in food classification. \n\nYour task is to match a food description in the food nomenclature of `country` against terms in a food catalogue."
+    ? "You are an expert in food classification. \n\nYour task is to match a food description in the food nomenclature in `country` against terms in a food catalogue."
     : "You are an expert in food classification.\n\nYour task is to match a food description against terms in a food catalogue.";
   return [
     opening,

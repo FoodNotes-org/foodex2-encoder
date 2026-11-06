@@ -122,10 +122,10 @@ export async function assessSelectClassify(
 
 function systemSelectParent(withCountry: boolean): string {
   const food = withCountry
-    ? "- `food`: the food description, to be understood in the food nomenclature of the country `country`."
+    ? "- `food`: the food description, to be understood in the food nomenclature in: `country`."
     : "- `food`: the food as described.";
   const opening = withCountry
-    ? "You are an expert in food classification. Read `food` in the food nomenclature of `country`."
+    ? "You are an expert in food classification. Read `food` in the food nomenclature in `country`."
     : "You are an expert in food classification.";
   return `${opening}
 

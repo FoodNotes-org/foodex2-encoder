@@ -41,7 +41,7 @@ export interface EncodeBaseTermOptions {
   /** Skip residual facet / free-text assignment (base term only). */
   baseOnly?: boolean;
   model?: string;
-  /** ISO 3166-1 alpha-2 code of the country the description comes from. */
+  /** ISO 3166-1 alpha-2 code of the country the description comes from, or EU. */
   country?: string;
 }
 

@@ -139,9 +139,13 @@ describe("classifySystemPrompt", () => {
       withCountry: true,
     });
     const line =
-      "- `item`: the food description, to be understood in the food nomenclature of the country `country`.";
+      "- `item`: the food description, to be understood in the food nomenclature in: `country`.";
     assert.equal(prompt.split(line).length - 1, 1);
-    assert.ok(prompt.startsWith("You are an expert in food classification. Read `item` in the food nomenclature of `country`."));
+    assert.ok(
+      prompt.startsWith(
+        "You are an expert in food classification. \n\nYour task is to match a food description in the food nomenclature in `country` against terms in a food catalogue."
+      )
+    );
     assert.equal(prompt.includes("not an inferred more specific kind"), false);
   });
 });
