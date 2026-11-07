@@ -23,10 +23,10 @@ describe("resolveCountry", () => {
     assert.deepEqual(resolveCountry("eu"), { ok: true, code: "EU", name: "European Union" });
   });
 
-  it("reads food names in the sense they have in that country's nomenclature", () => {
+  it("reads the description in that country's food nomenclature", () => {
     assert.equal(
       countryContextLine("item"),
-      "Read the food names in `item` in the sense they have in `country`'s food nomenclature."
+      "Read `item` as understood in the food nomenclature of: `country`."
     );
   });
 

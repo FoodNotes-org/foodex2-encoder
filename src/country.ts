@@ -293,12 +293,9 @@ export function resolveCountry(raw: string): CountryResult {
   };
 }
 
-/**
- * Prompt line for `textField`, the input key that holds the food description.
- * Country fixes the sense of the food names, not which kind is most often sold.
- */
+/** Prompt line for `textField`, the input key that holds the food description. */
 export function countryContextLine(textField: string): string {
-  return `Read the food names in \`${textField}\` in the sense they have in \`country\`'s food nomenclature.`;
+  return `Read \`${textField}\` as understood in the food nomenclature of: \`country\`.`;
 }
 
 /**
