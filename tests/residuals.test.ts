@@ -21,9 +21,16 @@ import {
   isCategoryMember,
   memberTermTypes,
   originRolesForBaseType,
+  settleOriginCandidates,
+  matchOriginEntry,
+  limitFacetSelection,
+  parsePhrasePresence,
+  sharedGroups,
   parseFortification,
+  parseAttributeSlots,
   parseGapOmitted,
   parseGapProperties,
+  systemAttributeSlots,
   phraseCoveredByFortification,
   dropFortificationRestatements,
   parseF26Relation,
@@ -275,6 +282,27 @@ describe("parseGapProperties", () => {
   });
 });
 
+describe("parseAttributeSlots", () => {
+  it("keeps each attribute phrase and the omissions", () => {
+    assert.deepEqual(
+      parseAttributeSlots({
+        attributes: [{ phrase: "fried in oil" }, { phrase: "fried in oil" }, "frozen"],
+        omitted: [{ phrase: "potatoes", reason: "the food itself" }],
+      }),
+      {
+        attributes: ["fried in oil", "frozen"],
+        omitted: [{ phrase: "potatoes", reason: "the food itself" }],
+      }
+    );
+  });
+
+  it("states that a qualification stays inside its attribute", () => {
+    const prompt = systemAttributeSlots(false);
+    assert.match(prompt, /A detail that qualifies an attribute is part of that attribute/);
+    assert.match(prompt, /fried in oil/);
+  });
+});
+
 describe("asUnsorted", () => {
   it("leaves category members for free text and sends the rest to the facet picker", () => {
     assert.deepEqual(
@@ -491,6 +519,52 @@ describe("parseOriginRole / F01 / F27 lexical alignment", () => {
     assert.deepEqual(originRolesForBaseType("r", "mix", "ingredient"), ["made_from", "contains"]);
   });
 
+  it("keeps every true term, and only the first from a single facet", () => {
+    const skin = { header: "F20", code: "A07QR", name: "W/o skin" };
+    const bone = { header: "F20", code: "A07QM", name: "W/o bone" };
+    const peppers = { header: "F04", code: "A00JA", name: "Sweet peppers" };
+    const frying = { header: "F28", code: "A07GT", name: "Stir frying" };
+    const source = { header: "F01", code: "A08HL", name: "Thicklip grey mullet (as animal)" };
+    const otherSource = { header: "F01", code: "A08HT", name: "Golden grey mullet (as animal)" };
+    assert.deepEqual(
+      limitFacetSelection(["F28.A07GT", "F04.A00JA"], [frying, peppers]),
+      [frying, peppers]
+    );
+    assert.deepEqual(limitFacetSelection(["F20.A07QR", "F20.A07QM"], [skin, bone]), [skin, bone]);
+    assert.deepEqual(
+      limitFacetSelection(["F01.A08HL", "F01.A08HT"], [source, otherSource]),
+      [source]
+    );
+    assert.deepEqual(limitFacetSelection([], [skin]), []);
+  });
+
+  it("joins a name's origin to the attribute with the same words", () => {
+    assert.deepEqual(
+      matchOriginEntry("Eutropiichthys vacha", [{ phrase: "raw", roleClaim: false }]),
+      { match: "alone" }
+    );
+    assert.deepEqual(
+      matchOriginEntry("whole milk", [
+        { phrase: "whole milk", roleClaim: false },
+        { phrase: "fruit", roleClaim: false },
+      ]),
+      { match: "slot", phrase: "whole milk" }
+    );
+    assert.deepEqual(
+      matchOriginEntry("sunflower oil", [{ phrase: "in sunflower oil", roleClaim: true }]),
+      { match: "role", phrase: "in sunflower oil" }
+    );
+  });
+
+  it("keeps the type's origin when the same class is also found as an ingredient", () => {
+    const wholeMilk = { header: "F27", code: "A02LY", name: "Cow milk, whole" };
+    const asIngredient = { header: "F04", code: "A02LY", name: "Cow milk, whole" };
+    const fruit = { header: "F04", code: "A04RK", name: "Fruit used as fruit" };
+    assert.deepEqual(settleOriginCandidates([wholeMilk], [asIngredient]), [wholeMilk]);
+    assert.deepEqual(settleOriginCandidates([], [fruit]), [fruit]);
+    assert.deepEqual(settleOriginCandidates([wholeMilk], [fruit]), [wholeMilk, fruit]);
+  });
+
   it("a made_from property gets the prescribed origin only, like source", () => {
     assert.deepEqual(originRolesForBaseType("r", "foodstuff", "made_from"), ["organism"]);
     assert.deepEqual(originRolesForBaseType("d", "foodstuff", "made_from"), ["made_from"]);
@@ -551,12 +625,28 @@ describe("parseOriginRole / F01 / F27 lexical alignment", () => {
     assert.equal(firstAligned("butter", "F27"), null);
   });
 
-  it("does not place butter in an empty F27 model-pick pool", () => {
+  it("offers unaligned F27 hits to the model without treating them as aligned", () => {
     const { alignedAccepted, pool } = buildClosedPickPool(cat, "butter", "F27", new Set(), {
       allowRootFallback: false,
     });
     assert.equal(alignedAccepted.length, 0);
-    assert.equal(pool.length, 0);
+    assert.ok(pool.length > 0);
+    assert.ok(pool.some((hit) => hit.name.toLowerCase().includes("butter")));
+  });
+});
+
+describe("sharedGroups / parsePhrasePresence", () => {
+  it("reads each or one, and nothing else", () => {
+    assert.equal(parsePhrasePresence({ presence: "each" }), "each");
+    assert.equal(parsePhrasePresence({ presence: "one" }), "one");
+    assert.equal(parsePhrasePresence({ presence: "both" }), null);
+    assert.equal(parsePhrasePresence(null), null);
+  });
+
+  it("offers the nearest group that contains every named food", () => {
+    assert.equal(sharedGroups(cat, "F27", ["A02MB", "A02MC", "A02ME"])[0]?.code, "A02LT");
+    assert.equal(sharedGroups(cat, "F27", ["A02MC", "A0CVV"])[0]?.code, "A02HH");
+    assert.deepEqual(sharedGroups(cat, "F27", ["A02MB"]), []);
   });
 });
 

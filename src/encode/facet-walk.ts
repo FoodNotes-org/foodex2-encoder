@@ -4,7 +4,8 @@
  * Two stages (same idea as base-term recall → select):
  * 1. Recall — under each opened header, branch-open only; collect candidate
  *    descriptors (leaves at visited levels + opened internals).
- * 2. Select — one pick over that pool: the term, if any, that the phrase states.
+ * 2. Select — the terms the phrase states. A single facet yields one or none;
+ *    a repeatable facet yields zero or more.
  *
  * Separate from base-term traverse.ts — phrase-vs-descriptor, not food-vs-term.
  */
@@ -12,6 +13,7 @@
 import { Catalogue } from "../catalogue.js";
 import { countryParagraph } from "../country.js";
 import { chatJson } from "../llm.js";
+import { facetCardinality } from "../rules/index.js";
 import { pickAllowedCode, pickAllowedCodes } from "./answers.js";
 import { F07, F11 } from "./numeric-facets.js";
 import type { FacetDescriptorRef } from "./types.js";
@@ -26,7 +28,7 @@ const MAX_DEPTH = 6;
 const MAX_BRANCHES_PER_LEVEL = 4;
 
 /**
- * Branch open: which children are worth descending into.
+ * Branch open: which groups the class named by the phrase is a kind of.
  * Payload is name + direct child names only (no scope notes).
  */
 function systemBranch(withCountry: boolean): string {
@@ -37,7 +39,7 @@ You are given the following inputs:
 - \`phrase\`: the phrase from the description.
 - \`groups\`: groups of catalogue terms, each with a \`code\`, a \`name\`, and the names of the terms directly under it.
 ${countryParagraph(withCountry, "description")}
-Your task is to decide which groups may contain the value the phrase states.
+Your task is to decide which of these groups the class named by the phrase is a kind of.
 
 Reply with JSON only, listing the codes of those groups, or an empty list if there are none:
 {"codes":["<code>",...]}
@@ -45,21 +47,28 @@ Reply with JSON only, listing the codes of those groups, or an empty list if the
 }
 
 /**
- * Precision pick among recalled descriptors (possibly from several dimensions).
- * note is MTX scope text.
+ * Precision pick among recalled descriptors of one facet. note is MTX scope text.
+ * A repeatable facet may take every term the phrase states; a single facet takes one.
  */
-function systemLeaf(withCountry: boolean): string {
+function systemLeaf(withCountry: boolean, many = false): string {
+  const task = many
+    ? "Your task is to decide which terms, if any, are the values of the phrase taken as one statement."
+    : "Your task is to decide which term, if any, is the value of the phrase taken as one statement.";
+  const reply = many
+    ? `Reply with JSON only, listing the codes of those terms, or an empty list if there are none:
+{"codes":["<code>",...]}`
+    : `Reply with JSON only, giving the code of that term, or null if the phrase states none of them:
+{"code":"<code>"|null}`;
   return `You are an expert in food classification.
 
 Your given inputs:
-- \`description\`: the food description.
-- \`phrase\`: the phrase from the description.
+- \`description\`: the food being coded.
+- \`phrase\`: one thing that description says about that food.
 - \`terms\`: catalogue terms, each with a \`code\`, a \`name\`, the \`list\` it belongs to and, for some, a \`note\` from the catalogue on when to use it.
 ${countryParagraph(withCountry, "description")}
-Your task is to decide which term, if any, is the value of the phrase taken as one statement. An alternative inside the phrase is not itself the value.
+${task}
 
-Reply with JSON only, giving the code of that term, or null if the phrase states none of them:
-{"code":"<code>"|null}
+${reply}
 `;
 }
 
@@ -73,19 +82,38 @@ const ORIGIN_TASK: Record<OriginPickRole, string> = {
     "which term, if any, is the characterising ingredient of `food` that `lookingFor` states",
 };
 
-/** Final pick for origin walks: the term that `lookingFor` states, in this role. */
-export function systemOriginPick(role: OriginPickRole, withCountry = false): string {
+const ORIGIN_TASK_MANY: Record<OriginPickRole, string> = {
+  source: "which terms, if any, does `lookingFor` name as the plant or animal `food` comes from",
+  made_from: "which terms, if any, does `lookingFor` name as what `food` is made from",
+  ingredient:
+    "which terms, if any, does `lookingFor` name as the characterising ingredient of `food`",
+};
+
+/**
+ * Final pick for origin walks.
+ * A repeatable facet (`many`) may name every term the phrase states.
+ * A single facet names one.
+ */
+export function systemOriginPick(role: OriginPickRole, withCountry = false, many = false): string {
+  const task = many ? ORIGIN_TASK_MANY[role] : ORIGIN_TASK[role];
+  const detail = many
+    ? "A term that adds a detail `lookingFor` does not name does not count.\n\n"
+    : "";
+  const reply = many
+    ? `Reply with JSON only, listing the codes of those terms, or an empty list if there are none:
+{"codes":["<code>",...]}`
+    : `Reply with JSON only, with the code of that term, or null if none of them is:
+{"code":"<code>"|null}`;
   return `You are an expert in food classification.
 
-Task: ${ORIGIN_TASK[role]}?
+Task: ${task}?
 
-Given:
+${detail}Given:
 - \`food\`: the food as described.
 - \`lookingFor\`: what we are trying to identify; it may be worded loosely.
 - \`terms\`: candidate terms, each with a \`code\` and a \`name\`.
 ${countryParagraph(withCountry, "food")}
-Reply with JSON only, with the code of that term, or null if none of them is:
-{"code":"<code>"|null}
+${reply}
 `;
 }
 
@@ -212,16 +240,21 @@ async function askBranch(
   };
 }
 
+function facetAllowsMany(header: string): boolean {
+  return facetCardinality(header)?.flag === "repeatable";
+}
+
 async function askSelect(
   phrase: string,
   terms: Array<{ code: string; name: string; list: string; note?: string }>,
-  options: FacetWalkOptions
-): Promise<{ code: string | null; model: string }> {
+  options: FacetWalkOptions,
+  many = false
+): Promise<{ codes: string[]; model: string }> {
   const allowed = new Set(terms.map((c) => c.code));
   if (options.originRole !== undefined && options.food !== undefined) {
     const picked = await chatJson({
       model: options.model,
-      system: systemOriginPick(options.originRole, hasCountry(options)),
+      system: systemOriginPick(options.originRole, hasCountry(options), many),
       user: JSON.stringify(
         {
           food: options.food.input,
@@ -233,11 +266,17 @@ async function askSelect(
         2
       ),
     });
-    return { code: pickAllowedCode(picked.content, allowed), model: picked.model };
+    const codes = many
+      ? pickAllowedCodes(picked.content, allowed)
+      : (() => {
+          const code = pickAllowedCode(picked.content, allowed);
+          return code === null ? [] : [code];
+        })();
+    return { codes, model: picked.model };
   }
   const picked = await chatJson({
     model: options.model,
-    system: systemLeaf(hasCountry(options)),
+    system: systemLeaf(hasCountry(options), many),
     user: JSON.stringify(
       {
         ...(options.food ? { description: options.food.input } : {}),
@@ -249,7 +288,57 @@ async function askSelect(
       2
     ),
   });
-  return { code: pickAllowedCode(picked.content, allowed), model: picked.model };
+  const codes = many
+    ? pickAllowedCodes(picked.content, allowed)
+    : (() => {
+        const code = pickAllowedCode(picked.content, allowed);
+        return code === null ? [] : [code];
+      })();
+  return { codes, model: picked.model };
+}
+
+/**
+ * Across facets: which of the candidate terms are true of the phrase.
+ * A list marked single contributes at most one term.
+ */
+function systemStatedFacets(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Your given inputs:
+- \`description\`: the food being coded.
+- \`phrase\`: one thing that description says about that food.
+- \`terms\`: catalogue terms that may be true of the phrase. Each has a \`code\`, a \`name\`, the \`list\` it belongs to and, for some, a \`note\`. \`single\` is true when that list can contribute only one term.
+${countryParagraph(withCountry, "description")}
+Your task is to decide which terms, if any, are true of the phrase. From a list with \`single\` true, include at most one term.
+
+Reply with JSON only, listing the codes of those terms, or an empty list if there are none:
+{"codes":["<code>",...]}
+`;
+}
+
+export async function selectStatedFacet(
+  phrase: string,
+  terms: Array<{ code: string; name: string; list: string; note?: string; single?: boolean }>,
+  options: { model: string; description: string; country?: string | null }
+): Promise<{ codes: string[]; model: string }> {
+  const allowed = new Set(terms.map((t) => t.code));
+  const country = options.country ?? null;
+  const withCountry = country !== null && country !== "";
+  const picked = await chatJson({
+    model: options.model,
+    system: systemStatedFacets(withCountry),
+    user: JSON.stringify(
+      {
+        description: options.description,
+        ...(withCountry ? { country } : {}),
+        phrase,
+        terms,
+      },
+      null,
+      2
+    ),
+  });
+  return { codes: pickAllowedCodes(picked.content, allowed), model: picked.model };
 }
 
 export type FacetWalkDimension = {
@@ -510,8 +599,8 @@ async function selectAmong(
   options: FacetWalkOptions,
   steps: WalkStep[],
   via: string
-): Promise<RecalledCandidate | null> {
-  if (pool.length === 0) return null;
+): Promise<RecalledCandidate[]> {
+  if (pool.length === 0) return [];
   if (pool.length === 1) {
     steps.push({
       via,
@@ -519,11 +608,17 @@ async function selectAmong(
       code: pool[0]!.code,
       header: pool[0]!.header,
     });
-    return pool[0]!;
+    return [pool[0]!];
   }
 
+  const header = pool.every((c) => c.header === pool[0]!.header) ? pool[0]!.header : null;
+  const many = header !== null && facetAllowsMany(header);
   const candidates = selectPayload(cat, pool);
-  const picked = await askSelect(phrase, candidates, options);
+  const picked = await askSelect(phrase, candidates, options, many);
+  const found = picked.codes.flatMap((code) => {
+    const match = pool.find((c) => c.code === code);
+    return match === undefined ? [] : [match];
+  });
   steps.push({
     via,
     candidates: candidates.map((c) => ({
@@ -532,11 +627,10 @@ async function selectAmong(
       facet: c.list,
       hasGuidance: c.note !== undefined,
     })),
-    picked: picked.code,
+    picked: many ? picked.codes : (picked.codes[0] ?? null),
     model: picked.model,
   });
-  if (picked.code === null) return null;
-  return pool.find((c) => c.code === picked.code) ?? null;
+  return found;
 }
 
 /**
@@ -547,7 +641,11 @@ export async function resolveFacetWalk(
   phrase: string,
   headers: string[],
   options: FacetWalkOptions
-): Promise<{ facet: FacetDescriptorRef | null; detail: Record<string, unknown> }> {
+): Promise<{
+  facet: FacetDescriptorRef | null;
+  facets: FacetDescriptorRef[];
+  detail: Record<string, unknown>;
+}> {
   const steps: WalkStep[] = [];
   const tried: string[] = [];
   const pool: RecalledCandidate[] = [];
@@ -588,35 +686,25 @@ export async function resolveFacetWalk(
     })),
   });
 
-  let picked = await selectAmong(cat, phrase, pool, options, steps, "select");
-  if (picked === null) {
-    return {
-      facet: null,
-      detail: {
-        phrase,
-        via: "facet_walk",
-        headers: tried,
-        resolved: null,
-        steps,
-      },
-    };
-  }
-
-  const facet: FacetDescriptorRef = {
-    header: picked.header,
-    code: picked.code,
-    name: cat.term(picked.code)?.name ?? picked.code,
-  };
+  const picked = await selectAmong(cat, phrase, pool, options, steps, "select");
+  const facets: FacetDescriptorRef[] = picked.map((candidate) => ({
+    header: candidate.header,
+    code: candidate.code,
+    name: cat.term(candidate.code)?.name ?? candidate.code,
+  }));
+  const facet = facets[0] ?? null;
+  const resolved =
+    facets.length === 0 ? null : facets.length === 1 ? facets[0]!.code : facets.map((f) => f.code);
 
   return {
     facet,
+    facets,
     detail: {
       phrase,
       via: "facet_walk",
       headers: tried,
-      resolved: facet.code,
-      header: facet.header,
-      name: facet.name,
+      resolved,
+      ...(facet !== null ? { header: facet.header, name: facet.name } : {}),
       steps,
     },
   };

@@ -43,6 +43,8 @@ export interface EncodeBaseTermOptions {
   model?: string;
   /** ISO 3166-1 alpha-2 code of the country the description comes from, or EU. */
   country?: string;
+  /** False uses the legacy residual path. Default is attribute slots. */
+  facetSlots?: boolean;
 }
 
 async function withFacets(
@@ -67,6 +69,7 @@ async function withFacets(
       food: base.food ?? input,
       descriptionKind: base.descriptionKind ?? null,
       country,
+      ...(options.facetSlots === false ? { facetSlots: false } : {}),
     });
     base.audit.push(...assigned.audit);
     if (assigned.status === "rejected") {

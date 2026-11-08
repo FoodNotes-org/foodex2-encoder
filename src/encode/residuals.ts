@@ -42,11 +42,12 @@
  */
 
 import { searchTerms, type SearchCandidate } from "../search/lexical.js";
-import { pickAllowedCode } from "./answers.js";
+import { pickAllowedCode, pickAllowedCodes } from "./answers.js";
 import {
   openFacetDimensions,
   pickFacets,
   resolveFacetWalk,
+  selectStatedFacet,
   systemOriginPick,
   type FacetPickExtra,
   type OriginPickRole,
@@ -69,7 +70,7 @@ import type {
 } from "./types.js";
 import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
 import { countryParagraph } from "../country.js";
-import { cardinalityKey, impliedRelation } from "../rules/index.js";
+import { cardinalityKey, facetCardinality, impliedRelation } from "../rules/index.js";
 import { catalogueLookup } from "../rules/catalogue-lookup.js";
 import { chatJson, defaultModel } from "../llm.js";
 import { contentTokens, FUNCTION_WORDS, sameContentTokenSet } from "../search/content-match.js";
@@ -472,6 +473,61 @@ Reply with JSON only:
 `;
 }
 
+/**
+ * One job: the attributes the description still states about the food, once
+ * the base term is chosen. A qualification of an attribute stays inside it.
+ */
+export function systemAttributeSlots(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+The base term for this food is already chosen. List the attributes the description still states about that food.
+
+Given:
+- \`description\`: the food description.
+- \`baseTerm\`: the term already chosen.
+- \`implicits\`: the facets that term already carries.
+${countryBlock(withCountry)}
+An attribute is a way the food itself is qualified: a process it underwent, a part of it, what it is made from, what it contains, or what surrounds it.
+
+A detail that qualifies an attribute is part of that attribute. In "potatoes, fried in oil", "fried in oil" is one attribute: the oil qualifies the frying. "in oil" alone would make the oil belong to the potatoes.
+
+Do not list an attribute the base term already is. Do not list the food's own name.
+
+Return each attribute as \`phrase\`, the words from the description. Put wording you do not list in \`omitted\`, with a short \`reason\`.
+
+If none remain, \`attributes\` is empty.
+
+Reply with JSON only:
+{"attributes":[{"phrase":"<text>"},...],"omitted":[{"phrase":"<text>","reason":"<text>"},...]}
+`;
+}
+
+export interface AttributeSlots {
+  attributes: string[];
+  omitted: GapOmitted[];
+}
+
+/** Parse the attribute-slot reply. Phrases are the words from the description. */
+export function parseAttributeSlots(content: unknown): AttributeSlots {
+  const omitted = parseGapOmitted(content);
+  if (content === null || typeof content !== "object") return { attributes: [], omitted };
+  const raw = (content as { attributes?: unknown }).attributes;
+  if (!Array.isArray(raw)) return { attributes: [], omitted };
+  const attributes: string[] = [];
+  for (const item of raw) {
+    const phrase =
+      typeof item === "string"
+        ? item.trim()
+        : item !== null && typeof item === "object" && typeof (item as { phrase?: unknown }).phrase === "string"
+          ? (item as { phrase: string }).phrase.trim()
+          : "";
+    if (phrase === "") continue;
+    if (attributes.some((a) => a.toLowerCase() === phrase.toLowerCase())) continue;
+    attributes.push(phrase);
+  }
+  return { attributes, omitted };
+}
+
 function isDishKind(descriptionKind: DescriptionKind | null): boolean {
   return descriptionKind === "dish" || descriptionKind === "dish_type";
 }
@@ -567,6 +623,11 @@ export interface AssignResidualsOptions {
   descriptionKind?: DescriptionKind | null;
   /** English name of the country the description comes from. */
   country?: string | null;
+  /**
+   * Attribute slots: one split, every route may propose, one gate chooses.
+   * False keeps the legacy residual path. Default true on this branch.
+   */
+  facetSlots?: boolean;
 }
 
 export interface AssignResidualsOk {
@@ -1688,7 +1749,7 @@ async function resolveF04Phrase(
   ctx: PlaceContext,
   phrase: string,
   options: AcceptFacetOptions = {}
-): Promise<{ facet: FacetDescriptorRef | null; detail: Record<string, unknown> }> {
+): Promise<ClosedResolution> {
   const acceptOpts: AcceptFacetOptions = {
     baseCode: ctx.baseCode,
     baseTermType: ctx.baseTermType,
@@ -1711,6 +1772,7 @@ async function resolveF04Phrase(
   });
   return {
     facet: walked.facet,
+    facets: walked.facets,
     detail: {
       ...walked.detail,
       ...(options.rejectUnderImplied === true ? { rejectUnderImplied: true } : {}),
@@ -1834,8 +1896,9 @@ function facetRootChildren(cat: Catalogue, header: string): LexHit[] {
 
 /**
  * Candidate pool for closed-tree model pick when lexical alignment is absent or ambiguous.
- * Prefer accepted aligned hits; else (F28/F21 only) accepted ranked lexical hits or root children.
- * Origin trees (F01/F27) never fall back to weak lexical hits — miss instead of "Butter nut".
+ * Prefer accepted aligned hits; otherwise the accepted lexical hits, so the model can
+ * refuse a term that only shares a word ("butter" against "Butter nut").
+ * Root-children fallback is F28/F21 only.
  */
 export function buildClosedPickPool(
   cat: Catalogue,
@@ -1883,11 +1946,6 @@ export function buildClosedPickPool(
     return { alignedAccepted, pool: merged.slice(0, limit), ranked };
   }
 
-  // Origin: aligned or nothing (no Butter-nut-from-butter lexical shortlist).
-  if (header === F01 || header === F27) {
-    return { alignedAccepted, pool: [], ranked };
-  }
-
   const lexicalAccepted = ranked.filter(
     (h) => acceptClosedDescriptor(cat, header, h.code, implied, acceptOpts) === "keep"
   );
@@ -1923,13 +1981,14 @@ async function modelPickClosedDescriptor(
   model: string,
   origin?: { role: OriginPickRole; food: string },
   country: string | null = null
-): Promise<{ code: string | null; model: string; detail: Record<string, unknown> }> {
+): Promise<{ codes: string[]; model: string; detail: Record<string, unknown> }> {
   const allowed = new Set(candidates.map((c) => c.code));
   const withCountry = country !== null;
+  const many = origin !== undefined && facetCardinality(header)?.flag === "repeatable";
   if (origin !== undefined) {
     const picked = await chatJson({
       model,
-      system: systemOriginPick(origin.role, withCountry),
+      system: systemOriginPick(origin.role, withCountry, many),
       user: JSON.stringify(
         {
           food: origin.food,
@@ -1941,9 +2000,14 @@ async function modelPickClosedDescriptor(
         2
       ),
     });
-    const code = pickAllowedCode(picked.content, allowed);
+    const codes = many
+      ? pickAllowedCodes(picked.content, allowed)
+      : (() => {
+          const code = pickAllowedCode(picked.content, allowed);
+          return code === null ? [] : [code];
+        })();
     return {
-      code,
+      codes,
       model: picked.model,
       detail: {
         phrase,
@@ -1951,7 +2015,7 @@ async function modelPickClosedDescriptor(
         via: "closed_model_pick",
         originRole: origin.role,
         candidates: candidates.map((c) => ({ code: c.code, name: c.name })),
-        picked: code,
+        picked: many ? codes : (codes[0] ?? null),
       },
     };
   }
@@ -1981,7 +2045,7 @@ async function modelPickClosedDescriptor(
   });
   const code = pickAllowedCode(picked.content, allowed);
   return {
-    code,
+    codes: code === null ? [] : [code],
     model: picked.model,
     detail: {
       phrase,
@@ -1993,18 +2057,42 @@ async function modelPickClosedDescriptor(
   };
 }
 
+type ClosedResolution = {
+  facet: FacetDescriptorRef | null;
+  facets: FacetDescriptorRef[];
+  detail: Record<string, unknown>;
+};
+
 function closedFacetResult(
   cat: Catalogue,
   header: string,
   phrase: string,
   hit: LexHit,
   extra: Record<string, unknown> = {}
-): { facet: FacetDescriptorRef; detail: Record<string, unknown> } {
+): ClosedResolution {
   const name = cat.term(hit.code)?.name ?? hit.name;
+  const facet = { header, code: hit.code, name };
   return {
-    facet: { header, code: hit.code, name },
+    facet,
+    facets: [facet],
     detail: { phrase, header, resolved: hit.code, name, verdict: "keep", ...extra },
   };
+}
+
+function facetsForCodes(
+  cat: Catalogue,
+  header: string,
+  codes: string[],
+  pool: LexHit[]
+): FacetDescriptorRef[] {
+  return codes.map((code) => {
+    const hit = pool.find((candidate) => candidate.code === code);
+    return {
+      header,
+      code,
+      name: cat.term(code)?.name ?? hit?.name ?? code,
+    };
+  });
 }
 
 /**
@@ -2027,7 +2115,7 @@ async function resolveClosedFacetPhrase(
     /** English country name, when the caller passed one. */
     country?: string | null;
   } = {}
-): Promise<{ facet: FacetDescriptorRef | null; detail: Record<string, unknown> }> {
+): Promise<ClosedResolution> {
   const allowRootFallback =
     options.allowRootFallback ?? (header === F28 || header === F21);
   const { alignedAccepted, pool, ranked } = buildClosedPickPool(
@@ -2067,20 +2155,23 @@ async function resolveClosedFacetPhrase(
       options.origin,
       options.country ?? null
     );
-    if (picked.code !== null) {
-      const hit = pickPool.find((c) => c.code === picked.code) ?? {
-        code: picked.code,
-        name: cat.term(picked.code)?.name ?? picked.code,
-        score: 0,
+    const facets = facetsForCodes(cat, header, picked.codes, pickPool);
+    if (facets.length > 0) {
+      const facet = facets[0]!;
+      return {
+        facet,
+        facets,
+        detail: {
+          ...picked.detail,
+          resolved: facets.length === 1 ? facet.code : facets.map((item) => item.code),
+          ...(facets.length === 1 ? { name: facet.name } : {}),
+          verdict: "keep",
+        },
       };
-      return closedFacetResult(cat, header, phrase, hit, {
-        via: "closed_model_pick",
-        model: picked.model,
-        candidates: pickPool.map((c) => ({ code: c.code, name: c.name })),
-      });
     }
     return {
       facet: null,
+      facets: [],
       detail: {
         ...picked.detail,
         resolved: null,
@@ -2101,6 +2192,7 @@ async function resolveClosedFacetPhrase(
 
   return {
     facet: null,
+    facets: [],
     detail: {
       phrase,
       header,
@@ -2252,16 +2344,177 @@ function pushFreeText(entries: FreeTextEntry[], label: string, value: string): v
 }
 
 /**
+ * Groups that contain every code, nearest first.
+ * A choice among goat milk, sheep milk, and camel milk shares Milk.
+ */
+export function sharedGroups(
+  cat: Catalogue,
+  header: string,
+  codes: string[]
+): FacetDescriptorRef[] {
+  const hierarchy = cat.facetCategory(header)?.hierarchyCode;
+  if (hierarchy === undefined || codes.length < 2) return [];
+  const chains = codes.map((code) => {
+    const chain: string[] = [];
+    const seen = new Set<string>();
+    let current = cat.parent(code, hierarchy);
+    while (current !== null && !seen.has(current)) {
+      seen.add(current);
+      chain.push(current);
+      current = cat.parent(current, hierarchy);
+    }
+    return chain;
+  });
+  const [first, ...rest] = chains;
+  if (first === undefined) return [];
+  const common = first.filter((code) => rest.every((chain) => chain.includes(code)));
+  const out: FacetDescriptorRef[] = [];
+  for (const code of common) {
+    if (!cat.isReportable(code, hierarchy)) continue;
+    if (acceptClosedDescriptor(cat, header, code, new Set()) !== "keep") continue;
+    out.push({ header, code, name: cat.term(code)?.name ?? code });
+  }
+  return out;
+}
+
+export type PhrasePresence = "each" | "one";
+
+/** `{"presence":"each"|"one"}`. */
+export function parsePhrasePresence(content: unknown): PhrasePresence | null {
+  if (content === null || typeof content !== "object") return null;
+  const raw = (content as { presence?: unknown }).presence;
+  return raw === "each" || raw === "one" ? raw : null;
+}
+
+function systemPhrasePresence(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Given:
+- \`food\`: the food as described.
+- \`phrase\`: the words that name the terms.
+- \`terms\`: the named terms, each with a \`code\` and a \`name\`.
+${countryBlock(withCountry, "food")}
+Does the phrase state that each of them is present, or that one of them is present?
+
+Reply with JSON only:
+{"presence":"each"|"one"}
+`;
+}
+
+function systemSharedGroup(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Given:
+- \`food\`: the food as described.
+- \`phrase\`: the words that name the choice.
+- \`named\`: the foods the phrase chooses among, each with a \`code\` and a \`name\`.
+- \`groups\`: groups that contain all of them, nearest first. Each has a \`code\` and a \`name\`.
+${countryBlock(withCountry, "food")}
+Which nearest group, if any, stays true whichever of those foods it was?
+
+Reply with JSON only:
+{"code":"<code>"|null}
+`;
+}
+
+/**
+ * Several terms of one facet: each is recorded, or the phrase is a choice and
+ * they are replaced by one shared group (or by nothing).
+ */
+async function settlePhraseChoice(
+  ctx: PlaceContext,
+  phrase: string,
+  facets: FacetDescriptorRef[],
+  attempts: Record<string, unknown>[]
+): Promise<FacetDescriptorRef[]> {
+  const withCountry = ctx.country !== null && ctx.country !== "";
+  const out: FacetDescriptorRef[] = [];
+  const headers: string[] = [];
+  for (const facet of facets) {
+    if (!headers.includes(facet.header)) headers.push(facet.header);
+  }
+  for (const header of headers) {
+    const group = facets.filter((facet) => facet.header === header);
+    if (group.length < 2) {
+      out.push(...group);
+      continue;
+    }
+    const asked = await chatJson({
+      model: ctx.model,
+      system: systemPhrasePresence(withCountry),
+      user: JSON.stringify(
+        {
+          food: ctx.input,
+          ...(withCountry ? { country: ctx.country } : {}),
+          phrase,
+          terms: group.map((facet) => ({ code: facet.code, name: facet.name })),
+        },
+        null,
+        2
+      ),
+    });
+    const presence = parsePhrasePresence(asked.content);
+    attempts.push({
+      via: "phrase_presence",
+      phrase,
+      header,
+      terms: group.map((facet) => facet.code),
+      presence,
+      model: asked.model,
+    });
+    if (presence !== "one") {
+      out.push(...group);
+      continue;
+    }
+    const groups = sharedGroups(ctx.cat, header, group.map((facet) => facet.code));
+    if (groups.length === 0) {
+      attempts.push({ via: "choice_climb", phrase, header, groups: [], picked: null });
+      continue;
+    }
+    const allowed = new Set(groups.map((facet) => facet.code));
+    const climbed = await chatJson({
+      model: ctx.model,
+      system: systemSharedGroup(withCountry),
+      user: JSON.stringify(
+        {
+          food: ctx.input,
+          ...(withCountry ? { country: ctx.country } : {}),
+          phrase,
+          named: group.map((facet) => ({ code: facet.code, name: facet.name })),
+          groups: groups.map((facet) => ({ code: facet.code, name: facet.name })),
+        },
+        null,
+        2
+      ),
+    });
+    const code = pickAllowedCode(climbed.content, allowed);
+    const facet = code === null ? null : (groups.find((item) => item.code === code) ?? null);
+    attempts.push({
+      via: "choice_climb",
+      phrase,
+      header,
+      groups: groups.map((item) => ({ code: item.code, name: item.name })),
+      picked: code,
+      model: climbed.model,
+    });
+    if (facet !== null) out.push(facet);
+  }
+  return out;
+}
+
+/**
  * Origin route: base type (or the model) orders F01 / F27 / F04; the first role
- * that places wins.
+ * that places wins. A repeatable list may place several terms. When committing,
+ * a choice among them is recorded as one shared group, or as nothing.
  */
 async function placeOrigin(
   ctx: PlaceContext,
   lookup: string,
   kind: GapPropertyKind,
   rejectUnderImplied: boolean,
-  attempts: Record<string, unknown>[]
-): Promise<{ facet: FacetDescriptorRef | null; role: OriginRole | null }> {
+  attempts: Record<string, unknown>[],
+  commit = true
+): Promise<{ facets: FacetDescriptorRef[]; role: OriginRole | null }> {
   const routed = await originRolesFor(ctx, lookup, kind);
   const roles = routed.roles;
   attempts.push(routed.detail);
@@ -2283,11 +2536,16 @@ async function placeOrigin(
             }
           );
     attempts.push(resolved.detail);
-    if (resolved.facet !== null && addFacet(ctx, resolved.facet)) {
-      return { facet: resolved.facet, role };
+    if (resolved.facets.length === 0) continue;
+    const facets = commit
+      ? await settlePhraseChoice(ctx, lookup, resolved.facets, attempts)
+      : resolved.facets;
+    if (commit) {
+      for (const facet of facets) addFacet(ctx, facet);
     }
+    return { facets, role };
   }
-  return { facet: null, role: roles[0] ?? null };
+  return { facets: [], role: roles[0] ?? null };
 }
 
 /**
@@ -2354,6 +2612,28 @@ export function wordsWithin(inner: string, outer: string): boolean {
   const outerWords = contentWords(outer);
   for (const w of words) if (!outerWords.has(w)) return false;
   return true;
+}
+
+export type OriginSlotMatch =
+  | { match: "role"; phrase: string }
+  | { match: "slot"; phrase: string }
+  | { match: "alone" };
+
+/**
+ * Where a name's origin entry goes among the collected attributes.
+ * A role claim (packed in it, risky in it) keeps the entry out. The same
+ * words join that attribute. Anything else is the name's own differentia.
+ */
+export function matchOriginEntry(
+  entry: string,
+  slots: Array<{ phrase: string; roleClaim: boolean }>
+): OriginSlotMatch {
+  const overlaps = (phrase: string) => wordsWithin(entry, phrase) || wordsWithin(phrase, entry);
+  const role = slots.find((slot) => slot.roleClaim && overlaps(slot.phrase));
+  if (role !== undefined) return { match: "role", phrase: role.phrase };
+  const slot = slots.find((slot) => overlaps(slot.phrase));
+  if (slot !== undefined) return { match: "slot", phrase: slot.phrase };
+  return { match: "alone" };
 }
 
 async function placeFacetsPass(
@@ -2436,7 +2716,9 @@ async function placeFacetsPass(
         country: ctx.country,
       });
       attempts.push(walked.detail);
-      if (walked.facet !== null && addFacet(ctx, walked.facet)) pass.placed.push(walked.facet);
+      for (const facet of walked.facets) {
+        if (addFacet(ctx, facet)) pass.placed.push(facet);
+      }
     }
     if (claimedByRole(pass) && pass.originKinds.length > 0) {
       attempts.push({ via: "origin_skipped", reason: "role_facet", originKinds: pass.originKinds });
@@ -2458,8 +2740,16 @@ async function placeFacetsPass(
       country: ctx.country,
     });
     attempts.push(process.detail);
-    if (process.facet !== null && addFacet(ctx, process.facet)) {
-      return settle({ phrase, kind, placed: "facet", facet: process.facet, attempts });
+    const recordedProcess = process.facets.filter((facet) => addFacet(ctx, facet));
+    if (recordedProcess.length > 0) {
+      return settle({
+        phrase,
+        kind,
+        placed: "facet",
+        facet: recordedProcess[0],
+        ...(recordedProcess.length > 1 ? { facets: recordedProcess } : {}),
+        attempts,
+      });
     }
   } else if (kind === "other") {
     const dimensions = facetDimensions(ctx.cat);
@@ -2477,13 +2767,15 @@ async function placeFacetsPass(
       country: ctx.country,
     });
     attempts.push(walked.detail);
-    if (walked.facet !== null && addFacet(ctx, walked.facet)) {
+    const recorded = walked.facets.filter((facet) => addFacet(ctx, facet));
+    if (recorded.length > 0) {
       return settle({
         phrase,
         kind,
-        header: walked.facet.header,
+        header: recorded[0]!.header,
         placed: "facet",
-        facet: walked.facet,
+        facet: recorded[0],
+        ...(recorded.length > 1 ? { facets: recorded } : {}),
         attempts,
       });
     }
@@ -2519,7 +2811,7 @@ async function finishPlacement(
     for (const originKind of pass.originKinds) {
       const origin = await placeOrigin(ctx, lookup, originKind, pass.rejectUnderImplied, attempts);
       originRole ??= origin.role;
-      if (origin.facet !== null) placed.push(origin.facet);
+      placed.push(...origin.facets);
     }
   }
 
@@ -2546,7 +2838,15 @@ async function finishPlacement(
       otherLabel = ctx.cat.facetCategory(header)?.label ?? header;
     }
   } else if (placed.length > 0) {
-    return { phrase, kind, originRole, placed: "facet", facet: placed[0], attempts };
+    return {
+      phrase,
+      kind,
+      originRole,
+      placed: "facet",
+      facet: placed[0],
+      ...(placed.length > 1 ? { facets: placed } : {}),
+      attempts,
+    };
   }
 
   if (skipped) {
@@ -2766,6 +3066,463 @@ function impliedNamed(cat: Catalogue, baseCode: string): Array<{ key: string; na
   });
 }
 
+function facetSelectTerms(
+  cat: Catalogue,
+  facets: FacetDescriptorRef[]
+): Array<{ code: string; name: string; list: string; note?: string; single: boolean }> {
+  return facets.map((facet) => {
+    const note = cat.term(facet.code)?.scopeNote?.trim();
+    const list = cat.facetCategory(facet.header)?.label ?? facet.header;
+    return {
+      code: `${facet.header}.${facet.code}`,
+      name: facet.name,
+      list,
+      single: facetCardinality(facet.header)?.flag !== "repeatable",
+      ...(note ? { note } : {}),
+    };
+  });
+}
+
+/**
+ * Codes the gate returned, in that order, dropping anything not offered.
+ * A single facet keeps the first of its codes. A repeatable facet keeps each.
+ */
+export function limitFacetSelection(
+  codes: string[],
+  candidates: FacetDescriptorRef[]
+): FacetDescriptorRef[] {
+  const out: FacetDescriptorRef[] = [];
+  const singleUsed = new Set<string>();
+  for (const code of codes) {
+    const matches = candidates.filter((facet) => `${facet.header}.${facet.code}` === code);
+    const facet =
+      matches[0] ??
+      (candidates.filter((item) => item.code === code).length === 1
+        ? candidates.find((item) => item.code === code)
+        : undefined);
+    if (facet === undefined) continue;
+    if (out.some((kept) => kept.header === facet.header && kept.code === facet.code)) continue;
+    if (facetCardinality(facet.header)?.flag !== "repeatable") {
+      if (singleUsed.has(facet.header)) continue;
+      singleUsed.add(facet.header);
+    }
+    out.push(facet);
+  }
+  return out;
+}
+
+/**
+ * Origin follows the base term's type (`origin`, from a `made_from` lookup).
+ * The same class found again as an ingredient is that origin, not a second
+ * statement. A different class is something the food contains, and stays.
+ */
+export function settleOriginCandidates(
+  origin: readonly FacetDescriptorRef[],
+  added: readonly FacetDescriptorRef[]
+): FacetDescriptorRef[] {
+  const originCodes = new Set(origin.map((facet) => facet.code));
+  const out: FacetDescriptorRef[] = [];
+  for (const facet of origin) {
+    if (out.some((kept) => kept.header === facet.header && kept.code === facet.code)) continue;
+    out.push(facet);
+  }
+  for (const facet of added) {
+    if (originCodes.has(facet.code)) continue;
+    if (out.some((kept) => kept.header === facet.header && kept.code === facet.code)) continue;
+    out.push(facet);
+  }
+  return out;
+}
+
+function keepFacetCandidate(
+  ctx: PlaceContext,
+  facet: FacetDescriptorRef | null,
+  into: FacetDescriptorRef[]
+): void {
+  if (facet === null) return;
+  if (into.some((f) => f.header === facet.header && f.code === facet.code)) return;
+  if (acceptClosedDescriptor(ctx.cat, facet.header, facet.code, ctx.implied) !== "keep") return;
+  into.push(facet);
+}
+
+/**
+ * Every route may propose one candidate for this attribute, or none.
+ * Nothing is recorded until the gate chooses.
+ */
+async function collectSlotCandidates(
+  ctx: PlaceContext,
+  phrase: string
+): Promise<{ candidates: FacetDescriptorRef[]; attempts: Record<string, unknown>[] }> {
+  const attempts: Record<string, unknown>[] = [];
+  const candidates: FacetDescriptorRef[] = [];
+  const food = { input: ctx.input, baseTerm: ctx.baseName };
+  const walkAccept = (header: string, code: string): boolean =>
+    acceptClosedDescriptor(ctx.cat, header, code, ctx.implied) === "keep";
+
+  const picked = await pickFacets(ctx.cat, phrase, facetDimensions(ctx.cat), [], {
+    model: ctx.model,
+    accept: walkAccept,
+    food,
+    country: ctx.country,
+  });
+  attempts.push(picked.detail);
+  for (const header of picked.codes) {
+    const walked = await resolveFacetWalk(ctx.cat, phrase, [header], {
+      model: ctx.model,
+      accept: walkAccept,
+      food,
+      country: ctx.country,
+    });
+    attempts.push(walked.detail);
+    for (const facet of walked.facets) keepFacetCandidate(ctx, facet, candidates);
+  }
+
+  const origin = await placeOrigin(ctx, phrase, "made_from", false, attempts, false);
+  const added = await placeOrigin(ctx, phrase, "added", false, attempts, false);
+  for (const facet of settleOriginCandidates(origin.facets, added.facets)) {
+    keepFacetCandidate(ctx, facet, candidates);
+  }
+
+  const fortification = await askFortification(ctx, phrase);
+  attempts.push(fortification.detail);
+  if (fortification.claim.status === "bare") {
+    keepFacetCandidate(ctx, bareFortifiedFacet(ctx.cat, ctx.implied), candidates);
+  } else if (fortification.claim.status === "agents") {
+    for (const agent of fortification.claim.agents) {
+      const resolved = await resolveClosedFacetPhrase(ctx.cat, agent, F09, ctx.implied, {
+        model: ctx.model,
+        allowRootFallback: false,
+        country: ctx.country,
+      });
+      attempts.push(resolved.detail);
+      keepFacetCandidate(ctx, resolved.facet, candidates);
+    }
+  }
+
+  const numeric = await askNumericContent(ctx, phrase);
+  attempts.push(numeric.detail);
+  if (numeric.claim.fatPercent !== null) {
+    keepFacetCandidate(ctx, nearestFatFacet(ctx.cat, numeric.claim.fatPercent), candidates);
+  }
+  if (numeric.claim.alcoholPercent !== null) {
+    keepFacetCandidate(ctx, nearestAlcoholFacet(ctx.cat, numeric.claim.alcoholPercent), candidates);
+  }
+
+  return { candidates, attempts };
+}
+
+async function placeAttributeSlot(
+  ctx: PlaceContext,
+  phrase: string,
+  prepared?: { candidates: FacetDescriptorRef[]; attempts: Record<string, unknown>[] }
+): Promise<Record<string, unknown>> {
+  const { candidates, attempts } = prepared ?? (await collectSlotCandidates(ctx, phrase));
+  const listed = candidates.map((f) => ({ header: f.header, code: f.code, name: f.name }));
+  if (candidates.length === 0) {
+    pushFreeText(ctx.freeText, "attribute", phrase);
+    return { phrase, placed: "freeText", candidates: listed, attempts };
+  }
+  const onlyHeader = candidates[0]!.header;
+  const oneRepeatableList =
+    candidates.every((facet) => facet.header === onlyHeader) &&
+    facetCardinality(onlyHeader)?.flag === "repeatable";
+  let model: string | undefined;
+  let chosen: FacetDescriptorRef[];
+  if (!oneRepeatableList && candidates.length > 1) {
+    const picked = await selectStatedFacet(phrase, facetSelectTerms(ctx.cat, candidates), {
+      model: ctx.model,
+      description: ctx.input,
+      country: ctx.country,
+    });
+    model = picked.model;
+    chosen = limitFacetSelection(picked.codes, candidates);
+    if (chosen.length === 0) {
+      pushFreeText(ctx.freeText, "attribute", phrase);
+      return { phrase, placed: "none", pick: picked.codes, candidates: listed, attempts, model };
+    }
+  } else {
+    chosen = candidates;
+  }
+  const settled = await settlePhraseChoice(ctx, phrase, chosen, attempts);
+  if (settled.length === 0) {
+    pushFreeText(ctx.freeText, "attribute", phrase);
+    return { phrase, placed: "none", candidates: listed, attempts, ...(model !== undefined ? { model } : {}) };
+  }
+  const recorded: FacetDescriptorRef[] = [];
+  for (const facet of settled) {
+    if (addFacet(ctx, facet)) recorded.push(facet);
+  }
+  return {
+    phrase,
+    placed: recorded.length > 0 ? "facet" : "duplicate",
+    ...(recorded.length > 0
+      ? {
+          facet: recorded[0],
+          ...(recorded.length > 1 ? { facets: recorded } : {}),
+        }
+      : {}),
+    candidates: listed,
+    attempts,
+    ...(model !== undefined ? { model } : {}),
+  };
+}
+
+/** Attributes the description still states, given a locked base term. */
+export async function listAttributeSlots(
+  input: string,
+  baseTerm: BaseTermRef,
+  options: { model?: string; country?: string | null } = {}
+): Promise<{ model: string; attributes: string[]; omitted: GapOmitted[] }> {
+  const cat = Catalogue.load();
+  const model = options.model?.trim() || defaultModel();
+  const country = options.country ?? null;
+  const implicits = impliedNamed(cat, baseTerm.code).map(({ key, name }) => {
+    const header = key.split(".")[0] ?? key;
+    return `${cat.facetCategory(header)?.label ?? header}: ${name}`;
+  });
+  const listed = await chatJson({
+    model,
+    system: systemAttributeSlots(country !== null && country !== ""),
+    user: JSON.stringify(
+      {
+        description: input,
+        ...(country !== null && country !== "" ? { country } : {}),
+        baseTerm: { code: baseTerm.code, name: cat.term(baseTerm.code)?.name ?? baseTerm.name },
+        implicits,
+      },
+      null,
+      2
+    ),
+  });
+  const parsed = parseAttributeSlots(listed.content);
+  const attributes: string[] = [];
+  const omitted = [...parsed.omitted];
+  for (const phrase of parsed.attributes) {
+    if (!queryTokensInText(phrase, input)) {
+      omitted.push({ phrase, reason: "not_in_input" });
+      continue;
+    }
+    attributes.push(phrase);
+  }
+  return { model: listed.model, attributes, omitted };
+}
+
+/**
+ * The legacy leftover list, for comparison. `called` is the whole description,
+ * and nothing is covered yet, so the difference from the slot list is the split.
+ */
+export async function listLegacyInputProperties(
+  input: string,
+  baseTerm: BaseTermRef,
+  options: { model?: string; country?: string | null } = {}
+): Promise<{ model: string; properties: string[]; omitted: GapOmitted[] }> {
+  const cat = Catalogue.load();
+  const model = options.model?.trim() || defaultModel();
+  const country = options.country ?? null;
+  const implicits = impliedNamed(cat, baseTerm.code).map(({ key, name }) => {
+    const header = key.split(".")[0] ?? key;
+    return `${cat.facetCategory(header)?.label ?? header}: ${name}`;
+  });
+  const listed = await chatJson({
+    model,
+    system: systemFoodstuffInput(country !== null && country !== ""),
+    user: JSON.stringify(
+      {
+        input,
+        ...(country !== null && country !== "" ? { country } : {}),
+        called: input,
+        baseTerm: { code: baseTerm.code, name: cat.term(baseTerm.code)?.name ?? baseTerm.name },
+        implicits,
+        covered: { facets: [], freeText: [] },
+      },
+      null,
+      2
+    ),
+  });
+  const raw = asUnsorted(parseGapProperties(listed.content));
+  const filtered = filterPropertiesToInput(raw, input);
+  return {
+    model: listed.model,
+    properties: filtered.kept.map((p) => p.phrase),
+    omitted: [
+      ...parseGapOmitted(listed.content),
+      ...filtered.dropped.map((d) => ({ phrase: d.phrase, reason: d.reason })),
+    ],
+  };
+}
+
+/**
+ * The food's name against its base term: what it was directly obtained from.
+ * Empty `from` when the base term already is that food. Same questions as the
+ * legacy path.
+ */
+async function askFoodOrigin(
+  ctx: PlaceContext,
+  description: string,
+  implicit: string[],
+  audit: AuditEntry[]
+): Promise<{ name: string; from: GapProperty[] }> {
+  const statesOrigin = [...ctx.implied].some((key) => ORIGIN_HEADERS.has(key.split(".")[0] ?? ""));
+  const country = ctx.country;
+  const [named, groupAsked] = await Promise.all([
+    chatJson({
+      model: ctx.model,
+      system: systemFoodName(country !== null),
+      user: JSON.stringify(
+        { description, ...(country !== null ? { country } : {}) },
+        null,
+        2
+      ),
+    }),
+    statesOrigin
+      ? Promise.resolve(null)
+      : chatJson({
+          model: ctx.model,
+          system: SYSTEM_GROUP_ORIGIN,
+          user: JSON.stringify({ baseTerm: { name: ctx.baseName, implicit } }, null, 2),
+        }),
+  ]);
+  const foodName = parseFoodName(named.content, description) ?? description;
+  audit.push({
+    step: "residuals_food_name",
+    detail: { model: named.model, description, answered: named.content, name: foodName },
+  });
+  const madeFrom = groupAsked === null ? null : parseOriginAnswer(groupAsked.content).from;
+  const asked = await chatJson({
+    model: ctx.model,
+    system: systemOrigin(country !== null),
+    user: JSON.stringify(
+      {
+        name: foodName,
+        ...(country !== null ? { country } : {}),
+        baseTerm: { name: ctx.baseName, implicit, ...(madeFrom !== null ? { madeFrom } : {}) },
+      },
+      null,
+      2
+    ),
+  });
+  const answer = parseOriginAnswer(asked.content);
+  const filtered = dropEarlyClaimRestatements(
+    answer.from.map((entry): GapProperty => ({ phrase: entry, kind: "ingredient", name: entry })),
+    ctx.fortificationClaim,
+    ctx.numericClaim
+  );
+  audit.push({
+    step: "residuals_origin",
+    detail: {
+      model: asked.model,
+      name: foodName,
+      ...(madeFrom !== null ? { groupMadeFrom: madeFrom } : {}),
+      definition: answer.definition,
+      from: answer.from,
+      fit: ctx.fit,
+      ...(filtered.dropped.length > 0 ? { droppedEarlyClaims: filtered.dropped } : {}),
+    },
+  });
+  return { name: foodName, from: filtered.kept };
+}
+
+async function assignResidualSlots(
+  ctx: PlaceContext,
+  input: string,
+  audit: AuditEntry[]
+): Promise<AssignResidualsOk> {
+  const baseTerm = { code: ctx.baseCode, name: ctx.baseName };
+  const listed = await listAttributeSlots(input, baseTerm, {
+    model: ctx.model,
+    country: ctx.country,
+  });
+  audit.push({
+    step: "residuals_slots",
+    detail: {
+      model: listed.model,
+      attributes: listed.attributes,
+      ...(listed.omitted.length > 0 ? { omitted: listed.omitted } : {}),
+    },
+  });
+
+  const drafts = [];
+  for (const phrase of listed.attributes) {
+    const collected = await collectSlotCandidates(ctx, phrase);
+    drafts.push({
+      phrase,
+      candidates: collected.candidates,
+      attempts: collected.attempts,
+      roleClaim: collected.candidates.some((facet) => ROLE_FACET_HEADERS.has(facet.header)),
+    });
+  }
+
+  const originResolutions = [];
+  if (ctx.descriptionKind === "foodstuff") {
+    const implicit = impliedNamed(ctx.cat, ctx.baseCode).map(({ key, name }) => {
+      const header = key.split(".")[0] ?? key;
+      return `${ctx.cat.facetCategory(header)?.label ?? header}: ${name}`;
+    });
+    const origin = await askFoodOrigin(ctx, input, implicit, audit);
+    for (const property of origin.from) {
+      const entry = property.name ?? property.phrase;
+      const matched = matchOriginEntry(entry, drafts);
+      if (matched.match === "role") {
+        originResolutions.push({ phrase: entry, placed: "dropped", reason: "role_facet", slot: matched.phrase });
+        continue;
+      }
+      const attempts: Record<string, unknown>[] = [];
+      const placed = await placeOrigin(ctx, entry, "ingredient", true, attempts, false);
+      if (matched.match === "slot") {
+        const draft = drafts.find((slot) => slot.phrase === matched.phrase);
+        if (draft !== undefined) {
+          draft.attempts.push(...attempts, { via: "name_origin", phrase: entry });
+          for (const facet of placed.facets) keepFacetCandidate(ctx, facet, draft.candidates);
+        }
+        originResolutions.push({
+          phrase: entry,
+          placed: "joined",
+          slot: matched.phrase,
+          ...(placed.facets[0] !== undefined
+            ? {
+                facet: placed.facets[0],
+                ...(placed.facets.length > 1 ? { facets: placed.facets } : {}),
+              }
+            : {}),
+          attempts,
+        });
+        continue;
+      }
+      const settled = await settlePhraseChoice(ctx, entry, placed.facets, attempts);
+      const recorded: FacetDescriptorRef[] = [];
+      for (const facet of settled) {
+        if (addFacet(ctx, facet)) recorded.push(facet);
+      }
+      originResolutions.push({
+        phrase: entry,
+        placed: recorded.length > 0 ? "facet" : placed.facets.length > 0 ? "none" : "dropped",
+        ...(recorded[0] !== undefined
+          ? {
+              facet: recorded[0],
+              ...(recorded.length > 1 ? { facets: recorded } : {}),
+            }
+          : {}),
+        attempts,
+      });
+    }
+  }
+
+  const resolutions = [];
+  for (const draft of drafts) {
+    resolutions.push(
+      await placeAttributeSlot(ctx, draft.phrase, {
+        candidates: draft.candidates,
+        attempts: draft.attempts,
+      })
+    );
+  }
+  return finishResiduals(ctx, audit, {
+    from: "slots",
+    resolutions,
+    ...(originResolutions.length > 0 ? { origin: originResolutions } : {}),
+  });
+}
+
 export async function assignResiduals(
   input: string,
   baseTerm: BaseTermRef,
@@ -2801,6 +3558,10 @@ export async function assignResiduals(
     fortificationClaim: { status: "none" },
     numericClaim: { fatPercent: null, alcoholPercent: null },
   };
+
+  if (options.facetSlots !== false) {
+    return assignResidualSlots(ctx, input, audit);
+  }
 
   // --- 0. Fortification (before any ingredient/source placement) ---
   const { claim: fortificationClaim, detail: fortificationDetect } =
@@ -2854,67 +3615,10 @@ export async function assignResiduals(
         const header = key.split(".")[0] ?? key;
         return `${cat.facetCategory(header)?.label ?? header}: ${name}`;
       });
-      const statesOrigin = implicits.some(({ key }) => ORIGIN_HEADERS.has(key.split(".")[0] ?? ""));
-      const country = ctx.country;
-      const [named, groupAsked] = await Promise.all([
-        chatJson({
-          model,
-          system: systemFoodName(country !== null),
-          user: JSON.stringify(
-            { description, ...(country !== null ? { country } : {}) },
-            null,
-            2
-          ),
-        }),
-        statesOrigin
-          ? Promise.resolve(null)
-          : chatJson({
-              model,
-              system: SYSTEM_GROUP_ORIGIN,
-              user: JSON.stringify({ baseTerm: { name: ctx.baseName, implicit } }, null, 2),
-            }),
-      ]);
-      const foodName = parseFoodName(named.content, description) ?? description;
-      audit.push({
-        step: "residuals_food_name",
-        detail: { model: named.model, description, answered: named.content, name: foodName },
-      });
-      const madeFrom = groupAsked === null ? null : parseOriginAnswer(groupAsked.content).from;
-      const asked = await chatJson({
-        model,
-        system: systemOrigin(country !== null),
-        user: JSON.stringify(
-          {
-            name: foodName,
-            ...(country !== null ? { country } : {}),
-            baseTerm: { name: ctx.baseName, implicit, ...(madeFrom !== null ? { madeFrom } : {}) },
-          },
-          null,
-          2
-        ),
-      });
-      const answer = parseOriginAnswer(asked.content);
-      const filtered = dropEarlyClaimRestatements(
-        answer.from.map((entry): GapProperty => ({ phrase: entry, kind: "ingredient", name: entry })),
-        ctx.fortificationClaim,
-        ctx.numericClaim
-      );
-      audit.push({
-        step: "residuals_origin",
-        detail: {
-          model: asked.model,
-          name: foodName,
-          ...(madeFrom !== null ? { groupMadeFrom: madeFrom } : {}),
-          definition: answer.definition,
-          from: answer.from,
-          fit: options.fit ?? null,
-          ...(filtered.dropped.length > 0 ? { droppedEarlyClaims: filtered.dropped } : {}),
-        },
-      });
-
+      const origin = await askFoodOrigin(ctx, description, implicit, audit);
       knownFrom = "origin";
-      called = foodName;
-      for (const property of filtered.kept) known.push({ property, origin: true });
+      called = origin.name;
+      for (const property of origin.from) known.push({ property, origin: true });
     }
   } else {
     const dishPhrase = (options.food?.trim() || input).trim();
@@ -3025,11 +3729,16 @@ export async function assignResiduals(
     if (origin) {
       const attempts: Record<string, unknown>[] = [];
       const placed = await placeOrigin(ctx, lookup, property.kind, true, attempts);
-      if (placed.facet !== null) knownPlaced.push(lookup);
+      if (placed.facets.length > 0) knownPlaced.push(lookup);
       knownResolutions.push({
         phrase: lookup,
-        placed: placed.facet !== null ? "facet" : "dropped",
-        ...(placed.facet !== null ? { facet: placed.facet } : {}),
+        placed: placed.facets.length > 0 ? "facet" : "dropped",
+        ...(placed.facets[0] !== undefined
+          ? {
+              facet: placed.facets[0],
+              ...(placed.facets.length > 1 ? { facets: placed.facets } : {}),
+            }
+          : {}),
         attempts,
       });
     } else {
