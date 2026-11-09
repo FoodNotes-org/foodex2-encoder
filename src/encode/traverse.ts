@@ -2,8 +2,9 @@
  * Top-down exposure-tree traversal for base-term candidate recall.
  *
  * The router picks one descriptionKind for the whole description. That kind is
- * reused for classify / select wording and for residuals. Every input is
- * traversed as a whole — the base term is chosen against that full string.
+ * reused for classify / select wording and for residuals. A foodstuff is
+ * compared as the raw food, or as the food a nature-changing treatment
+ * produces. A dish or a mix is compared as the description given.
  *
  * Embeddings tip the walk toward opaque branches: a few high cosine hits contribute
  * their expo parents as extra seeds. The search query is an English rendering of
@@ -28,6 +29,7 @@ import { countryContextLine } from "../country.js";
 import { chatJson, defaultModel, LlmError } from "../llm.js";
 import { vectorIndexAvailable, vectorSearchBase } from "../search/vector.js";
 import { parseClassifications } from "./answers.js";
+import { resolveBaseCompare } from "./base-compare.js";
 import { renderEmbeddingQuery, type EmbeddingQuery } from "./embed-query.js";
 import {
   LADDER_LABELS,
@@ -363,6 +365,15 @@ async function embeddingWalkSeeds(
   }
 }
 
+function keepsBaseType(
+  cat: Catalogue,
+  code: string,
+  allowed: ReadonlySet<string> | null | undefined
+): boolean {
+  if (allowed == null) return true;
+  return allowed.has(cat.term(code)?.termType ?? "");
+}
+
 function addCandidate(
   bucket: RawCandidate[],
   code: string,
@@ -417,6 +428,8 @@ interface WalkOptions {
   compareAs: string;
   /** From the route — shapes multi-item ladder wording; never re-asked here. */
   descriptionKind?: DescriptionKind | null;
+  /** When set, only these catalogue term types may be collected as candidates. */
+  baseTermTypes?: ReadonlySet<string> | null;
   /** English name of the country the description comes from. */
   country: string | null;
 }
@@ -442,6 +455,7 @@ async function walkFromSeeds(
   const visited = new Set<string>();
   const queue = [...options.seeds];
   const descriptionKind = options.descriptionKind ?? null;
+  const baseTermTypes = options.baseTermTypes ?? null;
   const system = options.system;
   let classifySteps = 0;
 
@@ -597,8 +611,9 @@ async function walkFromSeeds(
         const match = result.classifications.get(child.code) ?? "none";
         if (match === "none") continue;
 
+        const keep = keepsBaseType(cat, child.code, baseTermTypes);
         if (match === "related") {
-          addCandidate(collected, child.code, match);
+          if (keep) addCandidate(collected, child.code, match);
           if (hasChildren(cat, child.code)) {
             descended = true;
             queue.push(child.code);
@@ -611,7 +626,7 @@ async function walkFromSeeds(
         // Broad shelf judgment is kept even when we do not (re)walk children —
         // e.g. an embedding seed later marked broad under a higher parent.
         if (match === "broad") {
-          addCandidate(collected, child.code, match);
+          if (keep) addCandidate(collected, child.code, match);
           if (hasChildren(cat, child.code)) {
             descended = true;
             if (!visited.has(child.code)) {
@@ -624,10 +639,14 @@ async function walkFromSeeds(
         }
 
         stopped = true;
-        addCandidate(collected, child.code, match);
+        if (keep) addCandidate(collected, child.code, match);
       }
 
-      if (result.parent !== EXPO_ROOT && (stopped || !descended)) {
+      if (
+        result.parent !== EXPO_ROOT &&
+        (stopped || !descended) &&
+        keepsBaseType(cat, result.parent, baseTermTypes)
+      ) {
         addCandidate(collected, result.parent, "broad");
       }
     }
@@ -659,9 +678,6 @@ export async function collectTraversalCandidates(
   const country = options.country ?? null;
   const seedLimit = options.embeddingSeedLimit ?? DEFAULT_EMBEDDING_SEED_LIMIT;
   const searchEmbeddings = seedLimit > 0 && vectorIndexAvailable();
-  const renderedPromise = searchEmbeddings
-    ? renderEmbeddingQuery(input, country, model)
-    : Promise.resolve<EmbeddingQuery>({ english: null, query: input });
   const routed = await chatJson({
     model,
     system: routeSystem(country !== null),
@@ -679,8 +695,19 @@ export async function collectTraversalCandidates(
     },
   });
 
+  let compareAs = input;
+  let baseTermTypes: ReadonlySet<string> | null = null;
+  if (descriptionKind === "foodstuff") {
+    const compared = await resolveBaseCompare(input, country, model);
+    compareAs = compared.compareAs;
+    baseTermTypes = compared.termTypes;
+    audit.push({ step: "base_compare", detail: compared.detail });
+  }
+
   const wholeSystem = routeWalkSystem(country !== null);
-  const rendered = await renderedPromise;
+  const rendered = searchEmbeddings
+    ? await renderEmbeddingQuery(compareAs, country, model)
+    : ({ english: null, query: compareAs } satisfies EmbeddingQuery);
   const embeddingSeeds = await embeddingWalkSeeds(rendered, seedLimit, audit);
   const wholeSeeds = [EXPO_ROOT, ...embeddingSeeds.filter((s) => s !== EXPO_ROOT)];
 
@@ -691,8 +718,9 @@ export async function collectTraversalCandidates(
       walk: "whole_item",
       seeds: wholeSeeds,
       system: wholeSystem,
-      compareAs: input,
+      compareAs,
       ...(descriptionKind !== null ? { descriptionKind } : {}),
+      baseTermTypes,
       country,
     },
     state
@@ -723,6 +751,7 @@ export async function collectTraversalCandidates(
   return {
     candidates,
     descriptionKind,
+    compareAs,
     walks: state.walks,
     steps: state.steps,
     audit,

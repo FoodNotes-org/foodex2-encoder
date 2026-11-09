@@ -217,7 +217,7 @@ export async function encodeBaseTerm(
       };
     }
 
-    const selection = await scoreTraversalCandidates(input, candidates, {
+    const selection = await scoreTraversalCandidates(collected.compareAs, candidates, {
       model: options.model,
       descriptionKind: collected.descriptionKind,
       country,

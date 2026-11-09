@@ -1643,6 +1643,28 @@ const F04_PICK_LIMIT = 8;
  * multi-word (*amarena cherries* also searches *cherries*) so cultivar names can
  * still reach the commodity branch the model may pick.
  */
+/**
+ * The foods a phrase puts on either side of "or".
+ * "stir-fried in vegetable oil or butter" → vegetable oil, butter.
+ * Null when the phrase is not a choice.
+ */
+export function orAlternatives(phrase: string): string[] | null {
+  const parts = phrase
+    .split(/\s+or\s+/i)
+    .map((part) => part.trim())
+    .filter((part) => part !== "");
+  if (parts.length < 2) return null;
+  const sides = parts.map(foodAfterLink);
+  if (sides.some((side) => side === "")) return null;
+  return sides;
+}
+
+/** The food after the last "in" or "with"; the whole part when there is none. */
+function foodAfterLink(part: string): string {
+  const match = part.match(/^(?:.*\b(?:in|with)\s+)(.+)$/i);
+  return (match?.[1] ?? part).trim();
+}
+
 function f04RecallQueries(phrase: string): string[] {
   const foodPhrase = foodPhraseForF04(phrase);
   if (foodPhrase === "") return [];
@@ -1651,6 +1673,10 @@ function f04RecallQueries(phrase: string): string[] {
   if (tokens.length >= 2) {
     const last = tokens[tokens.length - 1]!;
     if (last.length >= 3 && last !== foodPhrase) out.push(last);
+  }
+  for (const side of orAlternatives(phrase) ?? []) {
+    const query = foodPhraseForF04(side);
+    if (query !== "" && !out.includes(query)) out.push(query);
   }
   return out;
 }
@@ -1778,6 +1804,35 @@ async function resolveF04Phrase(
       ...(options.rejectUnderImplied === true ? { rejectUnderImplied: true } : {}),
     },
   };
+}
+
+/**
+ * Source commodities: walk the raw-commodity tree from its root. Word-search
+ * hits are extra names, so a term the walk misses can still be chosen.
+ */
+async function resolveF27Phrase(
+  ctx: PlaceContext,
+  phrase: string,
+  options: AcceptFacetOptions = {}
+): Promise<ClosedResolution> {
+  const acceptOpts = { rejectUnderImplied: options.rejectUnderImplied };
+  const accept = (_header: string, code: string): boolean =>
+    acceptClosedDescriptor(ctx.cat, F27, code, ctx.implied, acceptOpts) === "keep" &&
+    (ctx.memberTypes === null || ctx.memberTypes.has(ctx.cat.term(code)?.termType ?? ""));
+  const { pool } = buildClosedPickPool(ctx.cat, phrase, F27, ctx.implied, {
+    allowRootFallback: false,
+    rejectUnderImplied: options.rejectUnderImplied,
+    termTypes: ctx.memberTypes,
+  });
+  const walked = await resolveFacetWalk(ctx.cat, phrase, [F27], {
+    model: ctx.model,
+    accept,
+    food: { input: ctx.input, baseTerm: ctx.baseName },
+    country: ctx.country,
+    seeds: pool.map((hit) => ({ header: F27, code: hit.code })),
+    originRole: "made_from",
+  });
+  return { facet: walked.facet, facets: walked.facets, detail: walked.detail };
 }
 
 /** Surface forms to search: canned ↔ canning, dried ↔ drying. */
@@ -1994,7 +2049,17 @@ async function modelPickClosedDescriptor(
           food: origin.food,
           ...(withCountry ? { country } : {}),
           lookingFor: phrase,
-          terms: candidates.map((c) => ({ code: c.code, name: cat.term(c.code)?.name ?? c.name })),
+          terms: candidates.map((c) => {
+            const hierarchy = cat.facetCategory(header)?.hierarchyCode;
+            const parentCode = hierarchy === undefined ? null : cat.parent(c.code, hierarchy);
+            const parent =
+              parentCode === null ? undefined : (cat.term(parentCode)?.name ?? parentCode);
+            return {
+              code: c.code,
+              name: cat.term(c.code)?.name ?? c.name,
+              ...(many && parent !== undefined ? { parent } : {}),
+            };
+          }),
         },
         null,
         2
@@ -2425,7 +2490,9 @@ async function settlePhraseChoice(
   ctx: PlaceContext,
   phrase: string,
   facets: FacetDescriptorRef[],
-  attempts: Record<string, unknown>[]
+  attempts: Record<string, unknown>[],
+  /** This list is already known to be a choice, so skip the each-or-one question. */
+  choiceHeader: string | null = null
 ): Promise<FacetDescriptorRef[]> {
   const withCountry = ctx.country !== null && ctx.country !== "";
   const out: FacetDescriptorRef[] = [];
@@ -2437,6 +2504,11 @@ async function settlePhraseChoice(
     const group = facets.filter((facet) => facet.header === header);
     if (group.length < 2) {
       out.push(...group);
+      continue;
+    }
+    if (header === choiceHeader) {
+      const climbed = await climbChoice(ctx, phrase, header, group, attempts);
+      out.push(...climbed);
       continue;
     }
     const asked = await chatJson({
@@ -2466,40 +2538,86 @@ async function settlePhraseChoice(
       out.push(...group);
       continue;
     }
-    const groups = sharedGroups(ctx.cat, header, group.map((facet) => facet.code));
-    if (groups.length === 0) {
-      attempts.push({ via: "choice_climb", phrase, header, groups: [], picked: null });
-      continue;
-    }
-    const allowed = new Set(groups.map((facet) => facet.code));
-    const climbed = await chatJson({
-      model: ctx.model,
-      system: systemSharedGroup(withCountry),
-      user: JSON.stringify(
-        {
-          food: ctx.input,
-          ...(withCountry ? { country: ctx.country } : {}),
-          phrase,
-          named: group.map((facet) => ({ code: facet.code, name: facet.name })),
-          groups: groups.map((facet) => ({ code: facet.code, name: facet.name })),
-        },
-        null,
-        2
-      ),
-    });
-    const code = pickAllowedCode(climbed.content, allowed);
-    const facet = code === null ? null : (groups.find((item) => item.code === code) ?? null);
-    attempts.push({
-      via: "choice_climb",
-      phrase,
-      header,
-      groups: groups.map((item) => ({ code: item.code, name: item.name })),
-      picked: code,
-      model: climbed.model,
-    });
-    if (facet !== null) out.push(facet);
+    out.push(...(await climbChoice(ctx, phrase, header, group, attempts)));
   }
   return out;
+}
+
+/** Replace a choice with the nearest shared group, or with nothing. */
+async function climbChoice(
+  ctx: PlaceContext,
+  phrase: string,
+  header: string,
+  group: FacetDescriptorRef[],
+  attempts: Record<string, unknown>[]
+): Promise<FacetDescriptorRef[]> {
+  const withCountry = ctx.country !== null && ctx.country !== "";
+  const groups = sharedGroups(ctx.cat, header, group.map((facet) => facet.code));
+  if (groups.length === 0) {
+    attempts.push({ via: "choice_climb", phrase, header, groups: [], picked: null });
+    return [];
+  }
+  const allowed = new Set(groups.map((facet) => facet.code));
+  const climbed = await chatJson({
+    model: ctx.model,
+    system: systemSharedGroup(withCountry),
+    user: JSON.stringify(
+      {
+        food: ctx.input,
+        ...(withCountry ? { country: ctx.country } : {}),
+        phrase,
+        named: group.map((facet) => ({ code: facet.code, name: facet.name })),
+        groups: groups.map((facet) => ({ code: facet.code, name: facet.name })),
+      },
+      null,
+      2
+    ),
+  });
+  const code = pickAllowedCode(climbed.content, allowed);
+  const facet = code === null ? null : (groups.find((item) => item.code === code) ?? null);
+  attempts.push({
+    via: "choice_climb",
+    phrase,
+    header,
+    groups: groups.map((item) => ({ code: item.code, name: item.name })),
+    picked: code,
+    model: climbed.model,
+  });
+  return facet === null ? [] : [facet];
+}
+
+/**
+ * Ingredients named on either side of "or".
+ * Empty when a side has no ingredient, so one side is not recorded as the fat.
+ */
+function orChoiceFacets(
+  ctx: PlaceContext,
+  phrase: string
+): { facets: FacetDescriptorRef[]; detail: Record<string, unknown> } | null {
+  const sides = orAlternatives(phrase);
+  if (sides === null) return null;
+  const facets: FacetDescriptorRef[] = [];
+  const resolved: Array<{ side: string; code: string | null; name?: string }> = [];
+  for (const side of sides) {
+    const hit = recallIngredF04(ctx.cat, side, ctx.impliedF04, {
+      baseCode: ctx.baseCode,
+      baseTermType: ctx.baseTermType,
+      phrase: side,
+    })[0];
+    resolved.push({
+      side,
+      code: hit?.code ?? null,
+      ...(hit !== undefined ? { name: hit.name } : {}),
+    });
+    if (hit !== undefined && !facets.some((facet) => facet.code === hit.code)) {
+      facets.push({ header: F04, code: hit.code, name: hit.name });
+    }
+  }
+  const complete = resolved.every((side) => side.code !== null) && facets.length >= 2;
+  return {
+    facets: complete ? facets : [],
+    detail: { via: "or_alternatives", sides, resolved, complete },
+  };
 }
 
 /**
@@ -2522,19 +2640,21 @@ async function placeOrigin(
     const resolved =
       role === "contains"
         ? await resolveF04Phrase(ctx, lookup, { rejectUnderImplied })
-        : await resolveClosedFacetPhrase(
-            ctx.cat,
-            lookup,
-            role === "organism" ? F01 : F27,
-            ctx.implied,
-            {
-              model: ctx.model,
-              allowRootFallback: false,
-              termTypes: ctx.memberTypes,
-              origin: { role: role === "organism" ? "source" : "made_from", food: ctx.input },
-              country: ctx.country,
-            }
-          );
+        : role === "made_from"
+          ? await resolveF27Phrase(ctx, lookup, { rejectUnderImplied })
+          : await resolveClosedFacetPhrase(
+              ctx.cat,
+              lookup,
+              F01,
+              ctx.implied,
+              {
+                model: ctx.model,
+                allowRootFallback: false,
+                termTypes: ctx.memberTypes,
+                origin: { role: "source", food: ctx.input },
+                country: ctx.country,
+              }
+            );
     attempts.push(resolved.detail);
     if (resolved.facets.length === 0) continue;
     const facets = commit
@@ -3243,7 +3363,25 @@ async function placeAttributeSlot(
   } else {
     chosen = candidates;
   }
-  const settled = await settlePhraseChoice(ctx, phrase, chosen, attempts);
+  const choice = orChoiceFacets(ctx, phrase);
+  if (choice !== null) {
+    attempts.push(choice.detail);
+    chosen =
+      choice.facets.length >= 2
+        ? [...chosen.filter((facet) => facet.header !== F04), ...choice.facets]
+        : chosen.filter((facet) => facet.header !== F04);
+  }
+  if (chosen.length === 0) {
+    pushFreeText(ctx.freeText, "attribute", phrase);
+    return { phrase, placed: "none", candidates: listed, attempts, ...(model !== undefined ? { model } : {}) };
+  }
+  const settled = await settlePhraseChoice(
+    ctx,
+    phrase,
+    chosen,
+    attempts,
+    choice !== null && choice.facets.length >= 2 ? F04 : null
+  );
   if (settled.length === 0) {
     pushFreeText(ctx.freeText, "attribute", phrase);
     return { phrase, placed: "none", candidates: listed, attempts, ...(model !== undefined ? { model } : {}) };

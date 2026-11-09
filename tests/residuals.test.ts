@@ -35,6 +35,7 @@ import {
   dropFortificationRestatements,
   parseF26Relation,
   parseOriginRole,
+  orAlternatives,
   recallIngredF04,
   siblingChildrenForF26,
   parseFoodName,
@@ -236,6 +237,22 @@ describe("recallIngredF04 top hit", () => {
 
   it("ranks butter on Butter, not Butter nut", () => {
     assert.equal(recallIngredF04(cat, "butter")[0]?.code, "A039C");
+  });
+
+  it("finds vegetable oil inside a choice with butter", () => {
+    const hits = recallIngredF04(cat, "stir-fried in vegetable oil or butter");
+    assert.ok(hits.some((hit) => hit.code === "A036N"));
+    assert.ok(hits.some((hit) => hit.code === "A039C"));
+  });
+});
+
+describe("orAlternatives", () => {
+  it("takes the foods on either side of or", () => {
+    assert.deepEqual(orAlternatives("stir-fried in vegetable oil or butter"), [
+      "vegetable oil",
+      "butter",
+    ]);
+    assert.equal(orAlternatives("from goat, sheep and camel"), null);
   });
 });
 
@@ -644,6 +661,7 @@ describe("sharedGroups / parsePhrasePresence", () => {
   });
 
   it("offers the nearest group that contains every named food", () => {
+    assert.equal(sharedGroups(cat, "F04", ["A036N", "A039C"])[0]?.code, "A036M");
     assert.equal(sharedGroups(cat, "F27", ["A02MB", "A02MC", "A02ME"])[0]?.code, "A02LT");
     assert.equal(sharedGroups(cat, "F27", ["A02MC", "A0CVV"])[0]?.code, "A02HH");
     assert.deepEqual(sharedGroups(cat, "F27", ["A02MB"]), []);

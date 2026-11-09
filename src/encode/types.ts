@@ -181,6 +181,8 @@ export interface TraverseCollectResult {
   candidates: BaseTermCandidate[];
   /** From the route; null if the model omitted or returned an unknown value. */
   descriptionKind: DescriptionKind | null;
+  /** Food the base-term walk compared. The full description for a dish or a mix. */
+  compareAs: string;
   walks: WalkSummary[];
   /** Every classify call in order, across walks. */
   steps: WalkStep[];

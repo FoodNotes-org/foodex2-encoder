@@ -28,8 +28,8 @@ const MAX_DEPTH = 6;
 const MAX_BRANCHES_PER_LEVEL = 4;
 
 /**
- * Branch open: which groups the class named by the phrase is a kind of.
- * Payload is name + direct child names only (no scope notes).
+ * Branch open: which groups a kind named by the phrase is a kind of.
+ * A phrase may name several kinds. Payload is name + direct child names only.
  */
 function systemBranch(withCountry: boolean): string {
   return `You are an expert in food classification.
@@ -39,7 +39,7 @@ You are given the following inputs:
 - \`phrase\`: the phrase from the description.
 - \`groups\`: groups of catalogue terms, each with a \`code\`, a \`name\`, and the names of the terms directly under it.
 ${countryParagraph(withCountry, "description")}
-Your task is to decide which of these groups the class named by the phrase is a kind of.
+Your task is to decide which of these groups a kind named by the phrase is a kind of.
 
 Reply with JSON only, listing the codes of those groups, or an empty list if there are none:
 {"codes":["<code>",...]}
@@ -97,8 +97,13 @@ const ORIGIN_TASK_MANY: Record<OriginPickRole, string> = {
 export function systemOriginPick(role: OriginPickRole, withCountry = false, many = false): string {
   const task = many ? ORIGIN_TASK_MANY[role] : ORIGIN_TASK[role];
   const detail = many
-    ? "A term that adds a detail `lookingFor` does not name does not count.\n\n"
+    ? `The remainder of a parent is the sibling that is the part of the parent the other siblings do not cover. A sibling other than the remainder counts only when \`lookingFor\` names it, and not when it adds a detail \`lookingFor\` does not name. The narrowest remainder counts when \`lookingFor\` names a kind of its parent and no other sibling counts for that kind.
+
+`
     : "";
+  const termsLine = many
+    ? "- `terms`: candidate terms, each with a `code`, a `name`, and its `parent`."
+    : "- `terms`: candidate terms, each with a `code` and a `name`.";
   const reply = many
     ? `Reply with JSON only, listing the codes of those terms, or an empty list if there are none:
 {"codes":["<code>",...]}`
@@ -111,7 +116,7 @@ Task: ${task}?
 ${detail}Given:
 - \`food\`: the food as described.
 - \`lookingFor\`: what we are trying to identify; it may be worded loosely.
-- \`terms\`: candidate terms, each with a \`code\` and a \`name\`.
+${termsLine}
 ${countryParagraph(withCountry, "food")}
 ${reply}
 `;
@@ -199,16 +204,21 @@ function branchPayload(
 function selectPayload(
   cat: Catalogue,
   candidates: RecalledCandidate[]
-): Array<{ code: string; name: string; list: string; note?: string }> {
+): Array<{ code: string; name: string; list: string; parent?: string; note?: string }> {
   return candidates.map(({ code, header }) => {
     const term = cat.term(code);
     const name = term?.name ?? code;
     const note = term?.scopeNote?.trim();
     const list = cat.facetCategory(header)?.label ?? header;
+    const hierarchy = hierarchyFor(cat, header);
+    const parentCode = hierarchy === null ? null : cat.parent(code, hierarchy);
+    const parent =
+      parentCode === null ? undefined : (cat.term(parentCode)?.name ?? parentCode);
     return {
       code,
       name,
       list,
+      ...(parent !== undefined ? { parent } : {}),
       ...(note ? { note } : {}),
     };
   });
@@ -246,7 +256,7 @@ function facetAllowsMany(header: string): boolean {
 
 async function askSelect(
   phrase: string,
-  terms: Array<{ code: string; name: string; list: string; note?: string }>,
+  terms: Array<{ code: string; name: string; list: string; parent?: string; note?: string }>,
   options: FacetWalkOptions,
   many = false
 ): Promise<{ codes: string[]; model: string }> {
@@ -260,7 +270,11 @@ async function askSelect(
           food: options.food.input,
           ...countryField(options),
           lookingFor: phrase,
-          terms: terms.map(({ code, name }) => ({ code, name })),
+          terms: terms.map(({ code, name, parent }) => ({
+            code,
+            name,
+            ...(many && parent !== undefined ? { parent } : {}),
+          })),
         },
         null,
         2
@@ -625,6 +639,7 @@ async function selectAmong(
       code: c.code,
       name: c.name,
       facet: c.list,
+      ...(c.parent !== undefined ? { parent: c.parent } : {}),
       hasGuidance: c.note !== undefined,
     })),
     picked: many ? picked.codes : (picked.codes[0] ?? null),
