@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
 import {
   FACET_WALK_SKIP_HEADERS,
+  systemOriginPick,
   walkableDimensions,
 } from "../src/encode/facet-walk.js";
 import { facetDimensions } from "../src/encode/residuals.js";
@@ -21,6 +22,22 @@ describe("FACET_WALK_SKIP_HEADERS", () => {
     assert.ok(FACET_WALK_SKIP_HEADERS.has("F26"));
     assert.equal(FACET_WALK_SKIP_HEADERS.has("F28"), false);
     assert.equal(FACET_WALK_SKIP_HEADERS.has("F10"), false);
+  });
+});
+
+describe("systemOriginPick", () => {
+  it("keeps a term only when the chosen class does not already denote it", () => {
+    const prompt = systemOriginPick("source", true, false);
+    assert.match(prompt, /that `baseTerm` does not already denote/);
+    assert.match(prompt, /with its `name` and its `scope`/);
+    assert.match(prompt, /including under another name/);
+    assert.match(prompt, /\{"code":"<code>"\|null\}/);
+  });
+
+  it("asks the same of every term when the list allows several", () => {
+    const prompt = systemOriginPick("made_from", false, true);
+    assert.match(prompt, /that `baseTerm` does not already denote/);
+    assert.match(prompt, /\{"codes":\["<code>",\.\.\.\]\}/);
   });
 });
 

@@ -36,6 +36,7 @@ import {
   parseF26Relation,
   parseOriginRole,
   orAlternatives,
+  rawNoHeatOnRawCommodity,
   recallIngredF04,
   siblingChildrenForF26,
   parseFoodName,
@@ -243,6 +244,26 @@ describe("recallIngredF04 top hit", () => {
     const hits = recallIngredF04(cat, "stir-fried in vegetable oil or butter");
     assert.ok(hits.some((hit) => hit.code === "A036N"));
     assert.ok(hits.some((hit) => hit.code === "A039C"));
+  });
+});
+
+describe("rawNoHeatOnRawCommodity", () => {
+  it("refuses Raw, no heat treatment on a raw primary commodity", () => {
+    assert.equal(
+      rawNoHeatOnRawCommodity("r", { header: "F28", code: "A07HS" }),
+      true
+    );
+  });
+
+  it("keeps that process on a derivative, and keeps any other process on a raw commodity", () => {
+    assert.equal(
+      rawNoHeatOnRawCommodity("d", { header: "F28", code: "A07HS" }),
+      false
+    );
+    assert.equal(
+      rawNoHeatOnRawCommodity("r", { header: "F28", code: "A07GT" }),
+      false
+    );
   });
 });
 

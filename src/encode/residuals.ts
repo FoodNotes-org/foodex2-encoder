@@ -50,6 +50,7 @@ import {
   selectStatedFacet,
   systemOriginPick,
   type FacetPickExtra,
+  type FacetWalkFood,
   type OriginPickRole,
 } from "./facet-walk.js";
 import {
@@ -81,6 +82,8 @@ const F04 = "F04";
 const F26 = "F26";
 const F27 = "F27";
 const F28 = "F28";
+/** Process facet "Raw, no heat treatment". Redundant on a raw primary commodity. */
+const RAW_NO_HEAT = "A07HS";
 const F21 = "F21";
 const F09 = "F09";
 const F10 = "F10";
@@ -675,6 +678,14 @@ interface PlaceContext {
   fortificationClaim: FortificationClaim;
   /** Step 0b claim; quantitative fat/alcohol % restatements are not placed again. */
   numericClaim: NumericContentClaim;
+}
+
+function walkFood(ctx: PlaceContext): FacetWalkFood {
+  return {
+    input: ctx.input,
+    baseTerm: ctx.baseName,
+    baseScope: ctx.cat.term(ctx.baseCode)?.scopeNote?.trim() ?? "",
+  };
 }
 
 function altNames(code: string): string[] {
@@ -1791,7 +1802,7 @@ async function resolveF04Phrase(
   const walked = await resolveFacetWalk(ctx.cat, phrase, [F04], {
     model: ctx.model,
     accept,
-    food: { input: ctx.input, baseTerm: ctx.baseName },
+    food: walkFood(ctx),
     country: ctx.country,
     seeds,
     originRole: "ingredient",
@@ -1827,7 +1838,7 @@ async function resolveF27Phrase(
   const walked = await resolveFacetWalk(ctx.cat, phrase, [F27], {
     model: ctx.model,
     accept,
-    food: { input: ctx.input, baseTerm: ctx.baseName },
+    food: walkFood(ctx),
     country: ctx.country,
     seeds: pool.map((hit) => ({ header: F27, code: hit.code })),
     originRole: "made_from",
@@ -2034,7 +2045,7 @@ async function modelPickClosedDescriptor(
   header: string,
   candidates: LexHit[],
   model: string,
-  origin?: { role: OriginPickRole; food: string },
+  origin?: { role: OriginPickRole; food: string; baseTerm: { name: string; scope: string } },
   country: string | null = null
 ): Promise<{ codes: string[]; model: string; detail: Record<string, unknown> }> {
   const allowed = new Set(candidates.map((c) => c.code));
@@ -2047,6 +2058,7 @@ async function modelPickClosedDescriptor(
       user: JSON.stringify(
         {
           food: origin.food,
+          baseTerm: origin.baseTerm,
           ...(withCountry ? { country } : {}),
           lookingFor: phrase,
           terms: candidates.map((c) => {
@@ -2176,7 +2188,7 @@ async function resolveClosedFacetPhrase(
     rejectUnderImplied?: boolean;
     termTypes?: ReadonlySet<string> | null;
     /** Origin walks: the model pick asks this role's question about the food. */
-    origin?: { role: OriginPickRole; food: string };
+    origin?: { role: OriginPickRole; food: string; baseTerm: { name: string; scope: string } };
     /** English country name, when the caller passed one. */
     country?: string | null;
   } = {}
@@ -2387,7 +2399,19 @@ export function cleanupFacets(
   return { facets: out, dropped };
 }
 
+/**
+ * A raw primary commodity is already unheated. The walk may still choose
+ * Raw, no heat treatment; it is not recorded on that base.
+ */
+export function rawNoHeatOnRawCommodity(
+  baseTermType: string | null,
+  facet: { header: string; code: string }
+): boolean {
+  return baseTermType === "r" && facet.header === F28 && facet.code === RAW_NO_HEAT;
+}
+
 function addFacet(ctx: PlaceContext, facet: FacetDescriptorRef): boolean {
+  if (rawNoHeatOnRawCommodity(ctx.baseTermType, facet)) return false;
   const key = `${facet.header}.${facet.code}`;
   if (ctx.seenCodes.has(key)) return false;
   const slot = cardinalityKey(catalogueLookup(ctx.cat), facet.header, facet.code);
@@ -2651,7 +2675,14 @@ async function placeOrigin(
                 model: ctx.model,
                 allowRootFallback: false,
                 termTypes: ctx.memberTypes,
-                origin: { role: "source", food: ctx.input },
+                origin: {
+                  role: "source",
+                  food: ctx.input,
+                  baseTerm: {
+                    name: ctx.baseName,
+                    scope: ctx.cat.term(ctx.baseCode)?.scopeNote?.trim() ?? "",
+                  },
+                },
                 country: ctx.country,
               }
             );
@@ -2763,7 +2794,7 @@ async function placeFacetsPass(
 ): Promise<FacetsPass> {
   const { phrase, kind } = property;
   const lookup = property.name ?? phrase;
-  const food = { input: ctx.input, baseTerm: ctx.baseName };
+  const food = walkFood(ctx);
   const attempts: Record<string, unknown>[] = [];
   const rejectUnderImplied = onMiss === "drop";
   const walkAccept = (header: string, code: string): boolean =>
@@ -2822,6 +2853,7 @@ async function placeFacetsPass(
       country: ctx.country,
     });
     attempts.push(picked.detail);
+    let droppedRaw = false;
     for (const code of picked.codes) {
       if (code === "made_from" || code === "added") {
         if (isCategoryMember(ctx.descriptionKind, code)) pass.member = true;
@@ -2837,12 +2869,19 @@ async function placeFacetsPass(
       });
       attempts.push(walked.detail);
       for (const facet of walked.facets) {
+        if (rawNoHeatOnRawCommodity(ctx.baseTermType, facet)) {
+          droppedRaw = true;
+          continue;
+        }
         if (addFacet(ctx, facet)) pass.placed.push(facet);
       }
     }
     if (claimedByRole(pass) && pass.originKinds.length > 0) {
       attempts.push({ via: "origin_skipped", reason: "role_facet", originKinds: pass.originKinds });
       pass.originKinds = [];
+    }
+    if (droppedRaw && pass.placed.length === 0 && pass.originKinds.length === 0 && !pass.member) {
+      return settle({ phrase, kind, placed: "none", reason: "raw_on_rpc", attempts });
     }
     return pass;
   }
@@ -2871,6 +2910,9 @@ async function placeFacetsPass(
         attempts,
       });
     }
+    if (process.facets.some((facet) => rawNoHeatOnRawCommodity(ctx.baseTermType, facet))) {
+      return settle({ phrase, kind, placed: "none", reason: "raw_on_rpc", attempts });
+    }
   } else if (kind === "other") {
     const dimensions = facetDimensions(ctx.cat);
     const opened = await openFacetDimensions(ctx.cat, lookup, dimensions, {
@@ -2898,6 +2940,9 @@ async function placeFacetsPass(
         ...(recorded.length > 1 ? { facets: recorded } : {}),
         attempts,
       });
+    }
+    if (walked.facets.some((facet) => rawNoHeatOnRawCommodity(ctx.baseTermType, facet))) {
+      return settle({ phrase, kind, placed: "none", reason: "raw_on_rpc", attempts });
     }
     if (opened.headers.length === 1) {
       pass.otherLabel =
@@ -3275,7 +3320,7 @@ async function collectSlotCandidates(
 ): Promise<{ candidates: FacetDescriptorRef[]; attempts: Record<string, unknown>[] }> {
   const attempts: Record<string, unknown>[] = [];
   const candidates: FacetDescriptorRef[] = [];
-  const food = { input: ctx.input, baseTerm: ctx.baseName };
+  const food = walkFood(ctx);
   const walkAccept = (header: string, code: string): boolean =>
     acceptClosedDescriptor(ctx.cat, header, code, ctx.implied) === "keep";
 
@@ -3386,8 +3431,19 @@ async function placeAttributeSlot(
     pushFreeText(ctx.freeText, "attribute", phrase);
     return { phrase, placed: "none", candidates: listed, attempts, ...(model !== undefined ? { model } : {}) };
   }
+  const reportable = settled.filter((facet) => !rawNoHeatOnRawCommodity(ctx.baseTermType, facet));
+  if (reportable.length === 0) {
+    return {
+      phrase,
+      placed: "none",
+      reason: "raw_on_rpc",
+      candidates: listed,
+      attempts,
+      ...(model !== undefined ? { model } : {}),
+    };
+  }
   const recorded: FacetDescriptorRef[] = [];
-  for (const facet of settled) {
+  for (const facet of reportable) {
     if (addFacet(ctx, facet)) recorded.push(facet);
   }
   return {

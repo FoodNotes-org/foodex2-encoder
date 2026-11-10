@@ -76,17 +76,21 @@ ${reply}
 export type OriginPickRole = "source" | "made_from" | "ingredient";
 
 const ORIGIN_TASK: Record<OriginPickRole, string> = {
-  source: "which term, if any, is the plant or animal `food` comes from, that `lookingFor` states",
-  made_from: "which term, if any, is what `food` is made from, that `lookingFor` states",
+  source:
+    "which term, if any, is the plant or animal `food` comes from, that `lookingFor` states and that `baseTerm` does not already denote",
+  made_from:
+    "which term, if any, is what `food` is made from, that `lookingFor` states and that `baseTerm` does not already denote",
   ingredient:
-    "which term, if any, is the characterising ingredient of `food` that `lookingFor` states",
+    "which term, if any, is the characterising ingredient of `food` that `lookingFor` states and that `baseTerm` does not already denote",
 };
 
 const ORIGIN_TASK_MANY: Record<OriginPickRole, string> = {
-  source: "which terms, if any, does `lookingFor` name as the plant or animal `food` comes from",
-  made_from: "which terms, if any, does `lookingFor` name as what `food` is made from",
+  source:
+    "which terms, if any, does `lookingFor` name as the plant or animal `food` comes from, that `baseTerm` does not already denote",
+  made_from:
+    "which terms, if any, does `lookingFor` name as what `food` is made from, that `baseTerm` does not already denote",
   ingredient:
-    "which terms, if any, does `lookingFor` name as the characterising ingredient of `food`",
+    "which terms, if any, does `lookingFor` name as the characterising ingredient of `food`, that `baseTerm` does not already denote",
 };
 
 /**
@@ -115,9 +119,12 @@ Task: ${task}?
 
 ${detail}Given:
 - \`food\`: the food as described.
+- \`baseTerm\`: the class already chosen for this food, with its \`name\` and its \`scope\`.
 - \`lookingFor\`: what we are trying to identify; it may be worded loosely.
 ${termsLine}
 ${countryParagraph(withCountry, "food")}
+A term counts only when it states a detail \`lookingFor\` names and \`baseTerm\` does not already denote. \`baseTerm\` denotes a detail when its name or scope fixes it, including under another name. A narrower kind counts only when the detail it adds is one \`baseTerm\` does not denote.
+
 ${reply}
 `;
 }
@@ -125,7 +132,7 @@ ${reply}
 export type FacetWalkAccept = (header: string, code: string) => boolean;
 
 /** The food the phrase belongs to, shown to the model alongside the phrase. */
-export type FacetWalkFood = { input: string; baseTerm: string };
+export type FacetWalkFood = { input: string; baseTerm: string; baseScope: string };
 
 export type FacetWalkOptions = {
   model: string;
@@ -268,6 +275,7 @@ async function askSelect(
       user: JSON.stringify(
         {
           food: options.food.input,
+          baseTerm: { name: options.food.baseTerm, scope: options.food.baseScope },
           ...countryField(options),
           lookingFor: phrase,
           terms: terms.map(({ code, name, parent }) => ({

@@ -45,19 +45,18 @@ export function classifySystemPrompt(options: {
     ? `When a term's name contains the word "other", the term denotes the members of \`parent\` that are not members of the sibling terms in \`terms\`.`
     : `When a term's name contains the word "other", the term denotes the members of that term's \`parent\` that are not members of that term's \`siblings\`.`;
   const choice = [
-    "Compare `item` with the class the term denotes. Use the term's name and, when present, its `directSubcategories` and its `note`. Do not forget to consider the `country`'s nomenclature for correct understanding of the `item`.",
+    "Compare `item` with the class the term denotes. Use the term's name and, when present, its `directSubcategories` and its `note`.",
     `For each term, assign one ${answerKey}.`,
     [
       "- exact: `item` and the term denote the same class",
       "- broad: the term is a hypernym of `item`",
       "- narrow: the term is a hyponym of `item`",
       "- related: associated, and neither is a hypernym or a hyponym of the other",
-      "- none: none of these",
+      "- none: none of the above",
     ].join("\n"),
   ].join("\n\n");
-  const opening = withCountry
-    ? "You are an expert in food classification. \n\nYour task is to match a food description in the food nomenclature in `country` against terms in a food catalogue."
-    : "You are an expert in food classification.\n\nYour task is to match a food description against terms in a food catalogue.";
+  const opening =
+    "You are an expert in food classification.\n\nYour task is to match a food description against terms in a food catalogue.";
   return [
     opening,
     `You are given:\n${givens.join("\n")}`,

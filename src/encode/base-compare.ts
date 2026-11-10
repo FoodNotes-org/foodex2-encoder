@@ -1,7 +1,7 @@
 /**
  * For a foodstuff, decide whether a treatment creates a new kind of food.
  * The base-term walk then compares the raw food, or the food that treatment
- * produces, and may only land on a term of the matching catalogue type.
+ * produces. The catalogue type of a matching term is not restricted.
  */
 
 import { countryParagraph } from "../country.js";
@@ -58,10 +58,6 @@ export const NATURE_TREATMENTS: readonly NatureTreatment[] = [
 
 const TREATMENT_CODES = new Set(NATURE_TREATMENTS.map((treatment) => treatment.code));
 
-export function baseTermTypesForTreatment(treatment: string | null): ReadonlySet<string> {
-  return new Set(treatment === null ? ["r"] : ["d"]);
-}
-
 export function parseBaseCompare(
   content: unknown
 ): { treatment: string | null; compareAs: string } | null {
@@ -96,8 +92,8 @@ Reply with JSON only:
 
 export interface BaseCompare {
   compareAs: string;
-  /** Null when the reply could not be read: do not filter term types. */
-  termTypes: ReadonlySet<string> | null;
+  /** Always null: a match is kept whatever its catalogue type. */
+  termTypes: null;
   detail: Record<string, unknown>;
 }
 
@@ -129,15 +125,13 @@ export async function resolveBaseCompare(
       detail: { model: picked.model, parsed: false, compareAs: description },
     };
   }
-  const termTypes = baseTermTypesForTreatment(parsed.treatment);
   return {
     compareAs: parsed.compareAs,
-    termTypes,
+    termTypes: null,
     detail: {
       model: picked.model,
       treatment: parsed.treatment,
       compareAs: parsed.compareAs,
-      termTypes: [...termTypes],
     },
   };
 }

@@ -5,10 +5,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  baseTermTypesForTreatment,
-  parseBaseCompare,
-} from "../src/encode/base-compare.js";
+import { parseBaseCompare } from "../src/encode/base-compare.js";
 
 describe("parseBaseCompare", () => {
   it("reads no treatment as the raw food", () => {
@@ -16,7 +13,6 @@ describe("parseBaseCompare", () => {
       treatment: null,
       compareAs: "Beef",
     });
-    assert.deepEqual([...baseTermTypesForTreatment(null)], ["r"]);
   });
 
   it("reads a listed treatment as the derived food", () => {
@@ -24,7 +20,6 @@ describe("parseBaseCompare", () => {
       parseBaseCompare({ treatment: "A07KG", compareAs: "dried beef" }),
       { treatment: "A07KG", compareAs: "dried beef" }
     );
-    assert.deepEqual([...baseTermTypesForTreatment("A07KG")], ["d"]);
   });
 
   it("rejects an unknown treatment or an empty food", () => {
