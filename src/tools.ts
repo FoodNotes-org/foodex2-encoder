@@ -49,7 +49,7 @@ export const encodeTool = tool({
       .string()
       .optional()
       .describe(
-        `Optional but recommended: the country the food description comes from, as ${COUNTRY_FORMAT}. Food names can mean different foods in different countries, so pass it whenever it is known.`
+        `The country the food description comes from, as ${COUNTRY_FORMAT}. Food names can mean different foods in different countries. When omitted, the encode assumes the European Union.`
       ),
   },
   readOnly: true,

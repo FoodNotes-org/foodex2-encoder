@@ -32,6 +32,7 @@ function usage(): never {
   npm run cli -- search <query> [--limit N]
   npm run cli -- semantic <query> [--limit N]
   npm run cli -- encode <food description> [--country CC] [--lexical-only] [--base-only]
+    Country defaults to EU.
   npm run cli -- traverse <food description> [--audit]`);
   process.exit(2);
 }

@@ -8,6 +8,7 @@ import { Catalogue } from "../src/catalogue.js";
 import {
   FACET_WALK_SKIP_HEADERS,
   systemOriginPick,
+  systemSourceCommodityPick,
   walkableDimensions,
 } from "../src/encode/facet-walk.js";
 import { facetDimensions } from "../src/encode/residuals.js";
@@ -35,9 +36,23 @@ describe("systemOriginPick", () => {
   });
 
   it("asks the same of every term when the list allows several", () => {
-    const prompt = systemOriginPick("made_from", false, true);
+    const prompt = systemOriginPick("ingredient", false, true);
+    assert.match(prompt, /characterising ingredient/);
     assert.match(prompt, /that `baseTerm` does not already denote/);
     assert.match(prompt, /\{"codes":\["<code>",\.\.\.\]\}/);
+    assert.doesNotMatch(prompt, /fresh denotes the raw commodity/);
+  });
+});
+
+describe("systemSourceCommodityPick", () => {
+  it("asks for the raw commodity, and treats fresh as that commodity", () => {
+    const prompt = systemSourceCommodityPick(true, true);
+    assert.match(prompt, /raw commodities `food` is made from/);
+    assert.match(prompt, /fresh denotes the raw commodity, not a further detail/);
+    assert.match(prompt, /narrowest remainder/);
+    assert.match(prompt, /European Union|food nomenclature/);
+    assert.match(prompt, /\{"codes":\["<code>",\.\.\.\]\}/);
+    assert.doesNotMatch(prompt, /does not name/);
   });
 });
 

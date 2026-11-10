@@ -268,6 +268,9 @@ const ALSO_ACCEPTED: Readonly<Record<string, string>> = {
   EU: "European Union",
 };
 
+/** Used when an encode is started without a country. */
+export const DEFAULT_COUNTRY_CODE = "EU";
+
 /** Codes people reach for that ISO 3166-1 does not assign to that country. */
 const COMMON_MISTAKES: Readonly<Record<string, string>> = {
   UK: "GB",

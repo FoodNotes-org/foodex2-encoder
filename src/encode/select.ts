@@ -6,8 +6,9 @@
  *
  * 1. One model pass: fit class per candidate (exact|broad|narrow|related|none).
  * 2. Prefer exact, else broad. Narrow, related, and none stay on the audit.
- * 3. When more than one broad remains, the model picks one of those broads.
- *    Related terms are not passed on.
+ * 3. When more than one broad remains, a core or extended term is kept over a
+ *    hierarchy or generic term. The model picks among whatever is left when
+ *    more than one remains. Related terms are not passed on.
  * 4. Otherwise within the winning class, C/E/P detail-level bonus may prefer a
  *    denser term; ties → deterministic tie-breaks (specificity, non-specific P,
  *    core/extended, code).
@@ -95,6 +96,21 @@ export interface SelectResult {
 
 function isCoreOrExtended(detailLevel: string | null): boolean {
   return detailLevel === "C" || detailLevel === "E";
+}
+
+/**
+ * Among several broad shelves, a core or extended term stands over a hierarchy
+ * or generic term. When none of the shelves is core or extended, the full set
+ * stays.
+ */
+export function preferredBroadShelves(
+  cat: Catalogue,
+  shelves: BaseTermCandidate[]
+): BaseTermCandidate[] {
+  const preferred = shelves.filter((candidate) =>
+    isCoreOrExtended(cat.term(candidate.code)?.detailLevel ?? null)
+  );
+  return preferred.length > 0 ? preferred : shelves;
 }
 
 function descendantsInSet(
@@ -274,30 +290,40 @@ export async function scoreTraversalCandidates(
   let shortlistCodes: Set<string>;
   let shortlist: BaseTermCandidate[];
   let maxScore: number;
-  let parentPickVia: "model" | "tie_break" | null = null;
+  let parentPickVia: "model" | "tie_break" | "core_or_extended" | null = null;
+  let shelfPool: BaseTermCandidate[] | null = null;
 
   if (tier.fit === "broad" && tierPool.length > 1) {
-    const parentPick = await pickClosestParent(input, tierPool, options);
-    audit.push(...parentPick.audit);
-    const chosen =
-      parentPick.code !== null
-        ? tierPool.find((c) => c.code === parentPick.code) ?? null
-        : null;
-    if (chosen !== null) {
-      shortlistCodes = new Set([chosen.code]);
-      shortlist = [chosen];
-      maxScore = scores.get(chosen.code)!.score;
-      parentPickVia = "model";
+    shelfPool = preferredBroadShelves(cat, tierPool);
+    if (shelfPool.length === 1) {
+      const only = shelfPool[0]!;
+      shortlistCodes = new Set([only.code]);
+      shortlist = [only];
+      maxScore = scores.get(only.code)!.score;
+      parentPickVia = "core_or_extended";
     } else {
-      shortlistCodes = new Set(tierPool.map((c) => c.code));
-      shortlist = [...tierPool].sort((a, b) =>
-        compareTieBreak(
-          tieBreakRank(cat, a, shortlistCodes).rank,
-          tieBreakRank(cat, b, shortlistCodes).rank
-        )
-      );
-      maxScore = scores.get(shortlist[0]!.code)!.score;
-      parentPickVia = "tie_break";
+      const parentPick = await pickClosestParent(input, shelfPool, options);
+      audit.push(...parentPick.audit);
+      const chosen =
+        parentPick.code !== null
+          ? shelfPool.find((c) => c.code === parentPick.code) ?? null
+          : null;
+      if (chosen !== null) {
+        shortlistCodes = new Set([chosen.code]);
+        shortlist = [chosen];
+        maxScore = scores.get(chosen.code)!.score;
+        parentPickVia = "model";
+      } else {
+        shortlistCodes = new Set(shelfPool.map((c) => c.code));
+        shortlist = [...shelfPool].sort((a, b) =>
+          compareTieBreak(
+            tieBreakRank(cat, a, shortlistCodes).rank,
+            tieBreakRank(cat, b, shortlistCodes).rank
+          )
+        );
+        maxScore = scores.get(shortlist[0]!.code)!.score;
+        parentPickVia = "tie_break";
+      }
     }
   } else if (tier.fit === "broad" && tierPool.length === 1) {
     const only = tierPool[0]!;
@@ -352,11 +378,12 @@ export async function scoreTraversalCandidates(
       winningFit: tier.fit,
       maxScore,
       tierSize: tier.codes.size,
-      ...(tier.fit === "broad" && tierPool.length > 1
+      ...(shelfPool !== null
         ? {
-            shelfPickPool: tierPool.map((c) => ({
+            shelfPickPool: shelfPool.map((c) => ({
               code: c.code,
               name: c.name,
+              detailLevel: cat.term(c.code)?.detailLevel ?? null,
             })),
           }
         : {}),

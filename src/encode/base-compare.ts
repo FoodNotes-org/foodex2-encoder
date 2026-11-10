@@ -1,100 +1,258 @@
 /**
- * For a foodstuff, decide whether a treatment creates a new kind of food.
- * The base-term walk then compares the raw food, or the food that treatment
- * produces. The catalogue type of a matching term is not restricted.
+ * For a foodstuff, a process normally applied straight to a raw commodity
+ * (guidance Table 22) is a facet only when no catalogue group already implies
+ * that process. A group that does is a candidate for the base, and the walk
+ * keeps the whole description. When none of those groups is the food, the walk
+ * compares the food without that process. Drying is not in the table, so it
+ * stays in the description. A dish or a mix is not handled here.
  */
 
+import { Catalogue, isInExposureTree } from "../catalogue.js";
 import { countryParagraph } from "../country.js";
 import { chatJson } from "../llm.js";
 
-export interface NatureTreatment {
+/** Process hierarchy, where Table 22 child descriptors sit. */
+const PROCESS_HIERARCHY = "process";
+
+/**
+ * A process with more groups than this is the broad parent (cooking, chilling).
+ * The specific process the description states is the one to judge.
+ */
+const MAX_IMPLIED_GROUPS = 15;
+
+/**
+ * Codes named in guidance Table 22. Descendants in the process hierarchy are
+ * included: the table covers those processes and their child descriptors.
+ */
+const TABLE22_ROOTS = [
+  "A07KS",
+  "A07KT",
+  "A07KV",
+  "A07KX",
+  "A07KY",
+  "A07KZ",
+  "A07LA",
+  "A0C6N",
+  "A07JB",
+  "A0BZG",
+  "A0BZL",
+  "A07JE",
+  "A07JF",
+  "A07JG",
+  "A07JH",
+  "A07JC",
+  "A07JD",
+  "A07JJ",
+  "A0CSQ",
+  "A07KN",
+  "A07KP",
+  "A07KQ",
+  "A07KR",
+  "A07HR",
+  "A07HT",
+  "A07HV",
+  "A07HX",
+  "A07HY",
+  "A07HZ",
+  "A07JA",
+  "A0BA1",
+  "A0BYN",
+  "A07JK",
+  "A07HK",
+  "A07HL",
+  "A07HM",
+  "A07HN",
+  "A07HP",
+  "A07HQ",
+] as const;
+
+export interface StatedProcess {
+  code: string;
+  exception: boolean;
+}
+
+export interface ProcessGroup {
   code: string;
   name: string;
-  appliesTo: string;
-  leadsTo: string;
+  /** Table 22 processes this term already implies, among those stated. */
+  processes: string[];
 }
 
-/** Treatments that create a new kind of food, and the foods they apply to. */
-export const NATURE_TREATMENTS: readonly NatureTreatment[] = [
-  { code: "A0CRH", name: "Seasoning", appliesTo: "Meat, milk", leadsTo: "Sausages and other charcuterie, cheese" },
-  { code: "A07KD", name: "Curing", appliesTo: "Meat, milk", leadsTo: "Sausages and other charcuterie, cheese" },
-  { code: "A0C6F", name: "Ripening", appliesTo: "Meat, milk", leadsTo: "Sausages and other charcuterie, cheese" },
-  { code: "A07JP", name: "Preserving by salt", appliesTo: "Vegetables, meat, fish, seafood", leadsTo: "Salt preserves" },
-  { code: "A07JQ", name: "Preserving by sugars", appliesTo: "Fruit, chestnuts", leadsTo: "Sugar preserves and candied foods" },
-  { code: "A07KG", name: "Drying", appliesTo: "Meat, fish, seafood, milk, egg, vegetables, legumes, fruit", leadsTo: "Dried food" },
-  { code: "A07JT", name: "Marinating", appliesTo: "Meat, fish, seafood", leadsTo: "Marinated meat, fish, or seafood" },
-  { code: "A07KC", name: "Pickling", appliesTo: "Vegetables", leadsTo: "Pickled vegetables" },
-  { code: "A0CQZ", name: "Fermentation", appliesTo: "Milk, vegetables, meat", leadsTo: "Fermented products, cheese, charcuterie" },
-  { code: "A0BYP", name: "Canning or jarring", appliesTo: "Vegetables, fruit, meat, fish, seafood", leadsTo: "Preserves" },
-  { code: "A07JV", name: "Smoking", appliesTo: "Meat, fish, seafood", leadsTo: "Smoked meat, fish, or seafood" },
-  { code: "A0C00", name: "Winemaking", appliesTo: "Grape and other fruits", leadsTo: "Wine" },
-  { code: "A0C01", name: "Beer production", appliesTo: "Malted cereals", leadsTo: "Beer" },
-  { code: "A0C6E", name: "Cheesemaking", appliesTo: "Milk", leadsTo: "Cheese" },
-  { code: "A07MH", name: "Churning", appliesTo: "Milk, cream", leadsTo: "Butter" },
-  { code: "A0C02", name: "Oil production", appliesTo: "Oil fruits and oilseeds", leadsTo: "Oils and fats" },
-  { code: "A0C03", name: "Grain milling", appliesTo: "Cereal grains", leadsTo: "Flours and groats" },
-  { code: "A0C0B", name: "Starch production", appliesTo: "Cereal grains and similar starch sources", leadsTo: "Starch" },
-  { code: "A0C04", name: "Sugar production", appliesTo: "Sugar plants", leadsTo: "Sugar" },
-  { code: "A0C6N", name: "Pulping or mashing", appliesTo: "Fruit, vegetables", leadsTo: "Purée" },
-  { code: "A07GG", name: "Cooking in water", appliesTo: "Eggs", leadsTo: "Hardened egg products" },
-  { code: "A07GR", name: "Frying", appliesTo: "Potatoes", leadsTo: "Fries, chips, and other potato snacks" },
-  { code: "A07GX", name: "Baking", appliesTo: "Cereal milling products and other ingredients", leadsTo: "Bakery products" },
-  { code: "A07GY", name: "Roasting", appliesTo: "Potatoes", leadsTo: "Roasted potatoes" },
-  { code: "A07HC", name: "Toasting", appliesTo: "Coffee beans", leadsTo: "Toasted coffee" },
-  { code: "A07HJ", name: "Caramelization", appliesTo: "Sugar", leadsTo: "Caramel" },
-  { code: "A07LF", name: "Extrusion", appliesTo: "Cereals", leadsTo: "Extruded snacks and breakfast cereals" },
-  { code: "A07LG", name: "Flaking", appliesTo: "Cereals", leadsTo: "Cereal flakes" },
-  { code: "A07LH", name: "Flattening or rolling", appliesTo: "Cereals", leadsTo: "Rolled cereals" },
-  { code: "A07LL", name: "Puffing", appliesTo: "Cereals", leadsTo: "Puffed cereals" },
-  { code: "A0C0G", name: "Gelling", appliesTo: "Milk, water", leadsTo: "Desserts and jellies" },
-  { code: "A07MF", name: "Distillation", appliesTo: "Fruits or sugary or starchy sources", leadsTo: "Alcohol and related products" },
-  { code: "A0EJP", name: "Separation in liquid phase", appliesTo: "Milk", leadsTo: "Cream" },
-  { code: "A07MK", name: "Brewing or infusion", appliesTo: "Infusion materials, cacao, coffee", leadsTo: "Hot drinks" },
-  { code: "A07LN", name: "Juicing", appliesTo: "Fruit, vegetables", leadsTo: "Fruit and vegetable juices" },
-  { code: "A07MJ", name: "Extraction", appliesTo: "Meat, fish, yeast, infusion materials", leadsTo: "Extracts" },
-  { code: "A07KF", name: "Concentration", appliesTo: "Milk, juices", leadsTo: "Concentrates" },
-  { code: "A07ML", name: "Crystallisation", appliesTo: "Natural sources of purified ingredients", leadsTo: "Purified ingredients such as protein, carbohydrate, and salt" },
-];
+interface ImpliedGroup {
+  code: string;
+  name: string;
+  note: string | null;
+}
 
-const TREATMENT_CODES = new Set(NATURE_TREATMENTS.map((treatment) => treatment.code));
+let cachedProcessCodes: Set<string> | null = null;
+let cachedImplied: Map<string, ImpliedGroup[]> | null = null;
 
-export function parseBaseCompare(
-  content: unknown
-): { treatment: string | null; compareAs: string } | null {
+export function table22ProcessCodes(cat: Catalogue): ReadonlySet<string> {
+  if (cachedProcessCodes !== null) return cachedProcessCodes;
+  const codes = new Set<string>();
+  const stack: string[] = [...TABLE22_ROOTS];
+  while (stack.length > 0) {
+    const code = stack.pop() as string;
+    if (codes.has(code) || cat.term(code) === undefined) continue;
+    codes.add(code);
+    for (const child of cat.children(code, PROCESS_HIERARCHY)) stack.push(child);
+  }
+  cachedProcessCodes = codes;
+  return codes;
+}
+
+function impliedIndex(cat: Catalogue): Map<string, ImpliedGroup[]> {
+  if (cachedImplied !== null) return cachedImplied;
+  const allowed = table22ProcessCodes(cat);
+  const index = new Map<string, ImpliedGroup[]>();
+  for (const [code, term] of Object.entries(cat.data.terms)) {
+    if (term.termType === "f" || term.status === "DEPRECATED") continue;
+    if (!isInExposureTree(term)) continue;
+    for (const facet of cat.impliedFacets(code)) {
+      if (!facet.startsWith("F28.")) continue;
+      const process = facet.slice("F28.".length);
+      if (!allowed.has(process)) continue;
+      const entry: ImpliedGroup = {
+        code,
+        name: term.name ?? code,
+        note: term.scopeNote,
+      };
+      const list = index.get(process);
+      if (list === undefined) index.set(process, [entry]);
+      else list.push(entry);
+    }
+  }
+  for (const list of index.values()) {
+    list.sort((a, b) => a.code.localeCompare(b.code));
+  }
+  cachedImplied = index;
+  return index;
+}
+
+/** Exposure terms, other than facet descriptors, that already imply this process. */
+export function termsImplyingProcess(cat: Catalogue, processCode: string): ImpliedGroup[] {
+  return impliedIndex(cat).get(processCode) ?? [];
+}
+
+export function termImpliesProcesses(
+  cat: Catalogue,
+  code: string,
+  processes: readonly string[]
+): boolean {
+  const implied = new Set(cat.impliedFacets(code));
+  return processes.some((process) => implied.has(`F28.${process}`));
+}
+
+export function parseStatedProcesses(
+  content: unknown,
+  allowed: ReadonlySet<string>
+): StatedProcess[] | null {
   if (content === null || typeof content !== "object") return null;
-  const body = content as { treatment?: unknown; compareAs?: unknown };
-  const compareAs = typeof body.compareAs === "string" ? body.compareAs.trim() : "";
-  if (compareAs === "") return null;
-  if (body.treatment === null) return { treatment: null, compareAs };
-  if (typeof body.treatment !== "string") return null;
-  const treatment = body.treatment.trim().toUpperCase();
-  if (!TREATMENT_CODES.has(treatment)) return null;
-  return { treatment, compareAs };
+  const processes = (content as { processes?: unknown }).processes;
+  if (!Array.isArray(processes)) return null;
+  const out: StatedProcess[] = [];
+  const seen = new Set<string>();
+  for (const item of processes) {
+    if (item === null || typeof item !== "object") continue;
+    const raw = (item as { code?: unknown }).code;
+    if (typeof raw !== "string") continue;
+    const code = raw.trim().toUpperCase();
+    if (!allowed.has(code) || seen.has(code)) continue;
+    seen.add(code);
+    out.push({ code, exception: (item as { exception?: unknown }).exception === true });
+  }
+  return out;
 }
 
-function systemBaseCompare(withCountry: boolean): string {
+/** `null` when the body is unusable. `code: null` when none of the terms is the food. */
+export function parseProcessGroup(
+  content: unknown,
+  allowed: ReadonlySet<string>
+): { code: string | null } | null {
+  if (content === null || typeof content !== "object") return null;
+  const raw = (content as { code?: unknown }).code;
+  if (raw === null) return { code: null };
+  if (typeof raw !== "string") return null;
+  const code = raw.trim().toUpperCase();
+  if (!allowed.has(code)) return null;
+  return { code };
+}
+
+export function parseRemainingFood(content: unknown): string | null {
+  if (content === null || typeof content !== "object") return null;
+  const food = (content as { food?: unknown }).food;
+  if (typeof food !== "string") return null;
+  const trimmed = food.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+function systemStatedProcesses(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-Your task is to decide which of these treatments, if any, creates a new kind of this food, and which food the catalogue base term should denote.
+Task: name which of these processes, if any, the description states.
 
 Given:
 - \`description\`: the food description.
-- \`treatments\`: treatments that create a new kind of food. Each has a \`code\`, a \`name\`, the foods it \`appliesTo\`, and the kind of food it \`leadsTo\`.
+- \`processes\`: each has a \`code\` and a \`name\`. A process and the processes under it are both listed.
 ${countryParagraph(withCountry, "description")}
-A treatment counts only when this food is one of the foods it applies to.
+Return the most specific process the description states.
 
-\`compareAs\` is the food the base term should denote. When no treatment counts, it is the raw food, without treatments that do not create a new kind. When a treatment counts, it is the food that treatment produces.
+Frying or roasting potatoes, cooking eggs, caramelising or browning sugar or milk, mincing meat, milling cereal grains, and mashing that produces a purée are exceptions: a group for that food already exists. For an exception, \`exception\` is true. Otherwise it is false.
 
 Reply with JSON only:
-{"treatment":"<code>"|null,"compareAs":"<food>"}
-`;
+{"processes":[{"code":"<code>","exception":true|false}]}
+
+An empty list means the description states none of these processes.`;
+}
+
+function systemProcessGroup(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Task: decide which of these catalogue terms, if any, is the food described.
+
+Given:
+- \`description\`: the food description.
+- \`terms\`: each has a \`code\` and a \`name\`. A term that has a scope note also has \`note\`.
+${countryParagraph(withCountry, "description")}
+A term counts when the food is that term. A term that is only an ingredient, or only the food before the process, does not count.
+
+Reply with JSON only:
+{"code":"<code>"|null}`;
+}
+
+function systemRemainingFood(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Task: name the food these processes are applied to.
+
+Given:
+- \`description\`: the food description.
+- \`processes\`: the processes to set aside. Each has a \`code\` and a \`name\`.
+${countryParagraph(withCountry, "description")}
+The answer is that food, without those processes. A minor ingredient used only to carry a process out is not part of the answer.
+
+Reply with JSON only:
+{"food":"<food>"}`;
 }
 
 export interface BaseCompare {
   compareAs: string;
   /** Always null: a match is kept whatever its catalogue type. */
   termTypes: null;
+  /** Term that already implies a stated process and is this food. Seeded into the walk. */
+  processGroup: ProcessGroup | null;
+  seeds: string[];
   detail: Record<string, unknown>;
+}
+
+function unchanged(description: string, detail: Record<string, unknown>): BaseCompare {
+  return {
+    compareAs: description,
+    termTypes: null,
+    processGroup: null,
+    seeds: [],
+    detail: { ...detail, compareAs: description, processGroup: null },
+  };
 }
 
 /** Foodstuff only. A dish or a mix keeps the description as given. */
@@ -103,35 +261,126 @@ export async function resolveBaseCompare(
   country: string | null,
   model: string
 ): Promise<BaseCompare> {
+  const cat = Catalogue.load();
+  const allowed = table22ProcessCodes(cat);
   const withCountry = country !== null && country !== "";
-  const picked = await chatJson({
+  const processes = [...allowed]
+    .map((code) => ({ code, name: cat.term(code)?.name ?? code }))
+    .sort((a, b) => a.code.localeCompare(b.code));
+
+  const statedCall = await chatJson({
     model,
-    system: systemBaseCompare(withCountry),
+    system: systemStatedProcesses(withCountry),
     user: JSON.stringify(
-      {
-        description,
-        ...(withCountry ? { country } : {}),
-        treatments: NATURE_TREATMENTS,
-      },
+      { description, ...(withCountry ? { country } : {}), processes },
       null,
       2
     ),
   });
-  const parsed = parseBaseCompare(picked.content);
-  if (parsed === null) {
-    return {
-      compareAs: description,
-      termTypes: null,
-      detail: { model: picked.model, parsed: false, compareAs: description },
-    };
+  const stated = parseStatedProcesses(statedCall.content, allowed);
+  if (stated === null || stated.length === 0) {
+    return unchanged(description, {
+      model: statedCall.model,
+      parsed: stated !== null,
+      processes: [],
+    });
   }
+
+  const judged: string[] = [];
+  const skipped: string[] = [];
+  const groups: ImpliedGroup[] = [];
+  const seen = new Set<string>();
+  for (const process of stated) {
+    const implied = termsImplyingProcess(cat, process.code);
+    if (implied.length === 0 || implied.length > MAX_IMPLIED_GROUPS) {
+      if (implied.length > MAX_IMPLIED_GROUPS) skipped.push(process.code);
+      continue;
+    }
+    judged.push(process.code);
+    for (const group of implied) {
+      if (seen.has(group.code)) continue;
+      seen.add(group.code);
+      groups.push(group);
+    }
+  }
+
+  let processGroup: ProcessGroup | null = null;
+  let groupModel: string | null = null;
+  if (groups.length > 0) {
+    const allowedGroups = new Set(groups.map((group) => group.code));
+    const groupCall = await chatJson({
+      model,
+      system: systemProcessGroup(withCountry),
+      user: JSON.stringify(
+        {
+          description,
+          ...(withCountry ? { country } : {}),
+          terms: groups.map((group) => ({
+            code: group.code,
+            name: group.name,
+            ...(group.note !== null && group.note !== "" ? { note: group.note } : {}),
+          })),
+        },
+        null,
+        2
+      ),
+    });
+    groupModel = groupCall.model;
+    const picked = parseProcessGroup(groupCall.content, allowedGroups);
+    if (picked?.code !== null && picked !== null) {
+      const term = cat.term(picked.code);
+      const implied = stated
+        .map((process) => process.code)
+        .filter((process) => termImpliesProcesses(cat, picked.code as string, [process]));
+      processGroup = {
+        code: picked.code,
+        name: term?.name ?? picked.code,
+        processes: implied,
+      };
+    }
+  }
+
+  let compareAs = description;
+  let remainingModel: string | null = null;
+  if (processGroup === null) {
+    const aside = stated.filter((process) => !process.exception);
+    if (aside.length > 0) {
+      const remainingCall = await chatJson({
+        model,
+        system: systemRemainingFood(withCountry),
+        user: JSON.stringify(
+          {
+            description,
+            ...(withCountry ? { country } : {}),
+            processes: aside.map((process) => ({
+              code: process.code,
+              name: cat.term(process.code)?.name ?? process.code,
+            })),
+          },
+          null,
+          2
+        ),
+      });
+      remainingModel = remainingCall.model;
+      compareAs = parseRemainingFood(remainingCall.content) ?? description;
+    }
+  }
+
   return {
-    compareAs: parsed.compareAs,
+    compareAs,
     termTypes: null,
+    processGroup,
+    seeds: processGroup === null ? [] : [processGroup.code],
     detail: {
-      model: picked.model,
-      treatment: parsed.treatment,
-      compareAs: parsed.compareAs,
+      model: statedCall.model,
+      ...(groupModel !== null ? { groupModel } : {}),
+      ...(remainingModel !== null ? { remainingModel } : {}),
+      processes: stated,
+      judged,
+      skipped,
+      groups: groups.map((group) => group.code),
+      processGroup: processGroup?.code ?? null,
+      compareAs,
     },
   };
 }

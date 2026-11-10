@@ -5,10 +5,11 @@
  *   else → expo traversal (embeddings tip walk seeds) → selection → residuals
  */
 
-import { Catalogue } from "../catalogue.js";
-import { resolveCountry } from "../country.js";
+import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
+import { DEFAULT_COUNTRY_CODE, resolveCountry } from "../country.js";
 import { searchTerms } from "../search/lexical.js";
 import { isProviderInfraReason, LlmError } from "../llm.js";
+import { termImpliesProcesses } from "./base-compare.js";
 import { formatFoodEx2Code } from "./foodex2-code.js";
 import { evaluateLexicalAccept } from "./lexical-accept.js";
 import { assignResiduals } from "./residuals.js";
@@ -124,20 +125,16 @@ export async function encodeBaseTerm(
   const audit: AuditEntry[] = [];
   const lexicalLimit = options.lexicalLimit ?? 10;
 
-  let country: string | null = null;
-  if (options.country !== undefined && options.country.trim() !== "") {
-    const resolved = resolveCountry(options.country);
-    if (!resolved.ok) {
-      audit.push({ step: "input", detail: { input, country: options.country } });
-      return { status: "rejected", reason: "invalid_country", message: resolved.message, audit };
-    }
-    country = resolved.name;
-    audit.push({ step: "input", detail: { input, country: resolved.code } });
-  } else {
-    audit.push({ step: "input", detail: { input } });
+  const given = options.country?.trim() ?? "";
+  const resolved = resolveCountry(given === "" ? DEFAULT_COUNTRY_CODE : given);
+  if (!resolved.ok) {
+    audit.push({ step: "input", detail: { input, country: options.country ?? given } });
+    return { status: "rejected", reason: "invalid_country", message: resolved.message, audit };
   }
+  const country = resolved.name;
+  audit.push({ step: "input", detail: { input, country: resolved.code } });
 
-  if (input === "") {
+  if (input.length === 0) {
     return {
       status: "rejected",
       reason: "empty_input",
@@ -224,7 +221,29 @@ export async function encodeBaseTerm(
     });
     audit.push(...selection.audit);
 
-    if (selection.pick === null) {
+    const group = collected.processGroup;
+    let pick = selection.pick;
+    let pickKind = selection.pickKind;
+    const cat = Catalogue.load();
+    const groupWins =
+      group !== null &&
+      (pick === null ||
+        (!cat.isAncestor(group.code, pick.code, DEFAULT_HIERARCHY) &&
+          !termImpliesProcesses(cat, pick.code, group.processes)));
+    if (groupWins && group !== null) {
+      audit.push({
+        step: "process_group",
+        detail: {
+          from: pick?.code ?? null,
+          to: group.code,
+          processes: group.processes,
+        },
+      });
+      pick = { code: group.code, name: group.name };
+      pickKind = "exact";
+    }
+
+    if (pick === null) {
       return {
         status: "rejected",
         reason: "no_selectable_candidate",
@@ -233,8 +252,8 @@ export async function encodeBaseTerm(
       };
     }
 
-    const base = okBase(selection.pick, "traversal", audit, {
-      ...(selection.pickKind !== null ? { fit: selection.pickKind } : {}),
+    const base = okBase(pick, "traversal", audit, {
+      ...(pickKind !== null ? { fit: pickKind } : {}),
       food: input,
       descriptionKind: collected.descriptionKind,
       candidates,

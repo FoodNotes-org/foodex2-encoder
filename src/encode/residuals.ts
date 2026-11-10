@@ -31,6 +31,10 @@
  * 3. F26 Generic-term — its own step after placement (chooseF26): Other when the
  *    input is a missing sibling of the base's children, else Unspecified on an
  *    H/M/P base.
+ * 4. Included characteristics — after the deterministic cleanup, when two or
+ *    more descriptors remain besides generic-term: drop a descriptor whose
+ *    characteristic another recorded descriptor already includes. Other and
+ *    Unspecified stay out of that judgement.
  * For dish/dish_type, defining span is for essence grounding + dish= identity;
  * step 2 always sees the full input (attributes in the dish wording stay claimable).
  * Other route kinds: wording denseness goes through input vs base like any leftover.
@@ -76,6 +80,7 @@ import { catalogueLookup } from "../rules/catalogue-lookup.js";
 import { chatJson, defaultModel } from "../llm.js";
 import { contentTokens, FUNCTION_WORDS, sameContentTokenSet } from "../search/content-match.js";
 import { formatFoodEx2Code, sortFacets } from "./foodex2-code.js";
+import { resolveSourceWalk } from "./source-walk.js";
 const INGRED_HIERARCHY = "ingred";
 const F01 = "F01";
 const F04 = "F04";
@@ -255,47 +260,33 @@ const ORIGIN_PICKS: FacetPickExtra[] = [
 ];
 
 /**
- * A named food's direct origin, as the differentia of a genus–differentia
- * definition with the base term as genus (guidance §3.1.5: "from what has this
- * food been obtained?", direct source only). Which facet each entry goes in
- * (F01 / F27 / F04) is the base term's type, not the model's. Miss → drop.
+ * Differentiae of a foodstuff within the chosen genus. Each phrase is looked
+ * up across the facet lists. A phrase that matches nothing is dropped.
  */
-function systemOrigin(withCountry: boolean): string {
+export function systemDifferentiae(withCountry: boolean): string {
+  const description = withCountry
+    ? "- `description`: a food description, as understood in the food nomenclature of: `country`."
+    : "- `description`: a food description.";
+  const country = withCountry ? "- `country`: the country of the food description.\n" : "";
   return `You are an expert in food classification.
 
-Task: define the food called \`name\` by genus and differentia, with its base term as the genus, giving as differentia only what the food is directly obtained or prepared from, so that each entry can be looked up in a food list.
+You are given:
+${description}
+${country}- \`genus\`: the catalogue term chosen for \`description\`, defined by its \`name\`, its \`descriptors\`, and its \`scope\`. In \`scope\`, "the group" is this genus.
 
-Given:
-- \`name\`: the name of a food.
-- \`baseTerm\`: the catalogue food group it belongs to, the genus, with the descriptors that are part of that group's definition (\`implicit\`) and, when those do not say it, what every food in the group is obtained or prepared from (\`madeFrom\`).
-${countryBlock(withCountry, "name")}
-Judgement:
-- The differentia is what sets the food apart from other foods in its genus.
-- The differentia must not be circular.
+Task: name the differentiae, if any, of \`description\` within \`genus\`. Each is a short phrase for one characteristic \`description\` expresses and \`genus\` does not. A characteristic that only follows from a kind \`description\` names is not a differentia. "Any type of" this genus does not name a particular kind. A kind \`description\` names is a differentia when \`scope\` does not name it.
 
-Reply with JSON only; \`from\` is empty when the genus already defines the food:
-{"definition":"<text>","from":["<food>"]}
+Reply with JSON only:
+{"differentiae":["<phrase>"]}
 `;
 }
 
-/**
- * What every food in a base term's group is made from, for base terms whose
- * implicit descriptors name no origin (F01 / F27 / F04). Without it the origin
- * question treats what the group entails (cereal grains, flour, sugar) as a
- * differentia.
- */
-const SYSTEM_GROUP_ORIGIN = `You are an expert in food classification.
-
-Task: name what every food in a catalogue food group is directly obtained or prepared from.
-
-Given:
-- \`baseTerm\`: the food group, with the descriptors that always apply to it (\`implicit\`).
-
-Reply with JSON only; the list may be empty:
-{"from":["<food>"]}
-`;
-
-const ORIGIN_HEADERS = new Set([F01, F27, F04]);
+/** Scope note up to the repeated part-consumed instruction. */
+export function genusScope(note: string | null | undefined): string {
+  const text = note?.trim() ?? "";
+  const cut = text.search(/The part consumed\/analysed/i);
+  return (cut === -1 ? text : text.slice(0, cut)).trim();
+}
 
 function stringList(raw: unknown): string[] {
   return Array.isArray(raw)
@@ -303,29 +294,17 @@ function stringList(raw: unknown): string[] {
     : [];
 }
 
+/** Phrases from a differentiae answer. */
+export function parseDifferentiae(content: unknown): string[] {
+  const body = content !== null && typeof content === "object" ? (content as Record<string, unknown>) : {};
+  return stringList(body.differentiae);
+}
+
 /** `from` entries of an origin or group-origin answer, plus the definition when given. */
 export function parseOriginAnswer(content: unknown): { definition: string | null; from: string[] } {
   const body = content !== null && typeof content === "object" ? (content as Record<string, unknown>) : {};
   const definition = typeof body.definition === "string" && body.definition.trim() !== "" ? body.definition.trim() : null;
   return { definition, from: stringList(body.from) };
-}
-
-/** The food's name without treatment / packing / preparation words, asked before the origin question. */
-function systemFoodName(withCountry: boolean): string {
-  return `You are an expert in food classification.
-
-Task: give the name of the food in a food description, without the words that describe how it is treated, packed or prepared, so that the food itself can be looked up.
-
-Given:
-- \`description\`: a food description as written.
-${countryBlock(withCountry, "description")}
-Judgement:
-- Keep every word that is part of what the food is called.
-- Copy the name exactly as it appears in \`description\`.
-
-Reply with JSON only:
-{"name":"<text>"}
-`;
 }
 
 /** The answered name, or null when it is empty or not found in `description`. */
@@ -678,6 +657,11 @@ interface PlaceContext {
   fortificationClaim: FortificationClaim;
   /** Step 0b claim; quantitative fat/alcohol % restatements are not placed again. */
   numericClaim: NumericContentClaim;
+  /**
+   * Raw commodity or natural source already placed for a derivative. A later
+   * attribute whose words sit inside one of these is that same fact.
+   */
+  originCovered: string[];
 }
 
 function walkFood(ctx: PlaceContext): FacetWalkFood {
@@ -2400,6 +2384,147 @@ export function cleanupFacets(
 }
 
 /**
+ * Among recorded descriptors, which characteristics are already included in
+ * another. Generic-term is excluded: Other and Unspecified follow their own rule.
+ */
+export function systemFacetCleanup(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Task: name the facet descriptors, if any, whose characteristic is already included in the characteristic of another recorded descriptor.
+
+Given:
+- \`description\`: the food.
+- \`baseTerm\`: the food group already chosen, with its name.
+- \`descriptors\`: the descriptors recorded for this food. Each has a \`code\`, a \`name\`, a \`scope\`, the \`facet\` it is recorded under, with that facet's name and scope, and, where it has one, the \`parent\` it has under that facet, with that parent's name and scope.
+${countryParagraph(withCountry, "description")}
+A descriptor's characteristic is already included in another's when any food that bears the other thereby bears this one. It is kept when the description states a characteristic of this food that the other descriptor does not include.
+
+Reply with JSON only, listing the codes to drop, or an empty list when each descriptor attributes a characteristic the others do not include:
+{"drop":["<code>",...]}
+`;
+}
+
+export interface FacetCleanupDescriptor {
+  code: string;
+  name: string;
+  scope?: string;
+  facet: { code: string; name: string; scope?: string };
+  parent?: { code: string; name: string | null; scope?: string };
+}
+
+function optionalScope(note: string | null | undefined): { scope: string } | Record<string, never> {
+  const scope = genusScope(note);
+  return scope === "" ? {} : { scope };
+}
+
+/** Descriptors the inclusion judgement sees. Generic-term is left out. */
+export function facetCleanupDescriptors(
+  cat: Catalogue,
+  facets: readonly FacetDescriptorRef[]
+): FacetCleanupDescriptor[] {
+  const out: FacetCleanupDescriptor[] = [];
+  for (const facet of facets) {
+    if (facet.header === F26) continue;
+    const category = cat.facetCategory(facet.header);
+    const hierarchy = category?.hierarchyCode;
+    const parentCode =
+      hierarchy === undefined ? null : (cat.term(facet.code)?.hierarchies[hierarchy]?.[0] ?? null);
+    const recorded: FacetCleanupDescriptor = {
+      code: `${facet.header}.${facet.code}`,
+      name: facet.name,
+      ...optionalScope(cat.term(facet.code)?.scopeNote),
+      facet: {
+        code: facet.header,
+        name: category?.label ?? facet.header,
+        ...optionalScope(category?.scopeNote),
+      },
+    };
+    if (parentCode !== null && parentCode !== "root") {
+      const parent = cat.term(parentCode);
+      if (parent !== undefined) {
+        recorded.parent = {
+          code: parentCode,
+          name: parent.name,
+          ...optionalScope(parent.scopeNote),
+        };
+      }
+    }
+    out.push(recorded);
+  }
+  return out;
+}
+
+/** Codes the inclusion reply named. Anything else is an empty list. */
+export function parseFacetCleanup(content: unknown): string[] {
+  if (content === null || typeof content !== "object") return [];
+  return stringList((content as { drop?: unknown }).drop);
+}
+
+/**
+ * Drop the descriptors the reply named, when they were offered. Generic-term
+ * is never offered, so a reply that names it changes nothing.
+ */
+export function dropIncludedDescriptors(
+  facets: readonly FacetDescriptorRef[],
+  dropCodes: readonly string[]
+): { facets: FacetDescriptorRef[]; dropped: FacetDescriptorRef[] } {
+  const offered = new Set(
+    facets.filter((facet) => facet.header !== F26).map((facet) => `${facet.header}.${facet.code}`)
+  );
+  const drop = new Set(dropCodes.filter((code) => offered.has(code)));
+  const kept: FacetDescriptorRef[] = [];
+  const dropped: FacetDescriptorRef[] = [];
+  for (const facet of facets) {
+    if (drop.has(`${facet.header}.${facet.code}`)) dropped.push(facet);
+    else kept.push(facet);
+  }
+  return { facets: kept, dropped };
+}
+
+async function askIncludedFacets(
+  ctx: PlaceContext,
+  facets: FacetDescriptorRef[]
+): Promise<{ facets: FacetDescriptorRef[]; detail: Record<string, unknown> } | null> {
+  const descriptors = facetCleanupDescriptors(ctx.cat, facets);
+  if (descriptors.length < 2) return null;
+  const withCountry = ctx.country !== null && ctx.country !== "";
+  const asked = await chatJson({
+    model: ctx.model,
+    system: systemFacetCleanup(withCountry),
+    user: JSON.stringify(
+      {
+        description: ctx.input,
+        ...(withCountry ? { country: ctx.country } : {}),
+        baseTerm: { name: ctx.baseName },
+        descriptors,
+      },
+      null,
+      2
+    ),
+  });
+  const requested = parseFacetCleanup(asked.content);
+  const applied = dropIncludedDescriptors(facets, requested);
+  for (const facet of applied.dropped) ctx.seenCodes.delete(`${facet.header}.${facet.code}`);
+  ctx.facets = applied.facets;
+  const unmatched = requested.filter(
+    (code) => !applied.dropped.some((facet) => `${facet.header}.${facet.code}` === code)
+  );
+  return {
+    facets: applied.facets,
+    detail: {
+      model: asked.model,
+      descriptors: descriptors.map((descriptor) => descriptor.code),
+      drop: applied.dropped.map((facet) => ({
+        header: facet.header,
+        code: facet.code,
+        name: facet.name,
+      })),
+      ...(unmatched.length > 0 ? { unmatched } : {}),
+    },
+  };
+}
+
+/**
  * A raw primary commodity is already unheated. The walk may still choose
  * Raw, no heat treatment; it is not recorded on that base.
  */
@@ -2420,6 +2545,21 @@ function addFacet(ctx: PlaceContext, facet: FacetDescriptorRef): boolean {
   if (slot !== null) ctx.limitedSlots.add(slot);
   ctx.facets.push(facet);
   return true;
+}
+
+function removeFacet(ctx: PlaceContext, facet: FacetDescriptorRef): void {
+  const key = `${facet.header}.${facet.code}`;
+  ctx.seenCodes.delete(key);
+  const slot = cardinalityKey(catalogueLookup(ctx.cat), facet.header, facet.code);
+  if (slot !== null) ctx.limitedSlots.delete(slot);
+  const index = ctx.facets.findIndex(
+    (item) => item.header === facet.header && item.code === facet.code
+  );
+  if (index !== -1) ctx.facets.splice(index, 1);
+}
+
+function facetDetail(ctx: PlaceContext, facet: FacetDescriptorRef): string | null {
+  return ctx.cat.term(facet.code)?.detailLevel ?? null;
 }
 
 function pushFreeText(entries: FreeTextEntry[], label: string, value: string): void {
@@ -2644,6 +2784,21 @@ function orChoiceFacets(
   };
 }
 
+/** Source facet: walk the natural-source tree. Name search only finds the entry. */
+async function resolveSourcePhrase(ctx: PlaceContext, lookup: string): Promise<ClosedResolution> {
+  const walked = await resolveSourceWalk(ctx.cat, lookup, {
+    model: ctx.model,
+    food: ctx.input,
+    country: ctx.country,
+    implied: ctx.implied,
+  });
+  return {
+    facet: walked.facet,
+    facets: walked.facet === null ? [] : [walked.facet],
+    detail: walked.detail,
+  };
+}
+
 /**
  * Origin route: base type (or the model) orders F01 / F27 / F04; the first role
  * that places wins. A repeatable list may place several terms. When committing,
@@ -2666,26 +2821,7 @@ async function placeOrigin(
         ? await resolveF04Phrase(ctx, lookup, { rejectUnderImplied })
         : role === "made_from"
           ? await resolveF27Phrase(ctx, lookup, { rejectUnderImplied })
-          : await resolveClosedFacetPhrase(
-              ctx.cat,
-              lookup,
-              F01,
-              ctx.implied,
-              {
-                model: ctx.model,
-                allowRootFallback: false,
-                termTypes: ctx.memberTypes,
-                origin: {
-                  role: "source",
-                  food: ctx.input,
-                  baseTerm: {
-                    name: ctx.baseName,
-                    scope: ctx.cat.term(ctx.baseCode)?.scopeNote?.trim() ?? "",
-                  },
-                },
-                country: ctx.country,
-              }
-            );
+          : await resolveSourcePhrase(ctx, lookup);
     attempts.push(resolved.detail);
     if (resolved.facets.length === 0) continue;
     const facets = commit
@@ -3209,7 +3345,11 @@ async function finishResiduals(
     });
   }
 
-  const sorted = sortFacets(cleaned.facets);
+  const included = await askIncludedFacets(ctx, cleaned.facets);
+  if (included !== null) {
+    audit.push({ step: "residuals_included", detail: included.detail });
+  }
+  const sorted = sortFacets(included?.facets ?? cleaned.facets);
   const freeTextOut = ctx.freeText.length > 0 ? ctx.freeText : null;
   const code = formatFoodEx2Code(ctx.baseCode, sorted);
   audit.push({
@@ -3311,6 +3451,59 @@ function keepFacetCandidate(
 }
 
 /**
+ * Whether `phrase` names something added to the food. The plant, animal, or
+ * commodity the food comes from is not an addition, so it is not an ingredient.
+ */
+export function systemAddedIngredient(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Does \`phrase\` name something added to the food?
+
+Given:
+- \`description\`: the food.
+- \`baseTerm\`: the food group already chosen, with its name.
+- \`phrase\`: words from the description.
+${countryParagraph(withCountry, "description")}
+Something added is put into the food or onto it. The plant, animal, or commodity the food comes from is not something added.
+
+Reply with JSON only:
+{"added":true|false}
+`;
+}
+
+/** True only when the reply explicitly says the phrase names an addition. */
+export function parseAddedClaim(content: unknown): boolean {
+  if (content === null || typeof content !== "object") return false;
+  return (content as { added?: unknown }).added === true;
+}
+
+async function askAddedIngredient(
+  ctx: PlaceContext,
+  phrase: string
+): Promise<{ added: boolean; detail: Record<string, unknown> }> {
+  const withCountry = ctx.country !== null && ctx.country !== "";
+  const answered = await chatJson({
+    model: ctx.model,
+    system: systemAddedIngredient(withCountry),
+    user: JSON.stringify(
+      {
+        description: ctx.input,
+        ...(withCountry ? { country: ctx.country } : {}),
+        baseTerm: { name: ctx.baseName },
+        phrase,
+      },
+      null,
+      2
+    ),
+  });
+  const added = parseAddedClaim(answered.content);
+  return {
+    added,
+    detail: { via: "added_ingredient", model: answered.model, phrase, added },
+  };
+}
+
+/**
  * Every route may propose one candidate for this attribute, or none.
  * Nothing is recorded until the gate chooses.
  */
@@ -3343,7 +3536,11 @@ async function collectSlotCandidates(
   }
 
   const origin = await placeOrigin(ctx, phrase, "made_from", false, attempts, false);
-  const added = await placeOrigin(ctx, phrase, "added", false, attempts, false);
+  const addition = await askAddedIngredient(ctx, phrase);
+  attempts.push(addition.detail);
+  const added = addition.added
+    ? await placeOrigin(ctx, phrase, "added", false, attempts, false)
+    : { facets: [] as FacetDescriptorRef[] };
   for (const facet of settleOriginCandidates(origin.facets, added.facets)) {
     keepFacetCandidate(ctx, facet, candidates);
   }
@@ -3381,6 +3578,9 @@ async function placeAttributeSlot(
   phrase: string,
   prepared?: { candidates: FacetDescriptorRef[]; attempts: Record<string, unknown>[] }
 ): Promise<Record<string, unknown>> {
+  if (originCoversPhrase(phrase, ctx.originCovered)) {
+    return { phrase, placed: "covered" };
+  }
   const { candidates, attempts } = prepared ?? (await collectSlotCandidates(ctx, phrase));
   const listed = candidates.map((f) => ({ header: f.header, code: f.code, name: f.name }));
   if (candidates.length === 0) {
@@ -3459,6 +3659,174 @@ async function placeAttributeSlot(
     attempts,
     ...(model !== undefined ? { model } : {}),
   };
+}
+
+/**
+ * A derivative is made from a raw commodity. Ask for that commodity and search
+ * the source-commodities list. A core or extended commodity stands. A hierarchy,
+ * generic, or non-specific commodity does not: ask for the natural source, and
+ * when that source is core or extended, it replaces the commodity. When the
+ * commodity search places nothing, ask for the natural source anyway.
+ * The phrase that was placed covers a later attribute that only restates it.
+ */
+
+/** Core (C) and extended (E) terms stand over hierarchy, generic, and non-specific terms. */
+export function isPreferredDetail(detailLevel: string | null): boolean {
+  return detailLevel === "C" || detailLevel === "E";
+}
+
+/**
+ * A core or extended natural source replaces a commodity that is not one.
+ * An empty commodity list means the source search is the only result.
+ */
+export function sourceReplacesCommodity(
+  commodityLevels: readonly (string | null)[],
+  sourceLevels: readonly (string | null)[]
+): boolean {
+  if (commodityLevels.length === 0) return false;
+  if (commodityLevels.some((level) => isPreferredDetail(level))) return false;
+  return sourceLevels.some((level) => isPreferredDetail(level));
+}
+export function systemRawCommodity(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Task: name the raw commodity this food is made from, when the description names a more specific commodity than the one the base term already denotes.
+
+Given:
+- \`description\`: the food.
+- \`baseTerm\`: the food group already chosen, with its \`name\` and its \`scope\`.
+- \`sourceCommodities\`: the raw commodities the base term already denotes.
+${countryParagraph(withCountry, "description")}
+Name the commodity by narrowing one of those to the kind the description states. When the description names nothing more specific, return null.
+
+Reply with JSON only:
+{"commodity":"<phrase>"|null}
+`;
+}
+
+export function systemNaturalSource(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Task: name the natural source this food comes from, when the description names a more specific one than the base term already denotes.
+
+Given:
+- \`description\`: the food.
+- \`baseTerm\`: the food group already chosen, with its \`name\` and its \`scope\`.
+${countryParagraph(withCountry, "description")}
+When the description names nothing more specific, return null.
+
+Reply with JSON only:
+{"source":"<phrase>"|null}
+`;
+}
+
+function parseNamedPhrase(content: unknown, key: "commodity" | "source"): string | null {
+  if (content === null || typeof content !== "object") return null;
+  const raw = (content as Record<string, unknown>)[key];
+  if (typeof raw !== "string") return null;
+  const phrase = raw.trim();
+  return phrase === "" ? null : phrase;
+}
+
+export function parseRawCommodity(content: unknown): string | null {
+  return parseNamedPhrase(content, "commodity");
+}
+
+export function parseNaturalSource(content: unknown): string | null {
+  return parseNamedPhrase(content, "source");
+}
+
+/** True when every content word of `phrase` sits inside an origin already placed. */
+export function originCoversPhrase(phrase: string, origins: readonly string[]): boolean {
+  return origins.some((origin) => wordsWithin(phrase, origin));
+}
+
+function impliedCommodityNames(ctx: PlaceContext): string[] {
+  return [...ctx.implied]
+    .filter((key) => key.startsWith(`${F27}.`))
+    .map((key) => ctx.cat.term(key.slice(F27.length + 1))?.name ?? key.slice(F27.length + 1));
+}
+
+async function placeDerivativeCommodity(ctx: PlaceContext, audit: AuditEntry[]): Promise<void> {
+  if (ctx.baseTermType !== "d") return;
+  const withCountry = ctx.country !== null && ctx.country !== "";
+  const baseTerm = {
+    name: ctx.baseName,
+    scope: genusScope(ctx.cat.term(ctx.baseCode)?.scopeNote),
+  };
+  const asked = await chatJson({
+    model: ctx.model,
+    system: systemRawCommodity(withCountry),
+    user: JSON.stringify(
+      {
+        description: ctx.input,
+        ...(withCountry ? { country: ctx.country } : {}),
+        baseTerm,
+        sourceCommodities: impliedCommodityNames(ctx),
+      },
+      null,
+      2
+    ),
+  });
+  const commodity = parseRawCommodity(asked.content);
+  const recorded: FacetDescriptorRef[] = [];
+  if (commodity !== null) {
+    const resolved = await resolveF27Phrase(ctx, commodity);
+    for (const facet of resolved.facets) {
+      if (addFacet(ctx, facet)) recorded.push(facet);
+    }
+    if (recorded.length > 0) ctx.originCovered.push(commodity);
+  }
+
+  const commodityStands = recorded.some((facet) => isPreferredDetail(facetDetail(ctx, facet)));
+  let source: string | null = null;
+  const sourceRecorded: FacetDescriptorRef[] = [];
+  if (!commodityStands) {
+    const named = await chatJson({
+      model: ctx.model,
+      system: systemNaturalSource(withCountry),
+      user: JSON.stringify(
+        {
+          description: ctx.input,
+          ...(withCountry ? { country: ctx.country } : {}),
+          baseTerm,
+        },
+        null,
+        2
+      ),
+    });
+    source = parseNaturalSource(named.content);
+    if (source !== null) {
+      const resolved = await resolveSourcePhrase(ctx, source);
+      for (const facet of resolved.facets) {
+        if (addFacet(ctx, facet)) sourceRecorded.push(facet);
+      }
+    }
+  }
+
+  const replaced = sourceReplacesCommodity(
+    recorded.map((facet) => facetDetail(ctx, facet)),
+    sourceRecorded.map((facet) => facetDetail(ctx, facet))
+  );
+  if (replaced) {
+    for (const facet of recorded) removeFacet(ctx, facet);
+  } else if (recorded.length > 0) {
+    for (const facet of sourceRecorded) removeFacet(ctx, facet);
+    sourceRecorded.length = 0;
+  }
+  if (source !== null && sourceRecorded.length > 0) ctx.originCovered.push(source);
+
+  audit.push({
+    step: "residuals_commodity",
+    detail: {
+      commodity,
+      recorded: replaced ? [] : recorded,
+      ...(replaced ? { droppedCommodity: recorded } : {}),
+      ...(source !== null || sourceRecorded.length > 0 ? { source, sourceRecorded } : {}),
+      replaced,
+      covered: [...ctx.originCovered],
+    },
+  });
 }
 
 /** Attributes the description still states, given a locked base term. */
@@ -3546,9 +3914,8 @@ export async function listLegacyInputProperties(
 }
 
 /**
- * The food's name against its base term: what it was directly obtained from.
- * Empty `from` when the base term already is that food. Same questions as the
- * legacy path.
+ * Differentiae of this foodstuff within its genus. Each phrase is placed as a
+ * facet. Empty when the genus already denotes the food.
  */
 async function askFoodOrigin(
   ctx: PlaceContext,
@@ -3556,48 +3923,27 @@ async function askFoodOrigin(
   implicit: string[],
   audit: AuditEntry[]
 ): Promise<{ name: string; from: GapProperty[] }> {
-  const statesOrigin = [...ctx.implied].some((key) => ORIGIN_HEADERS.has(key.split(".")[0] ?? ""));
   const country = ctx.country;
-  const [named, groupAsked] = await Promise.all([
-    chatJson({
-      model: ctx.model,
-      system: systemFoodName(country !== null),
-      user: JSON.stringify(
-        { description, ...(country !== null ? { country } : {}) },
-        null,
-        2
-      ),
-    }),
-    statesOrigin
-      ? Promise.resolve(null)
-      : chatJson({
-          model: ctx.model,
-          system: SYSTEM_GROUP_ORIGIN,
-          user: JSON.stringify({ baseTerm: { name: ctx.baseName, implicit } }, null, 2),
-        }),
-  ]);
-  const foodName = parseFoodName(named.content, description) ?? description;
-  audit.push({
-    step: "residuals_food_name",
-    detail: { model: named.model, description, answered: named.content, name: foodName },
-  });
-  const madeFrom = groupAsked === null ? null : parseOriginAnswer(groupAsked.content).from;
   const asked = await chatJson({
     model: ctx.model,
-    system: systemOrigin(country !== null),
+    system: systemDifferentiae(country !== null),
     user: JSON.stringify(
       {
-        name: foodName,
+        description,
         ...(country !== null ? { country } : {}),
-        baseTerm: { name: ctx.baseName, implicit, ...(madeFrom !== null ? { madeFrom } : {}) },
+        genus: {
+          name: ctx.baseName,
+          descriptors: implicit,
+          scope: genusScope(ctx.cat.term(ctx.baseCode)?.scopeNote),
+        },
       },
       null,
       2
     ),
   });
-  const answer = parseOriginAnswer(asked.content);
+  const differentiae = parseDifferentiae(asked.content);
   const filtered = dropEarlyClaimRestatements(
-    answer.from.map((entry): GapProperty => ({ phrase: entry, kind: "ingredient", name: entry })),
+    differentiae.map((entry): GapProperty => ({ phrase: entry, kind: "other", name: entry })),
     ctx.fortificationClaim,
     ctx.numericClaim
   );
@@ -3605,15 +3951,12 @@ async function askFoodOrigin(
     step: "residuals_origin",
     detail: {
       model: asked.model,
-      name: foodName,
-      ...(madeFrom !== null ? { groupMadeFrom: madeFrom } : {}),
-      definition: answer.definition,
-      from: answer.from,
+      differentiae,
       fit: ctx.fit,
       ...(filtered.dropped.length > 0 ? { droppedEarlyClaims: filtered.dropped } : {}),
     },
   });
-  return { name: foodName, from: filtered.kept };
+  return { name: description, from: filtered.kept };
 }
 
 async function assignResidualSlots(
@@ -3635,8 +3978,19 @@ async function assignResidualSlots(
     },
   });
 
+  await placeDerivativeCommodity(ctx, audit);
+
   const drafts = [];
   for (const phrase of listed.attributes) {
+    if (originCoversPhrase(phrase, ctx.originCovered)) {
+      drafts.push({
+        phrase,
+        candidates: [],
+        attempts: [{ via: "covered_origin" }],
+        roleClaim: false,
+      });
+      continue;
+    }
     const collected = await collectSlotCandidates(ctx, phrase);
     drafts.push({
       phrase,
@@ -3655,49 +4009,40 @@ async function assignResidualSlots(
     const origin = await askFoodOrigin(ctx, input, implicit, audit);
     for (const property of origin.from) {
       const entry = property.name ?? property.phrase;
+      if (originCoversPhrase(entry, ctx.originCovered)) {
+        originResolutions.push({ phrase: entry, placed: "covered" });
+        continue;
+      }
       const matched = matchOriginEntry(entry, drafts);
       if (matched.match === "role") {
         originResolutions.push({ phrase: entry, placed: "dropped", reason: "role_facet", slot: matched.phrase });
         continue;
       }
-      const attempts: Record<string, unknown>[] = [];
-      const placed = await placeOrigin(ctx, entry, "ingredient", true, attempts, false);
+      const collected = await collectSlotCandidates(ctx, entry);
       if (matched.match === "slot") {
         const draft = drafts.find((slot) => slot.phrase === matched.phrase);
         if (draft !== undefined) {
-          draft.attempts.push(...attempts, { via: "name_origin", phrase: entry });
-          for (const facet of placed.facets) keepFacetCandidate(ctx, facet, draft.candidates);
+          draft.attempts.push(...collected.attempts, { via: "differentia", phrase: entry });
+          for (const facet of collected.candidates) keepFacetCandidate(ctx, facet, draft.candidates);
         }
         originResolutions.push({
           phrase: entry,
           placed: "joined",
           slot: matched.phrase,
-          ...(placed.facets[0] !== undefined
-            ? {
-                facet: placed.facets[0],
-                ...(placed.facets.length > 1 ? { facets: placed.facets } : {}),
-              }
-            : {}),
-          attempts,
+          attempts: collected.attempts,
         });
         continue;
       }
-      const settled = await settlePhraseChoice(ctx, entry, placed.facets, attempts);
-      const recorded: FacetDescriptorRef[] = [];
-      for (const facet of settled) {
-        if (addFacet(ctx, facet)) recorded.push(facet);
+      if (collected.candidates.length === 0) {
+        originResolutions.push({
+          phrase: entry,
+          placed: "dropped",
+          reason: "no_facet",
+          attempts: collected.attempts,
+        });
+        continue;
       }
-      originResolutions.push({
-        phrase: entry,
-        placed: recorded.length > 0 ? "facet" : placed.facets.length > 0 ? "none" : "dropped",
-        ...(recorded[0] !== undefined
-          ? {
-              facet: recorded[0],
-              ...(recorded.length > 1 ? { facets: recorded } : {}),
-            }
-          : {}),
-        attempts,
-      });
+      originResolutions.push(await placeAttributeSlot(ctx, entry, collected));
     }
   }
 
@@ -3751,6 +4096,7 @@ export async function assignResiduals(
     fit: options.fit ?? null,
     fortificationClaim: { status: "none" },
     numericClaim: { fatPercent: null, alcoholPercent: null },
+    originCovered: [],
   };
 
   if (options.facetSlots !== false) {

@@ -3,15 +3,17 @@
  *
  * The router picks one descriptionKind for the whole description. That kind is
  * reused for classify / select wording and for residuals. A foodstuff is
- * compared as the raw food, or as the food a nature-changing treatment
- * produces. A dish or a mix is compared as the description given.
+ * compared as the description given, unless a Table 22 process has no catalogue
+ * group that already implies it — then the walk compares the food without that
+ * process. A dish or a mix is compared as the description given.
  *
  * Embeddings tip the walk toward opaque branches: a few high cosine hits contribute
- * their expo parents as extra seeds. The search query is an English rendering of
- * the description when that is not already its English name; the walk still
- * classifies the description as reported. Neither mints pool candidates with a preset
- * match — only the classify ladder assigns exact/broad/narrow/related. Related is
- * collected and descended when it has children. Broad is always collected (the
+ * their expo parents as extra seeds. A catalogue group that already implies a
+ * Table 22 process is seeded the same way, and collected even when it has no
+ * children to classify. The search query is an English rendering of the
+ * description when that is not already its English name; the walk still
+ * classifies the description as reported. Related is collected and descended
+ * when it has children. Broad is always collected (the
  * shelf judgment); children are enqueued only if that node was not already
  * visited. A broad parent with only none/related-leaf children is still collected
  * (dead-end shelf → F26 Other later).
@@ -697,10 +699,14 @@ export async function collectTraversalCandidates(
 
   let compareAs = input;
   let baseTermTypes: ReadonlySet<string> | null = null;
+  let processGroup: TraverseCollectResult["processGroup"] = null;
+  let processSeeds: string[] = [];
   if (descriptionKind === "foodstuff") {
     const compared = await resolveBaseCompare(input, country, model);
     compareAs = compared.compareAs;
     baseTermTypes = compared.termTypes;
+    processGroup = compared.processGroup;
+    processSeeds = compared.seeds;
     audit.push({ step: "base_compare", detail: compared.detail });
   }
 
@@ -709,7 +715,13 @@ export async function collectTraversalCandidates(
     ? await renderEmbeddingQuery(compareAs, country, model)
     : ({ english: null, query: compareAs } satisfies EmbeddingQuery);
   const embeddingSeeds = await embeddingWalkSeeds(rendered, seedLimit, audit);
-  const wholeSeeds = [EXPO_ROOT, ...embeddingSeeds.filter((s) => s !== EXPO_ROOT)];
+  const seenSeeds = new Set<string>([EXPO_ROOT]);
+  const wholeSeeds = [EXPO_ROOT];
+  for (const seed of [...embeddingSeeds, ...processSeeds]) {
+    if (seenSeeds.has(seed)) continue;
+    seenSeeds.add(seed);
+    wholeSeeds.push(seed);
+  }
 
   await walkFromSeeds(
     cat,
@@ -725,6 +737,12 @@ export async function collectTraversalCandidates(
     },
     state
   );
+
+  // A group that already implies the process may have no children to classify,
+  // so the walk would otherwise never collect it.
+  for (const code of processSeeds) {
+    addCandidate(state.collected, code, "broad");
+  }
 
   const candidates = toCandidateRefs(cat, state.collected);
   audit.push({
@@ -752,6 +770,7 @@ export async function collectTraversalCandidates(
     candidates,
     descriptionKind,
     compareAs,
+    processGroup,
     walks: state.walks,
     steps: state.steps,
     audit,

@@ -129,6 +129,45 @@ ${reply}
 `;
 }
 
+/**
+ * Source-commodities pick. Its own question: the raw commodity the food is made
+ * from. Fresh in a raw-commodity name is that commodity.
+ */
+export function systemSourceCommodityPick(withCountry = false, many = false): string {
+  const task = many
+    ? "which terms, if any, are the raw commodities `food` is made from, that `lookingFor` states and that `baseTerm` does not already denote"
+    : "which term, if any, is the raw commodity `food` is made from, that `lookingFor` states and that `baseTerm` does not already denote";
+  const termsLine = many
+    ? "- `terms`: candidate raw commodities, each with a `code`, a `name`, and its `parent`."
+    : "- `terms`: candidate raw commodities, each with a `code` and a `name`.";
+  const reply = many
+    ? `Reply with JSON only, listing the codes of those terms, or an empty list if there are none:
+{"codes":["<code>",...]}`
+    : `Reply with JSON only, with the code of that term, or null if none of them is:
+{"code":"<code>"|null}`;
+  const remainder = many
+    ? `The remainder of a parent is the sibling that is the part of the parent the other siblings do not cover. A sibling other than the remainder counts when it is the raw commodity \`lookingFor\` states. In a raw-commodity name, fresh denotes the raw commodity, not a further detail. The narrowest remainder counts when \`lookingFor\` states a kind of its parent and no listed sibling is that commodity.
+
+`
+    : `In a raw-commodity name, fresh denotes the raw commodity, not a further detail.
+
+`;
+  return `You are an expert in food classification.
+
+Task: ${task}?
+
+${remainder}Given:
+- \`food\`: the food as described.
+- \`baseTerm\`: the class already chosen for this food, with its \`name\` and its \`scope\`.
+- \`lookingFor\`: the raw commodity to identify; it may be worded loosely.
+${termsLine}
+${countryParagraph(withCountry, "food")}
+A term counts when it is the raw commodity \`lookingFor\` states and \`baseTerm\` does not already denote. \`baseTerm\` denotes a detail when its name or scope fixes it, including under another name.
+
+${reply}
+`;
+}
+
 export type FacetWalkAccept = (header: string, code: string) => boolean;
 
 /** The food the phrase belongs to, shown to the model alongside the phrase. */
@@ -271,7 +310,10 @@ async function askSelect(
   if (options.originRole !== undefined && options.food !== undefined) {
     const picked = await chatJson({
       model: options.model,
-      system: systemOriginPick(options.originRole, hasCountry(options), many),
+      system:
+        options.originRole === "made_from"
+          ? systemSourceCommodityPick(hasCountry(options), many)
+          : systemOriginPick(options.originRole, hasCountry(options), many),
       user: JSON.stringify(
         {
           food: options.food.input,

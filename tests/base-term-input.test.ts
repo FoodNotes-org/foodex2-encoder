@@ -8,6 +8,17 @@ describe("encodeBaseTerm input bounds", () => {
     const result = await encodeBaseTerm("   ");
     assert.equal(result.status, "rejected");
     assert.equal(result.reason, "empty_input");
+    assert.equal(result.audit[0]?.detail.country, "EU");
+  });
+
+  it("uses a given country, and rejects one that is not a country code", async () => {
+    const given = await encodeBaseTerm(" ", { country: "nl" });
+    assert.equal(given.status, "rejected");
+    assert.equal(given.audit[0]?.detail.country, "NL");
+
+    const invalid = await encodeBaseTerm("milk", { country: "ZZ" });
+    assert.equal(invalid.status, "rejected");
+    assert.equal(invalid.reason, "invalid_country");
   });
 
   it("rejects descriptions longer than the character cap", async () => {

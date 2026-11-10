@@ -183,6 +183,11 @@ export interface TraverseCollectResult {
   descriptionKind: DescriptionKind | null;
   /** Food the base-term walk compared. The full description for a dish or a mix. */
   compareAs: string;
+  /**
+   * Catalogue term that already implies a Table 22 process and was judged to be
+   * this food. Null when the description is not a foodstuff, or no such term fits.
+   */
+  processGroup: { code: string; name: string; processes: string[] } | null;
   walks: WalkSummary[];
   /** Every classify call in order, across walks. */
   steps: WalkStep[];

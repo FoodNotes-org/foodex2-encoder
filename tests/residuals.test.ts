@@ -13,6 +13,10 @@ import {
   bareFortifiedFacet,
   buildClosedPickPool,
   cleanupFacets,
+  dropIncludedDescriptors,
+  facetCleanupDescriptors,
+  parseFacetCleanup,
+  systemFacetCleanup,
   decideF26,
   facetDimensionCodeForTerm,
   facetDimensions,
@@ -40,7 +44,16 @@ import {
   recallIngredF04,
   siblingChildrenForF26,
   parseFoodName,
+  genusScope,
+  parseDifferentiae,
   parseOriginAnswer,
+  parseRawCommodity,
+  parseNaturalSource,
+  originCoversPhrase,
+  sourceReplacesCommodity,
+  systemRawCommodity,
+  systemNaturalSource,
+  systemDifferentiae,
   wordsWithin,
   type FortificationClaim,
 } from "../src/encode/residuals.js";
@@ -423,6 +436,45 @@ describe("wordsWithin", () => {
   });
 });
 
+describe("derivative commodity question", () => {
+  it("reads a commodity or a natural source, and nothing else", () => {
+    assert.equal(parseRawCommodity({ commodity: " kangaroo meat " }), "kangaroo meat");
+    assert.equal(parseRawCommodity({ commodity: null }), null);
+    assert.equal(parseRawCommodity({ commodity: "" }), null);
+    assert.equal(parseRawCommodity({ source: "kangaroo" }), null);
+    assert.equal(parseNaturalSource({ source: "pelican" }), "pelican");
+    assert.equal(parseNaturalSource(null), null);
+  });
+
+  it("treats a later word as the commodity already placed", () => {
+    assert.equal(originCoversPhrase("kangaroo", ["kangaroo meat"]), true);
+    assert.equal(originCoversPhrase("dried", ["kangaroo meat"]), false);
+    assert.equal(originCoversPhrase("kangaroo", []), false);
+  });
+
+  it("replaces a weaker commodity with a core or extended source", () => {
+    assert.equal(sourceReplacesCommodity(["P"], ["E"]), true);
+    assert.equal(sourceReplacesCommodity(["M"], ["E"]), true);
+    assert.equal(sourceReplacesCommodity(["H"], ["C"]), true);
+    assert.equal(sourceReplacesCommodity(["C"], ["E"]), false);
+    assert.equal(sourceReplacesCommodity(["E"], ["E"]), false);
+    assert.equal(sourceReplacesCommodity(["P", "C"], ["E"]), false);
+    assert.equal(sourceReplacesCommodity(["P"], ["H"]), false);
+    assert.equal(sourceReplacesCommodity(["P"], []), false);
+    assert.equal(sourceReplacesCommodity([], ["E"]), false);
+  });
+
+  it("asks for a raw commodity, and for a natural source only as its own question", () => {
+    const commodity = systemRawCommodity(true);
+    const source = systemNaturalSource(false);
+    assert.match(commodity, /raw commodity this food is made from/);
+    assert.match(commodity, /\{"commodity":"<phrase>"\|null\}/);
+    assert.match(source, /natural source this food comes from/);
+    assert.doesNotMatch(source, /raw commodity/);
+    assert.doesNotMatch(commodity, /fresh denotes/);
+  });
+});
+
 describe("parseFoodName", () => {
   it("keeps a name found in the description", () => {
     assert.equal(parseFoodName({ name: "breakfast cereal" }, "fortified breakfast cereal"), "breakfast cereal");
@@ -434,6 +486,42 @@ describe("parseFoodName", () => {
     assert.equal(parseFoodName({ name: "" }, "tuna"), null);
     assert.equal(parseFoodName({ name: 3 }, "tuna"), null);
     assert.equal(parseFoodName(null, "tuna"), null);
+  });
+});
+
+describe("parseDifferentiae", () => {
+  it("reads trimmed phrases and drops anything else", () => {
+    assert.deepEqual(parseDifferentiae({ differentiae: [" Sweet ", "", 3, "Raw"] }), ["Sweet", "Raw"]);
+    assert.deepEqual(parseDifferentiae({ differentiae: "Sweet" }), []);
+    assert.deepEqual(parseDifferentiae(null), []);
+  });
+});
+
+describe("genusScope", () => {
+  it("stops before the repeated part-consumed instruction", () => {
+    assert.equal(
+      genusScope(
+        "The group includes lemonade. The part consumed/analysed is by default the whole marketed unit."
+      ),
+      "The group includes lemonade."
+    );
+    assert.equal(genusScope("The group includes soy sauce."), "The group includes soy sauce.");
+    assert.equal(genusScope(undefined), "");
+  });
+});
+
+describe("systemDifferentiae", () => {
+  it("names the country with the description when a country is given", () => {
+    const prompt = systemDifferentiae(true);
+    assert.match(prompt, /food nomenclature of: `country`/);
+    assert.match(prompt, /"the group" is this genus/);
+    assert.match(prompt, /"Any type of" this genus does not name a particular kind/);
+    assert.match(prompt, /\{"differentiae":\["<phrase>"\]\}/);
+  });
+
+  it("omits the country when none is given", () => {
+    const prompt = systemDifferentiae(false);
+    assert.equal(prompt.includes("`country`"), false);
   });
 });
 
@@ -746,6 +834,67 @@ describe("cleanupFacets", () => {
     assert.equal(facets.length, 1);
     assert.equal(facets[0]?.code, "A057L");
     assert.ok(dropped.some((d) => d.reason === "broader_than_added" || d.reason === "cardinality_single"));
+  });
+});
+
+describe("facet cleanup inclusion", () => {
+  const nectar: FacetDescriptorRef[] = [
+    { header: "F04", code: "A0EXH", name: "Calcium" },
+    { header: "F09", code: "A0EXH", name: "Calcium" },
+    { header: "F10", code: "A077L", name: "Sugar free" },
+    { header: "F10", code: "A0F6C", name: "Fortified" },
+    { header: "F21", code: "A07SE", name: "Organic production" },
+    { header: "F26", code: "A07XE", name: "Other" },
+  ];
+
+  it("holds generic-term out and names the parent under the recorded facet", () => {
+    const descriptors = facetCleanupDescriptors(cat, nectar);
+    assert.deepEqual(
+      descriptors.map((descriptor) => descriptor.code),
+      ["F04.A0EXH", "F09.A0EXH", "F10.A077L", "F10.A0F6C", "F21.A07SE"]
+    );
+    const agent = descriptors.find((descriptor) => descriptor.code === "F09.A0EXH");
+    assert.equal(agent?.facet.name, "Fortification-agent");
+    assert.equal(agent?.parent?.name, "Chemical elements");
+    assert.equal(
+      descriptors.find((descriptor) => descriptor.code === "F10.A0F6C")?.parent?.name,
+      "Fortification-related info"
+    );
+    assert.equal(descriptors.find((descriptor) => descriptor.code === "F21.A07SE")?.parent, undefined);
+  });
+
+  it("drops only offered descriptors, and never generic-term", () => {
+    const { facets, dropped } = dropIncludedDescriptors(nectar, [
+      "F04.A0EXH",
+      "F10.A0F6C",
+      "F26.A07XE",
+      "F09.A0EXH extra",
+    ]);
+    assert.deepEqual(
+      facets.map((facet) => `${facet.header}.${facet.code}`),
+      ["F09.A0EXH", "F10.A077L", "F21.A07SE", "F26.A07XE"]
+    );
+    assert.deepEqual(
+      dropped.map((facet) => `${facet.header}.${facet.code}`),
+      ["F04.A0EXH", "F10.A0F6C"]
+    );
+  });
+
+  it("reads a drop list and nothing else", () => {
+    assert.deepEqual(parseFacetCleanup({ drop: [" F04.A0EXH ", "", 3] }), ["F04.A0EXH"]);
+    assert.deepEqual(parseFacetCleanup({ drop: "F04.A0EXH" }), []);
+    assert.deepEqual(parseFacetCleanup(null), []);
+  });
+
+  it("names the country with the description when a country is given", () => {
+    const prompt = systemFacetCleanup(true);
+    assert.match(prompt, /if any/);
+    assert.match(prompt, /food nomenclature of: `country`/);
+    assert.match(prompt, /\{"drop":\["<code>",...\]\}/);
+  });
+
+  it("omits the country when none is given", () => {
+    assert.equal(systemFacetCleanup(false).includes("`country`"), false);
   });
 });
 
