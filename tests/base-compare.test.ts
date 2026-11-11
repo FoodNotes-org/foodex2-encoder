@@ -7,8 +7,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
 import {
+  natureProcessCodes,
   parseProcessGroup,
-  parseRemainingFood,
   parseStatedProcesses,
   table22ProcessCodes,
   termsImplyingProcess,
@@ -32,6 +32,23 @@ describe("table 22 processes", () => {
 
   it("finds no group that already implies stir-frying", () => {
     assert.deepEqual(termsImplyingProcess(cat, "A07GT"), []);
+  });
+});
+
+describe("nature-changing processes", () => {
+  const nature = natureProcessCodes(cat);
+
+  it("includes puffing and drying, and not a table 22 process", () => {
+    assert.equal(nature.has("A07LL"), true);
+    assert.equal(nature.has("A07KG"), true);
+    assert.equal(nature.has("A07HP"), false);
+    assert.equal(allowed.has("A07LL"), false);
+  });
+
+  it("finds Popped cereals among the groups that already imply puffing", () => {
+    const groups = termsImplyingProcess(cat, "A07LL");
+    assert.ok(groups.some((group) => group.code === "A04LL"));
+    assert.ok(groups.length > 0 && groups.length <= 15);
   });
 });
 
@@ -73,10 +90,3 @@ describe("parseProcessGroup", () => {
   });
 });
 
-describe("parseRemainingFood", () => {
-  it("reads the food the process was applied to", () => {
-    assert.equal(parseRemainingFood({ food: " Beef " }), "Beef");
-    assert.equal(parseRemainingFood({ food: "  " }), null);
-    assert.equal(parseRemainingFood(null), null);
-  });
-});

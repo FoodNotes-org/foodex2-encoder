@@ -1,10 +1,13 @@
 /**
- * For a foodstuff, a process normally applied straight to a raw commodity
- * (guidance Table 22) is a facet only when no catalogue group already implies
- * that process. A group that does is a candidate for the base, and the walk
- * keeps the whole description. When none of those groups is the food, the walk
- * compares the food without that process. Drying is not in the table, so it
- * stays in the description. A dish or a mix is not handled here.
+ * For a foodstuff, a process that produces a different kind of food (guidance
+ * Tables 4 and 5) is checked first. A group that already implies it can be the
+ * base, and that process stays in the description. A process normally applied
+ * straight to a raw commodity (guidance Table 22) is then a facet only when no
+ * catalogue group already implies it. A group that does is a candidate for the
+ * base. When none of those groups is the food, the walk still compares the
+ * whole description, and the process is recorded afterwards as a facet. A
+ * Table 22 process that only restates a process already found is not taken. A
+ * dish or a mix is not handled here.
  */
 
 import { Catalogue, isInExposureTree } from "../catalogue.js";
@@ -66,6 +69,53 @@ const TABLE22_ROOTS = [
   "A07HQ",
 ] as const;
 
+/**
+ * Processes named in guidance Tables 4 and 5: each produces a different kind
+ * of food. Descendants are not added. The named process is the one to match.
+ */
+const NATURE_PROCESSES = [
+  "A0CRH",
+  "A07KD",
+  "A0C6F",
+  "A07JP",
+  "A07JQ",
+  "A07KG",
+  "A07JT",
+  "A07KC",
+  "A0CQZ",
+  "A0BYP",
+  "A07JV",
+  "A0C00",
+  "A0C01",
+  "A0C6E",
+  "A07MH",
+  "A0C02",
+  "A0C03",
+  "A0C0B",
+  "A0C04",
+  "A0C6N",
+  "A07GG",
+  "A07GR",
+  "A07GX",
+  "A07GY",
+  "A07HC",
+  "A07HJ",
+  "A0CRL",
+  "A07MA",
+  "A07LF",
+  "A07LG",
+  "A07LH",
+  "A07LL",
+  "A0C0G",
+  "A07MF",
+  "A0EJP",
+  "A07MK",
+  "A07LN",
+  "A07MJ",
+  "A07KF",
+  "A07ML",
+] as const;
+
 export interface StatedProcess {
   code: string;
   exception: boolean;
@@ -74,7 +124,7 @@ export interface StatedProcess {
 export interface ProcessGroup {
   code: string;
   name: string;
-  /** Table 22 processes this term already implies, among those stated. */
+  /** Stated processes this term already implies. */
   processes: string[];
 }
 
@@ -85,7 +135,15 @@ interface ImpliedGroup {
 }
 
 let cachedProcessCodes: Set<string> | null = null;
+let cachedNatureCodes: Set<string> | null = null;
 let cachedImplied: Map<string, ImpliedGroup[]> | null = null;
+
+/** Processes named in Tables 4 and 5 that this catalogue still contains. */
+export function natureProcessCodes(cat: Catalogue): ReadonlySet<string> {
+  if (cachedNatureCodes !== null) return cachedNatureCodes;
+  cachedNatureCodes = new Set(NATURE_PROCESSES.filter((code) => cat.term(code) !== undefined));
+  return cachedNatureCodes;
+}
 
 export function table22ProcessCodes(cat: Catalogue): ReadonlySet<string> {
   if (cachedProcessCodes !== null) return cachedProcessCodes;
@@ -103,7 +161,6 @@ export function table22ProcessCodes(cat: Catalogue): ReadonlySet<string> {
 
 function impliedIndex(cat: Catalogue): Map<string, ImpliedGroup[]> {
   if (cachedImplied !== null) return cachedImplied;
-  const allowed = table22ProcessCodes(cat);
   const index = new Map<string, ImpliedGroup[]>();
   for (const [code, term] of Object.entries(cat.data.terms)) {
     if (term.termType === "f" || term.status === "DEPRECATED") continue;
@@ -111,7 +168,6 @@ function impliedIndex(cat: Catalogue): Map<string, ImpliedGroup[]> {
     for (const facet of cat.impliedFacets(code)) {
       if (!facet.startsWith("F28.")) continue;
       const process = facet.slice("F28.".length);
-      if (!allowed.has(process)) continue;
       const entry: ImpliedGroup = {
         code,
         name: term.name ?? code,
@@ -178,12 +234,21 @@ export function parseProcessGroup(
   return { code };
 }
 
-export function parseRemainingFood(content: unknown): string | null {
-  if (content === null || typeof content !== "object") return null;
-  const food = (content as { food?: unknown }).food;
-  if (typeof food !== "string") return null;
-  const trimmed = food.trim();
-  return trimmed === "" ? null : trimmed;
+function systemNatureProcesses(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Task: name which of these processes, if any, the description states. Each process produces a different kind of food.
+
+Given:
+- \`description\`: the food description.
+- \`processes\`: each has a \`code\` and a \`name\`.
+${countryParagraph(withCountry, "description")}
+Return the most specific process the description states.
+
+Reply with JSON only:
+{"processes":[{"code":"<code>"}]}
+
+An empty list means the description states none of these processes.`;
 }
 
 function systemStatedProcesses(withCountry: boolean): string {
@@ -194,13 +259,12 @@ Task: name which of these processes, if any, the description states.
 Given:
 - \`description\`: the food description.
 - \`processes\`: each has a \`code\` and a \`name\`. A process and the processes under it are both listed.
+- \`already\`: processes already found. Each has a \`code\` and a \`name\`.
 ${countryParagraph(withCountry, "description")}
-Return the most specific process the description states.
-
-Frying or roasting potatoes, cooking eggs, caramelising or browning sugar or milk, mincing meat, milling cereal grains, and mashing that produces a purée are exceptions: a group for that food already exists. For an exception, \`exception\` is true. Otherwise it is false.
+Return the most specific process the description states. A process that only restates a process in \`already\` is not stated.
 
 Reply with JSON only:
-{"processes":[{"code":"<code>","exception":true|false}]}
+{"processes":[{"code":"<code>"}]}
 
 An empty list means the description states none of these processes.`;
 }
@@ -218,21 +282,6 @@ A term counts when the food is that term. A term that is only an ingredient, or 
 
 Reply with JSON only:
 {"code":"<code>"|null}`;
-}
-
-function systemRemainingFood(withCountry: boolean): string {
-  return `You are an expert in food classification.
-
-Task: name the food these processes are applied to.
-
-Given:
-- \`description\`: the food description.
-- \`processes\`: the processes to set aside. Each has a \`code\` and a \`name\`.
-${countryParagraph(withCountry, "description")}
-The answer is that food, without those processes. A minor ingredient used only to carry a process out is not part of the answer.
-
-Reply with JSON only:
-{"food":"<food>"}`;
 }
 
 export interface BaseCompare {
@@ -255,37 +304,20 @@ function unchanged(description: string, detail: Record<string, unknown>): BaseCo
   };
 }
 
-/** Foodstuff only. A dish or a mix keeps the description as given. */
-export async function resolveBaseCompare(
-  description: string,
-  country: string | null,
-  model: string
-): Promise<BaseCompare> {
-  const cat = Catalogue.load();
-  const allowed = table22ProcessCodes(cat);
-  const withCountry = country !== null && country !== "";
-  const processes = [...allowed]
+function listedProcesses(
+  cat: Catalogue,
+  codes: Iterable<string>
+): Array<{ code: string; name: string }> {
+  return [...codes]
+    .filter((code) => cat.term(code) !== undefined)
     .map((code) => ({ code, name: cat.term(code)?.name ?? code }))
     .sort((a, b) => a.code.localeCompare(b.code));
+}
 
-  const statedCall = await chatJson({
-    model,
-    system: systemStatedProcesses(withCountry),
-    user: JSON.stringify(
-      { description, ...(withCountry ? { country } : {}), processes },
-      null,
-      2
-    ),
-  });
-  const stated = parseStatedProcesses(statedCall.content, allowed);
-  if (stated === null || stated.length === 0) {
-    return unchanged(description, {
-      model: statedCall.model,
-      parsed: stated !== null,
-      processes: [],
-    });
-  }
-
+function groupsForProcesses(
+  cat: Catalogue,
+  stated: readonly StatedProcess[]
+): { judged: string[]; skipped: string[]; groups: ImpliedGroup[] } {
   const judged: string[] = [];
   const skipped: string[] = [];
   const groups: ImpliedGroup[] = [];
@@ -303,67 +335,135 @@ export async function resolveBaseCompare(
       groups.push(group);
     }
   }
+  return { judged, skipped, groups };
+}
 
-  let processGroup: ProcessGroup | null = null;
-  let groupModel: string | null = null;
-  if (groups.length > 0) {
-    const allowedGroups = new Set(groups.map((group) => group.code));
-    const groupCall = await chatJson({
+async function chooseProcessGroup(
+  cat: Catalogue,
+  description: string,
+  country: string | null,
+  withCountry: boolean,
+  model: string,
+  stated: readonly StatedProcess[],
+  groups: readonly ImpliedGroup[]
+): Promise<{ processGroup: ProcessGroup | null; model: string | null }> {
+  if (groups.length === 0) return { processGroup: null, model: null };
+  const allowedGroups = new Set(groups.map((group) => group.code));
+  const groupCall = await chatJson({
+    model,
+    system: systemProcessGroup(withCountry),
+    user: JSON.stringify(
+      {
+        description,
+        ...(withCountry ? { country } : {}),
+        terms: groups.map((group) => ({
+          code: group.code,
+          name: group.name,
+          ...(group.note !== null && group.note !== "" ? { note: group.note } : {}),
+        })),
+      },
+      null,
+      2
+    ),
+  });
+  const picked = parseProcessGroup(groupCall.content, allowedGroups);
+  if (picked?.code === null || picked === null) {
+    return { processGroup: null, model: groupCall.model };
+  }
+  const term = cat.term(picked.code);
+  const implied = stated
+    .map((process) => process.code)
+    .filter((process) => termImpliesProcesses(cat, picked.code as string, [process]));
+  return {
+    processGroup: {
+      code: picked.code,
+      name: term?.name ?? picked.code,
+      processes: implied,
+    },
+    model: groupCall.model,
+  };
+}
+
+/** Foodstuff only. A dish or a mix keeps the description as given. */
+export async function resolveBaseCompare(
+  description: string,
+  country: string | null,
+  model: string
+): Promise<BaseCompare> {
+  const cat = Catalogue.load();
+  const withCountry = country !== null && country !== "";
+  const countryField = withCountry ? { country } : {};
+
+  const natureCall = await chatJson({
+    model,
+    system: systemNatureProcesses(withCountry),
+    user: JSON.stringify(
+      { description, ...countryField, processes: listedProcesses(cat, natureProcessCodes(cat)) },
+      null,
+      2
+    ),
+  });
+  const nature = parseStatedProcesses(natureCall.content, natureProcessCodes(cat)) ?? [];
+  const natureParts = groupsForProcesses(cat, nature);
+  const natureChoice = await chooseProcessGroup(
+    cat,
+    description,
+    country,
+    withCountry,
+    model,
+    nature,
+    natureParts.groups
+  );
+
+  const already = listedProcesses(
+    cat,
+    nature.map((process) => process.code)
+  );
+  const statedCall = await chatJson({
+    model,
+    system: systemStatedProcesses(withCountry),
+    user: JSON.stringify(
+      {
+        description,
+        ...countryField,
+        processes: listedProcesses(cat, table22ProcessCodes(cat)),
+        already,
+      },
+      null,
+      2
+    ),
+  });
+  const stated = parseStatedProcesses(statedCall.content, table22ProcessCodes(cat)) ?? [];
+  const natureCodes = new Set(nature.map((process) => process.code));
+  const table22Only = stated.filter((process) => !natureCodes.has(process.code));
+  const table22Parts = groupsForProcesses(cat, table22Only);
+
+  let processGroup = natureChoice.processGroup;
+  let groupModel = natureChoice.model;
+  if (processGroup === null) {
+    const table22Choice = await chooseProcessGroup(
+      cat,
+      description,
+      country,
+      withCountry,
       model,
-      system: systemProcessGroup(withCountry),
-      user: JSON.stringify(
-        {
-          description,
-          ...(withCountry ? { country } : {}),
-          terms: groups.map((group) => ({
-            code: group.code,
-            name: group.name,
-            ...(group.note !== null && group.note !== "" ? { note: group.note } : {}),
-          })),
-        },
-        null,
-        2
-      ),
-    });
-    groupModel = groupCall.model;
-    const picked = parseProcessGroup(groupCall.content, allowedGroups);
-    if (picked?.code !== null && picked !== null) {
-      const term = cat.term(picked.code);
-      const implied = stated
-        .map((process) => process.code)
-        .filter((process) => termImpliesProcesses(cat, picked.code as string, [process]));
-      processGroup = {
-        code: picked.code,
-        name: term?.name ?? picked.code,
-        processes: implied,
-      };
-    }
+      table22Only,
+      table22Parts.groups
+    );
+    processGroup = table22Choice.processGroup;
+    groupModel = table22Choice.model ?? groupModel;
   }
 
-  let compareAs = description;
-  let remainingModel: string | null = null;
-  if (processGroup === null) {
-    const aside = stated.filter((process) => !process.exception);
-    if (aside.length > 0) {
-      const remainingCall = await chatJson({
-        model,
-        system: systemRemainingFood(withCountry),
-        user: JSON.stringify(
-          {
-            description,
-            ...(withCountry ? { country } : {}),
-            processes: aside.map((process) => ({
-              code: process.code,
-              name: cat.term(process.code)?.name ?? process.code,
-            })),
-          },
-          null,
-          2
-        ),
-      });
-      remainingModel = remainingCall.model;
-      compareAs = parseRemainingFood(remainingCall.content) ?? description;
-    }
+  const compareAs = description;
+
+  if (nature.length === 0 && stated.length === 0) {
+    return unchanged(description, {
+      model: natureCall.model,
+      table22Model: statedCall.model,
+      parsed: natureCall.content !== null && statedCall.content !== null,
+      nature: [],
+      processes: [],
+    });
   }
 
   return {
@@ -372,13 +472,17 @@ export async function resolveBaseCompare(
     processGroup,
     seeds: processGroup === null ? [] : [processGroup.code],
     detail: {
-      model: statedCall.model,
+      model: natureCall.model,
+      table22Model: statedCall.model,
       ...(groupModel !== null ? { groupModel } : {}),
-      ...(remainingModel !== null ? { remainingModel } : {}),
+      nature: nature.map((process) => process.code),
+      natureJudged: natureParts.judged,
+      natureSkipped: natureParts.skipped,
+      natureGroups: natureParts.groups.map((group) => group.code),
       processes: stated,
-      judged,
-      skipped,
-      groups: groups.map((group) => group.code),
+      judged: table22Parts.judged,
+      skipped: table22Parts.skipped,
+      groups: table22Parts.groups.map((group) => group.code),
       processGroup: processGroup?.code ?? null,
       compareAs,
     },
