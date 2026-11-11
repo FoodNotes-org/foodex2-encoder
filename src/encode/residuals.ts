@@ -2752,6 +2752,7 @@ export function rawNoHeatOnRawCommodity(
 
 function addFacet(ctx: PlaceContext, facet: FacetDescriptorRef): boolean {
   if (rawNoHeatOnRawCommodity(ctx.baseTermType, facet)) return false;
+  if (redundantCommoditySource(ctx, facet)) return false;
   const key = `${facet.header}.${facet.code}`;
   if (ctx.seenCodes.has(key)) return false;
   const slot = cardinalityKey(catalogueLookup(ctx.cat), facet.header, facet.code);
@@ -3661,6 +3662,7 @@ function keepFacetCandidate(
 ): void {
   if (facet === null) return;
   if (into.some((f) => f.header === facet.header && f.code === facet.code)) return;
+  if (redundantCommoditySource(ctx, facet)) return;
   if (acceptClosedDescriptor(ctx.cat, facet.header, facet.code, ctx.implied) !== "keep") return;
   into.push(facet);
 }
@@ -3902,6 +3904,50 @@ export function sourceReplacesCommodity(
   if (commodityLevels.some((level) => isPreferredDetail(level))) return false;
   return sourceLevels.some((level) => isPreferredDetail(level));
 }
+
+/**
+ * Plants and animals already named by the source commodities a base denotes.
+ * A derivative that implies Grapefruits already implies Grapefruit (as plant),
+ * one step further on, even though the juice's own implicit list stops at the fruit.
+ */
+function commoditySourceCodes(cat: Catalogue, baseCode: string): string[] {
+  const out: string[] = [];
+  for (const key of cat.impliedFacets(baseCode)) {
+    if (!key.startsWith(`${F27}.`)) continue;
+    const commodity = key.slice(F27.length + 1);
+    for (const implied of cat.impliedFacets(commodity)) {
+      if (implied.startsWith(`${F01}.`)) out.push(implied.slice(F01.length + 1));
+    }
+  }
+  return out;
+}
+
+/**
+ * True when `sourceCode` is the plant or animal one of the base's source
+ * commodities already implies, or a broader group above that organism.
+ * A child of that organism is a tighter source and is not redundant.
+ */
+export function sourceRestatesCommodity(
+  cat: Catalogue,
+  baseCode: string,
+  sourceCode: string
+): boolean {
+  const hierarchy = cat.facetCategory(F01)?.hierarchyCode;
+  for (const plant of commoditySourceCodes(cat, baseCode)) {
+    if (sourceCode === plant) return true;
+    if (hierarchy !== undefined && cat.isAncestor(sourceCode, plant, hierarchy)) return true;
+  }
+  return false;
+}
+
+/** A derivative does not record the source its commodity already implies. */
+function redundantCommoditySource(ctx: PlaceContext, facet: FacetDescriptorRef): boolean {
+  return (
+    ctx.baseTermType === "d" &&
+    facet.header === F01 &&
+    sourceRestatesCommodity(ctx.cat, ctx.baseCode, facet.code)
+  );
+}
 export function systemRawCommodity(withCountry: boolean): string {
   return `You are an expert in food classification.
 
@@ -3996,6 +4042,7 @@ async function placeDerivativeCommodity(ctx: PlaceContext, audit: AuditEntry[]):
   const commodityStands = recorded.some((facet) => isPreferredDetail(facetDetail(ctx, facet)));
   let source: string | null = null;
   const sourceRecorded: FacetDescriptorRef[] = [];
+  const redundantSource: FacetDescriptorRef[] = [];
   if (!commodityStands) {
     const named = await chatJson({
       model: ctx.model,
@@ -4014,6 +4061,10 @@ async function placeDerivativeCommodity(ctx: PlaceContext, audit: AuditEntry[]):
     if (source !== null) {
       const resolved = await resolveSourcePhrase(ctx, source);
       for (const facet of resolved.facets) {
+        if (redundantCommoditySource(ctx, facet)) {
+          redundantSource.push(facet);
+          continue;
+        }
         if (addFacet(ctx, facet)) sourceRecorded.push(facet);
       }
     }
@@ -4055,6 +4106,7 @@ async function placeDerivativeCommodity(ctx: PlaceContext, audit: AuditEntry[]):
       recorded: replaced ? [] : recorded,
       ...(replaced ? { droppedCommodity: recorded } : {}),
       ...(source !== null || sourceRecorded.length > 0 ? { source, sourceRecorded } : {}),
+      ...(redundantSource.length > 0 ? { redundantSource } : {}),
       ...(narrowed !== null ? { narrowed } : {}),
       ...(narrowedDetail !== null ? { narrowedDetail } : {}),
       replaced,

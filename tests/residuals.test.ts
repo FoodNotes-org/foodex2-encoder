@@ -53,6 +53,7 @@ import {
   parseNaturalSource,
   originCoversPhrase,
   sourceReplacesCommodity,
+  sourceRestatesCommodity,
   systemRawCommodity,
   systemNaturalSource,
   systemDifferentiae,
@@ -464,6 +465,22 @@ describe("derivative commodity question", () => {
     assert.equal(sourceReplacesCommodity(["P"], ["H"]), false);
     assert.equal(sourceReplacesCommodity(["P"], []), false);
     assert.equal(sourceReplacesCommodity([], ["E"]), false);
+  });
+
+  it("treats the plant a derivative's commodity already names as redundant", () => {
+    // Juice, grapefruit implies Grapefruits, which implies Grapefruit (as plant).
+    assert.equal(sourceRestatesCommodity(cat, "A03AL", "A05XY"), true);
+    // Citrus fruit (as plant) is the broader group above that plant.
+    assert.equal(sourceRestatesCommodity(cat, "A03AL", "A05VV"), true);
+    // Lemon (as plant) is a different organism.
+    assert.equal(sourceRestatesCommodity(cat, "A03AL", "A05VY"), false);
+    // Cattle milk implies Bovinae. Cattle (as animal) is a child of that group.
+    assert.equal(sourceRestatesCommodity(cat, "A02NF", "A0F1V"), true);
+    assert.equal(sourceRestatesCommodity(cat, "A02NF", "A057E"), false);
+    // Orange-grapefruit juice names both fruits; either plant restates one of them.
+    assert.equal(sourceRestatesCommodity(cat, "A03AS", "A05XY"), true);
+    // Icing sugar's commodity names no plant.
+    assert.equal(sourceRestatesCommodity(cat, "A032R", "A05XY"), false);
   });
 
   it("asks for a raw commodity, and for a natural source only as its own question", () => {
