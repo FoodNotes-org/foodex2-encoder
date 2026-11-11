@@ -14,12 +14,22 @@ import { Catalogue } from "../catalogue.js";
 import { countryParagraph } from "../country.js";
 import { chatJson } from "../llm.js";
 import { facetCardinality } from "../rules/index.js";
+import { vectorIndexAvailable, vectorSearchFacets } from "../search/vector.js";
 import { pickAllowedCode, pickAllowedCodes } from "./answers.js";
 import { F07, F11 } from "./numeric-facets.js";
 import type { FacetDescriptorRef } from "./types.js";
 
 const F09 = "F09";
 const F26 = "F26";
+const F28 = "F28";
+
+/**
+ * Nearest process-facet hits added to the choice list. Same count as the
+ * base-term embedding seeds. They do not open branches.
+ */
+const PROCESS_EMBEDDING_SEED_LIMIT = 5;
+/** Extra hits so a rejected one does not shrink the five. */
+const PROCESS_EMBEDDING_SCAN = 20;
 
 /** Owned by an earlier step (numeric snap, fortification, F26 path), never walked. */
 export const FACET_WALK_SKIP_HEADERS: ReadonlySet<string> = new Set([F07, F09, F11, F26]);
@@ -656,6 +666,70 @@ function mergeRecalled(into: RecalledCandidate[], more: RecalledCandidate[]): vo
   }
 }
 
+/**
+ * Nearest hits that belong to one facet, in the order given (nearest first).
+ * A hit the walk would not record is skipped.
+ */
+export function nearestFacetSeeds(
+  cat: Catalogue,
+  header: string,
+  hits: readonly { code: string; similarity: number }[],
+  accept: ((header: string, code: string) => boolean) | undefined,
+  limit: number
+): RecalledCandidate[] {
+  const hierarchy = hierarchyFor(cat, header);
+  if (hierarchy === null || limit <= 0) return [];
+  const out: RecalledCandidate[] = [];
+  const seen = new Set<string>();
+  for (const hit of hits) {
+    if (seen.has(hit.code)) continue;
+    seen.add(hit.code);
+    if (cat.isDeprecated(hit.code)) continue;
+    if (!cat.belongsTo(hit.code, hierarchy)) continue;
+    if (accept !== undefined && !accept(header, hit.code)) continue;
+    out.push({ header, code: hit.code });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/**
+ * Facet-index hits for one header. The index is built for every facet; the
+ * process walk is the one that consults it. A missing index adds nothing.
+ */
+async function recallEmbeddingSeeds(
+  cat: Catalogue,
+  phrase: string,
+  header: string,
+  options: FacetWalkOptions,
+  steps: WalkStep[]
+): Promise<RecalledCandidate[]> {
+  if (!vectorIndexAvailable("facets")) {
+    steps.push({ via: "embedding_seeds", header, skipped: true, reason: "index_missing" });
+    return [];
+  }
+  const hierarchy = hierarchyFor(cat, header);
+  if (hierarchy === null) return [];
+  const hits = await vectorSearchFacets(
+    phrase,
+    PROCESS_EMBEDDING_SCAN,
+    (code) => cat.belongsTo(code, hierarchy) && !cat.isDeprecated(code)
+  );
+  const seeds = nearestFacetSeeds(
+    cat,
+    header,
+    hits,
+    options.accept,
+    PROCESS_EMBEDDING_SEED_LIMIT
+  );
+  steps.push({
+    via: "embedding_seeds",
+    header,
+    codes: seeds.map((seed) => seed.code),
+  });
+  return seeds;
+}
+
 async function selectAmong(
   cat: Catalogue,
   phrase: string,
@@ -740,6 +814,10 @@ export async function resolveFacetWalk(
   if (seeds.length > 0) {
     steps.push({ via: "seeds", codes: seeds.map((s) => s.code) });
     mergeRecalled(pool, seeds);
+  }
+
+  if (tried.includes(F28)) {
+    mergeRecalled(pool, await recallEmbeddingSeeds(cat, phrase, F28, options, steps));
   }
 
   steps.push({

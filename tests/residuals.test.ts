@@ -13,9 +13,11 @@ import {
   bareFortifiedFacet,
   buildClosedPickPool,
   cleanupFacets,
+  derivativeFacetCombos,
+  derivativeProcessPairs,
   dropIncludedDescriptors,
   facetCleanupDescriptors,
-  parseFacetCleanup,
+  parseFacetCombo,
   systemFacetCleanup,
   decideF26,
   facetDimensionCodeForTerm,
@@ -835,9 +837,84 @@ describe("cleanupFacets", () => {
     assert.equal(facets[0]?.code, "A057L");
     assert.ok(dropped.some((d) => d.reason === "broader_than_added" || d.reason === "cardinality_single"));
   });
+
+  it("drops ingredient calcium and Fortified when the agent is recorded", () => {
+    const { facets, dropped } = cleanupFacets(
+      cat,
+      [
+        { header: "F04", code: "A0EXH", name: "Calcium" },
+        { header: "F04", code: "A01SP", name: "Chicken fresh meat" },
+        { header: "F09", code: "A0EXH", name: "Calcium" },
+        { header: "F10", code: "A077L", name: "Sugar free" },
+        { header: "F10", code: "A0F6C", name: "Fortified" },
+        { header: "F10", code: "A0CRG", name: "Light" },
+        { header: "F21", code: "A07SE", name: "Organic production" },
+      ],
+      new Set()
+    );
+    assert.deepEqual(
+      facets.map((facet) => `${facet.header}.${facet.code}`).sort(),
+      ["F04.A01SP", "F09.A0EXH", "F10.A077L", "F10.A0CRG", "F21.A07SE"].sort()
+    );
+    assert.deepEqual(
+      dropped.map((drop) => [drop.reason, `${drop.facet.header}.${drop.facet.code}`]).sort(),
+      [
+        ["fortified_when_agent_named", "F10.A0F6C"],
+        ["same_as_fortification_agent", "F04.A0EXH"],
+      ].sort()
+    );
+  });
+
+  it("keeps a different ingredient beside the named agent", () => {
+    const { facets, dropped } = cleanupFacets(
+      cat,
+      [
+        { header: "F04", code: "A0EVF", name: "Chemical elements" },
+        { header: "F09", code: "A0EXH", name: "Calcium" },
+      ],
+      new Set()
+    );
+    assert.equal(dropped.length, 0);
+    assert.deepEqual(
+      facets.map((facet) => `${facet.header}.${facet.code}`).sort(),
+      ["F04.A0EVF", "F09.A0EXH"]
+    );
+  });
+
+  it("keeps ingredient calcium and a bare Fortified when no agent is recorded", () => {
+    const ingredient = cleanupFacets(
+      cat,
+      [{ header: "F04", code: "A0EXH", name: "Calcium" }],
+      new Set()
+    );
+    assert.equal(ingredient.dropped.length, 0);
+    assert.equal(ingredient.facets[0]?.code, "A0EXH");
+
+    const fortified = cleanupFacets(
+      cat,
+      [{ header: "F10", code: "A0F6C", name: "Fortified" }],
+      new Set()
+    );
+    assert.equal(fortified.dropped.length, 0);
+    assert.equal(fortified.facets[0]?.code, "A0F6C");
+
+    const both = cleanupFacets(
+      cat,
+      [
+        { header: "F04", code: "A0EXH", name: "Calcium" },
+        { header: "F10", code: "A0F6C", name: "Fortified" },
+      ],
+      new Set()
+    );
+    assert.equal(both.dropped.length, 0);
+    assert.deepEqual(
+      both.facets.map((facet) => `${facet.header}.${facet.code}`).sort(),
+      ["F04.A0EXH", "F10.A0F6C"]
+    );
+  });
 });
 
-describe("facet cleanup inclusion", () => {
+describe("facet cleanup economizing", () => {
   const nectar: FacetDescriptorRef[] = [
     { header: "F04", code: "A0EXH", name: "Calcium" },
     { header: "F09", code: "A0EXH", name: "Calcium" },
@@ -863,6 +940,68 @@ describe("facet cleanup inclusion", () => {
     assert.equal(descriptors.find((descriptor) => descriptor.code === "F21.A07SE")?.parent, undefined);
   });
 
+  it("pairs a derivative with the narrower process the catalogue assigns to it", () => {
+    const pairs = derivativeProcessPairs(cat, [
+      { header: "F04", code: "A01PS", name: "Candied fruits" },
+      { header: "F04", code: "A01QE", name: "Citrus fruit peel" },
+      { header: "F28", code: "A07JR", name: "Candying" },
+    ]);
+    assert.equal(pairs.length, 1);
+    assert.equal(pairs[0]?.derivative.code, "F04.A01PS");
+    assert.deepEqual(
+      pairs[0]?.processes.map((process) => process.code),
+      ["F28.A07JR"]
+    );
+    assert.ok(pairs[0]?.derivative.builtFrom.some((facet) => facet.code === "F28.A07JQ"));
+  });
+
+  it("pairs the implicit process itself", () => {
+    const pairs = derivativeProcessPairs(cat, [
+      { header: "F04", code: "A01PS", name: "Candied fruits" },
+      { header: "F28", code: "A07JQ", name: "Preserving with sugars" },
+    ]);
+    assert.deepEqual(
+      pairs[0]?.processes.map((process) => process.code),
+      ["F28.A07JQ"]
+    );
+  });
+
+  it("does not pair a raw commodity, or a process the derivative does not carry", () => {
+    const peel = derivativeProcessPairs(cat, [
+      { header: "F04", code: "A01QE", name: "Citrus fruit peel" },
+      { header: "F28", code: "A07JR", name: "Candying" },
+    ]);
+    assert.equal(peel.length, 0);
+    const smoked = derivativeProcessPairs(cat, [
+      { header: "F04", code: "A01PS", name: "Candied fruits" },
+      { header: "F28", code: "A07JV", name: "Smoking" },
+    ]);
+    assert.equal(smoked.length, 0);
+  });
+
+  it("keeps the peel on every line and recombines the derivative with the process", () => {
+    const combos = derivativeFacetCombos(
+      "Chocolate coated confectionery",
+      [
+        { key: "F04.A01QE", header: "F04", name: "Citrus fruit peel", role: "ingredient" },
+        { key: "F04.A01PS", header: "F04", name: "Candied fruits", role: "ingredient" },
+        { key: "F28.A07JR", header: "F28", name: "Candying", role: "process" },
+      ],
+      ["F04.A01PS", "F28.A07JR"]
+    );
+    assert.equal(combos.length, 4);
+    assert.ok(combos.every((combo) => combo.text.includes("ingredient = Citrus fruit peel")));
+    const chosen = combos.find((combo) => combo.varying.join("+") === "F28.A07JR");
+    assert.equal(
+      chosen?.text,
+      [
+        "Chocolate coated confectionery",
+        "ingredient = Citrus fruit peel",
+        "process = Candying",
+      ].join("\n")
+    );
+  });
+
   it("drops only offered descriptors, and never generic-term", () => {
     const { facets, dropped } = dropIncludedDescriptors(nectar, [
       "F04.A0EXH",
@@ -880,17 +1019,20 @@ describe("facet cleanup inclusion", () => {
     );
   });
 
-  it("reads a drop list and nothing else", () => {
-    assert.deepEqual(parseFacetCleanup({ drop: [" F04.A0EXH ", "", 3] }), ["F04.A0EXH"]);
-    assert.deepEqual(parseFacetCleanup({ drop: "F04.A0EXH" }), []);
-    assert.deepEqual(parseFacetCleanup(null), []);
+  it("reads the id of the chosen description and nothing else", () => {
+    assert.equal(parseFacetCombo({ id: " 3 " }), "3");
+    assert.equal(parseFacetCombo({ id: "" }), null);
+    assert.equal(parseFacetCombo({ drop: ["F04.A01PS"] }), null);
+    assert.equal(parseFacetCombo(null), null);
   });
 
   it("names the country with the description when a country is given", () => {
     const prompt = systemFacetCleanup(true);
-    assert.match(prompt, /if any/);
+    assert.match(prompt, /as precisely and as completely/);
+    assert.match(prompt, /without stating the same fact twice/);
+    assert.match(prompt, /role and its name/);
     assert.match(prompt, /food nomenclature of: `country`/);
-    assert.match(prompt, /\{"drop":\["<code>",...\]\}/);
+    assert.match(prompt, /\{"id":"<id>"\}/);
   });
 
   it("omits the country when none is given", () => {

@@ -65,7 +65,8 @@ export function vectorIndexAvailable(name: IndexName = "base"): boolean {
 async function vectorSearch(
   name: IndexName,
   query: string,
-  limit: number
+  limit: number,
+  include?: (code: string) => boolean
 ): Promise<VectorHit[]> {
   if (!vectorIndexAvailable(name)) {
     throw new Error(
@@ -76,8 +77,10 @@ async function vectorSearch(
   const q = await embedQuery(query);
   const hits: VectorHit[] = [];
   for (let i = 0; i < idx.codes.length; i++) {
+    const code = idx.codes[i] as string;
+    if (include !== undefined && !include(code)) continue;
     const vector = idx.vectors.subarray(i * idx.dim, (i + 1) * idx.dim);
-    hits.push({ code: idx.codes[i] as string, similarity: cosineSimilarity(q, vector) });
+    hits.push({ code, similarity: cosineSimilarity(q, vector) });
   }
   hits.sort((a, b) => b.similarity - a.similarity);
   return hits.slice(0, limit);
@@ -87,6 +90,10 @@ export async function vectorSearchBase(query: string, limit = 10): Promise<Vecto
   return vectorSearch("base", query, limit);
 }
 
-export async function vectorSearchFacets(query: string, limit = 10): Promise<VectorHit[]> {
-  return vectorSearch("facets", query, limit);
+export async function vectorSearchFacets(
+  query: string,
+  limit = 10,
+  include?: (code: string) => boolean
+): Promise<VectorHit[]> {
+  return vectorSearch("facets", query, limit, include);
 }

@@ -2339,8 +2339,40 @@ export interface CleanupDrop {
 }
 
 /**
+ * The fortification-agent already names the substance and the use.
+ * The same term as an ingredient restates the substance, and Fortified
+ * only says an agent was added. Both go when the agent is recorded.
+ * An ingredient with no agent, and a bare Fortified, stay.
+ */
+function dropRepeatedFortification(
+  facets: FacetDescriptorRef[],
+  dropped: CleanupDrop[]
+): FacetDescriptorRef[] {
+  const agentCodes = new Set(
+    facets.filter((facet) => facet.header === F09).map((facet) => facet.code)
+  );
+  let kept = facets.filter((facet) => {
+    if (facet.header === F04 && agentCodes.has(facet.code)) {
+      dropped.push({ facet, reason: "same_as_fortification_agent" });
+      return false;
+    }
+    return true;
+  });
+  if (!kept.some((facet) => facet.header === F09)) return kept;
+  return kept.filter((facet) => {
+    if (facet.header === F10 && facet.code === F10_FORTIFIED) {
+      dropped.push({ facet, reason: "fortified_when_agent_named" });
+      return false;
+    }
+    return true;
+  });
+}
+
+/**
  * Post-place cleanup: implicits rule, drop broader-than-sibling within a header,
  * and for single-cardinality headers keep the most informative descriptor.
+ * Then drop an ingredient that repeats a fortification-agent, and Fortified
+ * when a named agent remains.
  */
 export function cleanupFacets(
   cat: Catalogue,
@@ -2406,27 +2438,26 @@ export function cleanupFacets(
     }
   }
 
-  return { facets: out, dropped };
+  return { facets: dropRepeatedFortification(out, dropped), dropped };
 }
 
 /**
- * Among recorded descriptors, which characteristics are already included in
- * another. Generic-term is excluded: Other and Unspecified follow their own rule.
+ * Choose among labelled combinations of a derivative and the process it
+ * already carries. Every other descriptor stays on each line.
  */
 export function systemFacetCleanup(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-Task: name the facet descriptors, if any, whose characteristic is already included in the characteristic of another recorded descriptor.
+Task: choose the description that says what this food is, as precisely and as completely as these descriptions allow, without stating the same fact twice.
 
 Given:
 - \`description\`: the food.
-- \`baseTerm\`: the food group already chosen, with its name.
-- \`descriptors\`: the descriptors recorded for this food. Each has a \`code\`, a \`name\`, a \`scope\`, the \`facet\` it is recorded under, with that facet's name and scope, and, where it has one, the \`parent\` it has under that facet, with that parent's name and scope.
+- \`candidates\`: the descriptions to choose from. Each has an \`id\` and a \`text\`. The first line of \`text\` is the base term, what the food is. Each further line is a facet descriptor that qualifies it, written as its role and its name.
 ${countryParagraph(withCountry, "description")}
-A descriptor's characteristic is already included in another's when any food that bears the other thereby bears this one. It is kept when the description states a characteristic of this food that the other descriptor does not include.
+A precise descriptor stays close to what the description says. A complete description still states each fact the description states. A descriptor that only restates a commodity and a process already stated in that description states the same fact twice.
 
-Reply with JSON only, listing the codes to drop, or an empty list when each descriptor attributes a characteristic the others do not include:
-{"drop":["<code>",...]}
+Reply with JSON only, giving the id of the description to keep:
+{"id":"<id>"}
 `;
 }
 
@@ -2438,12 +2469,153 @@ export interface FacetCleanupDescriptor {
   parent?: { code: string; name: string | null; scope?: string };
 }
 
+export interface DerivativeProcessPair {
+  derivative: {
+    code: string;
+    name: string;
+    scope?: string;
+    builtFrom: Array<{ code: string; name: string; facet: string }>;
+  };
+  processes: Array<{ code: string; name: string }>;
+}
+
+/** Implicit facets of a term, as facet descriptors the catalogue already assigns. */
+function builtFromFacets(
+  cat: Catalogue,
+  code: string
+): Array<{ code: string; name: string; facet: string }> {
+  const out: Array<{ code: string; name: string; facet: string }> = [];
+  for (const key of cat.impliedFacets(code)) {
+    const dot = key.indexOf(".");
+    if (dot <= 0) continue;
+    const header = key.slice(0, dot);
+    const termCode = key.slice(dot + 1);
+    if (termCode === "") continue;
+    out.push({
+      code: key,
+      name: cat.term(termCode)?.name ?? termCode,
+      facet: cat.facetCategory(header)?.label ?? header,
+    });
+  }
+  return out;
+}
+
+function recordedKey(facet: { header: string; code: string }): string {
+  return `${facet.header}.${facet.code}`;
+}
+
+/**
+ * Derivatives recorded beside a process they already carry.
+ * A raw commodity is not a candidate. A process covers an implicit process
+ * when it is that process or a narrower one.
+ */
+export function derivativeProcessPairs(
+  cat: Catalogue,
+  facets: readonly FacetDescriptorRef[]
+): DerivativeProcessPair[] {
+  const hierarchy = cat.facetCategory(F28)?.hierarchyCode;
+  if (hierarchy === undefined) return [];
+  const processes = facets.filter((facet) => facet.header === F28);
+  const out: DerivativeProcessPair[] = [];
+  for (const facet of facets) {
+    if (cat.term(facet.code)?.termType !== "d") continue;
+    const builtFrom = builtFromFacets(cat, facet.code);
+    const implicitProcesses = builtFrom.filter((item) => item.code.startsWith(`${F28}.`));
+    if (implicitProcesses.length === 0) continue;
+    const covered = processes.filter((process) =>
+      implicitProcesses.some((implicit) => {
+        const termCode = impliedTermCode(implicit.code);
+        return termCode !== null && cat.isAncestor(termCode, process.code, hierarchy);
+      })
+    );
+    if (covered.length === 0) continue;
+    out.push({
+      derivative: {
+        code: recordedKey(facet),
+        name: facet.name,
+        ...optionalScope(cat.term(facet.code)?.scopeNote),
+        builtFrom,
+      },
+      processes: covered.map((process) => ({
+        code: recordedKey(process),
+        name: process.name,
+      })),
+    });
+  }
+  return out;
+}
+
+function impliedTermCode(key: string): string | null {
+  const dot = key.indexOf(".");
+  if (dot <= 0) return null;
+  const termCode = key.slice(dot + 1);
+  return termCode === "" ? null : termCode;
+}
+
+export interface FacetCombo {
+  id: string;
+  text: string;
+  /** Keys from the varying set that this description includes. */
+  varying: string[];
+}
+
+interface LabelledFacet {
+  key: string;
+  header: string;
+  name: string;
+  role: string;
+}
+
+function subsetKeys(keys: readonly string[]): string[][] {
+  const out: string[][] = [[]];
+  for (const key of keys) out.push(...out.map((combo) => [...combo, key]));
+  return out;
+}
+
+/**
+ * Every combination of the varying descriptors, each written under the base
+ * term with its role. Descriptors outside `varyingKeys` are on every line.
+ */
+export function derivativeFacetCombos(
+  baseName: string,
+  facets: readonly LabelledFacet[],
+  varyingKeys: readonly string[]
+): FacetCombo[] {
+  const varying = new Set(varyingKeys);
+  const fixed = facets.filter((facet) => !varying.has(facet.key));
+  const byKey = new Map(
+    facets.filter((facet) => varying.has(facet.key)).map((facet) => [facet.key, facet])
+  );
+  const ordered = [...varyingKeys].filter((key) => byKey.has(key)).sort();
+  return subsetKeys(ordered).map((keys, index) => {
+    const chosen = keys.flatMap((key) => {
+      const facet = byKey.get(key);
+      return facet === undefined ? [] : [facet];
+    });
+    const lines = [baseName, ...facetLines([...fixed, ...chosen])];
+    return { id: String(index + 1), text: lines.join("\n"), varying: keys };
+  });
+}
+
+function facetLines(facets: readonly LabelledFacet[]): string[] {
+  return [...facets]
+    .sort((a, b) => a.header.localeCompare(b.header) || a.key.localeCompare(b.key))
+    .map((facet) => `${facet.role} = ${facet.name}`);
+}
+
+/** The id of the chosen description, or null when the reply does not name one. */
+export function parseFacetCombo(content: unknown): string | null {
+  if (content === null || typeof content !== "object") return null;
+  const id = (content as { id?: unknown }).id;
+  return typeof id === "string" && id.trim() !== "" ? id.trim() : null;
+}
+
 function optionalScope(note: string | null | undefined): { scope: string } | Record<string, never> {
   const scope = genusScope(note);
   return scope === "" ? {} : { scope };
 }
 
-/** Descriptors the inclusion judgement sees. Generic-term is left out. */
+/** Recorded descriptors with facet and parent. Generic-term is left out. */
 export function facetCleanupDescriptors(
   cat: Catalogue,
   facets: readonly FacetDescriptorRef[]
@@ -2480,12 +2652,6 @@ export function facetCleanupDescriptors(
   return out;
 }
 
-/** Codes the inclusion reply named. Anything else is an empty list. */
-export function parseFacetCleanup(content: unknown): string[] {
-  if (content === null || typeof content !== "object") return [];
-  return stringList((content as { drop?: unknown }).drop);
-}
-
 /**
  * Drop the descriptors the reply named, when they were offered. Generic-term
  * is never offered, so a reply that names it changes nothing.
@@ -2511,10 +2677,24 @@ async function askIncludedFacets(
   ctx: PlaceContext,
   facets: FacetDescriptorRef[]
 ): Promise<{ facets: FacetDescriptorRef[]; detail: Record<string, unknown> } | null> {
-  const descriptors = facetCleanupDescriptors(ctx.cat, facets).filter(
-    (descriptor) => !ctx.protectedFacets.has(descriptor.code)
-  );
-  if (descriptors.length < 2) return null;
+  const varying = new Set<string>();
+  for (const pair of derivativeProcessPairs(ctx.cat, facets)) {
+    if (!ctx.protectedFacets.has(pair.derivative.code)) varying.add(pair.derivative.code);
+    for (const process of pair.processes) {
+      if (!ctx.protectedFacets.has(process.code)) varying.add(process.code);
+    }
+  }
+  if (varying.size === 0) return null;
+  const labelled = facets
+    .filter((facet) => facet.header !== F26)
+    .map((facet) => ({
+      key: recordedKey(facet),
+      header: facet.header,
+      name: facet.name,
+      role: (ctx.cat.facetCategory(facet.header)?.label ?? facet.header).toLowerCase(),
+    }));
+  const combos = derivativeFacetCombos(ctx.baseName, labelled, [...varying]);
+  if (combos.length < 2) return null;
   const withCountry = ctx.country !== null && ctx.country !== "";
   const asked = await chatJson({
     model: ctx.model,
@@ -2523,33 +2703,38 @@ async function askIncludedFacets(
       {
         description: ctx.input,
         ...(withCountry ? { country: ctx.country } : {}),
-        baseTerm: { name: ctx.baseName },
-        descriptors,
+        candidates: combos.map((combo) => ({ id: combo.id, text: combo.text })),
       },
       null,
       2
     ),
   });
-  const requested = parseFacetCleanup(asked.content).filter(
-    (code) => !ctx.protectedFacets.has(code)
+  const picked = combos.find((combo) => combo.id === parseFacetCombo(asked.content));
+  if (picked === undefined) {
+    return {
+      facets,
+      detail: { model: asked.model, candidates: combos.length, pick: null },
+    };
+  }
+  const keep = new Set(picked.varying);
+  const applied = dropIncludedDescriptors(
+    facets,
+    [...varying].filter((key) => !keep.has(key))
   );
-  const applied = dropIncludedDescriptors(facets, requested);
   for (const facet of applied.dropped) ctx.seenCodes.delete(`${facet.header}.${facet.code}`);
   ctx.facets = applied.facets;
-  const unmatched = requested.filter(
-    (code) => !applied.dropped.some((facet) => `${facet.header}.${facet.code}` === code)
-  );
   return {
     facets: applied.facets,
     detail: {
       model: asked.model,
-      descriptors: descriptors.map((descriptor) => descriptor.code),
+      candidates: combos.length,
+      pick: picked.id,
+      text: picked.text,
       drop: applied.dropped.map((facet) => ({
         header: facet.header,
         code: facet.code,
         name: facet.name,
       })),
-      ...(unmatched.length > 0 ? { unmatched } : {}),
     },
   };
 }
@@ -3377,7 +3562,7 @@ async function finishResiduals(
 
   const included = await askIncludedFacets(ctx, cleaned.facets);
   if (included !== null) {
-    audit.push({ step: "residuals_included", detail: included.detail });
+    audit.push({ step: "residuals_economize", detail: included.detail });
   }
   const sorted = sortFacets(included?.facets ?? cleaned.facets);
   const freeTextOut = ctx.freeText.length > 0 ? ctx.freeText : null;
