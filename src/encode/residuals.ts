@@ -74,13 +74,13 @@ import type {
   SelectFit,
 } from "./types.js";
 import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
-import { countryParagraph } from "../country.js";
+import { countryParagraph, DEFAULT_COUNTRY_CODE, resolveCountry } from "../country.js";
 import { cardinalityKey, facetCardinality, impliedRelation } from "../rules/index.js";
 import { catalogueLookup } from "../rules/catalogue-lookup.js";
 import { chatJson, defaultModel } from "../llm.js";
 import { contentTokens, FUNCTION_WORDS, sameContentTokenSet } from "../search/content-match.js";
 import { formatFoodEx2Code, sortFacets } from "./foodex2-code.js";
-import { resolveSourceWalk } from "./source-walk.js";
+import { matchCommoditySource, resolveSourceWalk } from "./source-walk.js";
 const INGRED_HIERARCHY = "ingred";
 const F01 = "F01";
 const F04 = "F04";
@@ -669,6 +669,8 @@ interface PlaceContext {
   originCovered: string[];
   /** Minor-share foods in a mix. An attribute that names one is an ingredient. */
   minorFoods: readonly string[];
+  /** Facet keys kept beside a more precise source. Inclusion may not drop them. */
+  protectedFacets: Set<string>;
 }
 
 function walkFood(ctx: PlaceContext): FacetWalkFood {
@@ -2509,7 +2511,9 @@ async function askIncludedFacets(
   ctx: PlaceContext,
   facets: FacetDescriptorRef[]
 ): Promise<{ facets: FacetDescriptorRef[]; detail: Record<string, unknown> } | null> {
-  const descriptors = facetCleanupDescriptors(ctx.cat, facets);
+  const descriptors = facetCleanupDescriptors(ctx.cat, facets).filter(
+    (descriptor) => !ctx.protectedFacets.has(descriptor.code)
+  );
   if (descriptors.length < 2) return null;
   const withCountry = ctx.country !== null && ctx.country !== "";
   const asked = await chatJson({
@@ -2526,7 +2530,9 @@ async function askIncludedFacets(
       2
     ),
   });
-  const requested = parseFacetCleanup(asked.content);
+  const requested = parseFacetCleanup(asked.content).filter(
+    (code) => !ctx.protectedFacets.has(code)
+  );
   const applied = dropIncludedDescriptors(facets, requested);
   for (const facet of applied.dropped) ctx.seenCodes.delete(`${facet.header}.${facet.code}`);
   ctx.facets = applied.facets;
@@ -3840,6 +3846,23 @@ async function placeDerivativeCommodity(ctx: PlaceContext, audit: AuditEntry[]):
   }
   if (source !== null && sourceRecorded.length > 0) ctx.originCovered.push(source);
 
+  let narrowed: FacetDescriptorRef | null = null;
+  let narrowedDetail: Record<string, unknown> | null = null;
+  const sole = !replaced && recorded.length === 1 ? recorded[0]! : null;
+  const impliedSource = sole !== null && commodityStands ? impliedSourceOf(ctx.cat, sole.code) : null;
+  if (sole !== null && impliedSource !== null && commodity !== null) {
+    const country = ctx.country?.trim() || europeanUnionName();
+    const matched = await matchCommoditySource(ctx.cat, commodity, impliedSource, {
+      model: ctx.model,
+      country,
+    });
+    narrowedDetail = matched.detail;
+    if (matched.facet !== null && addFacet(ctx, matched.facet)) {
+      narrowed = matched.facet;
+      ctx.protectedFacets.add(`${sole.header}.${sole.code}`);
+    }
+  }
+
   audit.push({
     step: "residuals_commodity",
     detail: {
@@ -3847,10 +3870,26 @@ async function placeDerivativeCommodity(ctx: PlaceContext, audit: AuditEntry[]):
       recorded: replaced ? [] : recorded,
       ...(replaced ? { droppedCommodity: recorded } : {}),
       ...(source !== null || sourceRecorded.length > 0 ? { source, sourceRecorded } : {}),
+      ...(narrowed !== null ? { narrowed } : {}),
+      ...(narrowedDetail !== null ? { narrowedDetail } : {}),
       replaced,
       covered: [...ctx.originCovered],
     },
   });
+}
+
+/** The one animal or plant a commodity implies, when it implies exactly one. */
+function impliedSourceOf(cat: Catalogue, code: string): string | null {
+  const sources = cat
+    .impliedFacets(code)
+    .filter((key) => key.startsWith(`${F01}.`))
+    .map((key) => key.slice(F01.length + 1));
+  return sources.length === 1 ? sources[0]! : null;
+}
+
+function europeanUnionName(): string {
+  const resolved = resolveCountry(DEFAULT_COUNTRY_CODE);
+  return resolved.ok ? resolved.name : "European Union";
 }
 
 /** Attributes the description still states, given a locked base term. */
@@ -4122,6 +4161,7 @@ export async function assignResiduals(
     numericClaim: { fatPercent: null, alcoholPercent: null },
     originCovered: [],
     minorFoods: options.minorFoods ?? [],
+    protectedFacets: new Set(),
   };
 
   if (options.facetSlots !== false) {

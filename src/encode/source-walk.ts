@@ -278,6 +278,132 @@ export async function resolveSourceWalk(
   };
 }
 
+/**
+ * Among the children of a commodity's implied source: one exact organism is
+ * the source. Several exact matches are no choice. Broad children are opened,
+ * not taken in list order.
+ */
+export function chooseCommoditySourceLevel(
+  children: ReadonlyArray<{ code: string; match: LadderLabel }>
+): { exact: string | null; descend: string[]; ambiguous: boolean } {
+  const exact = children.filter((child) => child.match === "exact").map((child) => child.code);
+  if (exact.length === 1) return { exact: exact[0]!, descend: [], ambiguous: false };
+  if (exact.length > 1) return { exact: null, descend: [], ambiguous: true };
+  return {
+    exact: null,
+    descend: children.filter((child) => child.match === "broad").map((child) => child.code),
+    ambiguous: false,
+  };
+}
+
+export function systemCommoditySource(): string {
+  return `You are an expert in food classification.
+
+Your task is to match an organism or other source against source terms in a food catalogue.
+
+You are given:
+- \`lookingFor\`: a food.
+- \`country\`: the place whose food nomenclature \`lookingFor\` uses. Read \`lookingFor\` as understood there.
+- \`parent\`: the source group these terms sit under.
+- \`terms\`: the source terms to judge. Each has a \`code\` and a \`name\`. A term that has children also has \`directSubcategories\`. A term that has a scope note also has \`note\`.
+
+Compare the organism \`lookingFor\` is from with the class the term denotes. Use the term's name and, when present, its \`directSubcategories\` and its \`note\`.
+
+For each term, assign one match:
+- exact: the term is that organism
+- broad: the term is a broader class than that organism
+- narrow: the term is a narrower class than that organism
+- related: associated, and neither is a broader or a narrower class
+- none: none of the above
+
+Reply with JSON only:
+{"classifications":[{"code":"<code>","match":"exact|broad|narrow|related|none"}, ...]}
+`;
+}
+
+const COMMODITY_SOURCE_DEPTH = 4;
+
+/**
+ * The organism a single source commodity is from, when a child of the animal
+ * or plant that commodity implies matches more tightly. The implied source
+ * itself is not returned.
+ */
+export async function matchCommoditySource(
+  cat: Catalogue,
+  phrase: string,
+  impliedSource: string,
+  options: { model: string; country: string }
+): Promise<{ facet: FacetDescriptorRef | null; detail: Record<string, unknown> }> {
+  const steps: Record<string, unknown>[] = [];
+  const system = systemCommoditySource();
+  const visited = new Set<string>();
+  const broadNodes: string[] = [];
+  let exact: string | null = null;
+  let ambiguous = false;
+  let queue = [impliedSource];
+
+  for (let depth = 0; depth < COMMODITY_SOURCE_DEPTH && queue.length > 0 && exact === null && !ambiguous; depth++) {
+    const wave = queue;
+    queue = [];
+    for (const parent of wave) {
+      if (visited.has(parent) || exact !== null || ambiguous) continue;
+      visited.add(parent);
+      const kids = sourceChildren(cat, parent);
+      if (kids.length === 0) continue;
+      const allowed = new Set(kids);
+      const replied = await chatJson({
+        model: options.model,
+        system,
+        user: JSON.stringify(
+          {
+            lookingFor: phrase,
+            country: options.country,
+            parent: cat.term(parent)?.name ?? parent,
+            terms: kids.map((code) => termView(cat, code)),
+          },
+          null,
+          2
+        ),
+      });
+      const labels = parseClassifications(replied.content, allowed, "match", LADDER_LABELS);
+      const judged = kids.map((code) => ({
+        code,
+        match: labels?.get(code) ?? "none",
+      }));
+      steps.push({
+        parent,
+        name: cat.term(parent)?.name ?? parent,
+        classifications: judged.map((child) => ({
+          ...child,
+          name: cat.term(child.code)?.name ?? child.code,
+        })),
+      });
+      const choice = chooseCommoditySourceLevel(judged);
+      if (choice.ambiguous) ambiguous = true;
+      else if (choice.exact !== null) exact = choice.exact;
+      else {
+        broadNodes.push(...choice.descend);
+        queue.push(...choice.descend);
+      }
+    }
+  }
+
+  const chosen = exact ?? (ambiguous ? null : deepest(cat, broadNodes));
+  const facet = chosen !== null ? facetOf(cat, chosen) : null;
+  return {
+    facet,
+    detail: {
+      phrase,
+      impliedSource,
+      via: "commodity_source",
+      resolved: facet?.code ?? null,
+      ...(facet !== null ? { name: facet.name } : {}),
+      ...(ambiguous ? { ambiguousExact: true } : {}),
+      steps,
+    },
+  };
+}
+
 function deepest(cat: Catalogue, codes: string[]): string | null {
   let best: string | null = null;
   let depth = -1;

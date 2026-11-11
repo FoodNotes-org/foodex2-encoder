@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { chooseSourceLevel, systemSourceMatch } from "../src/encode/source-walk.js";
+import {
+  chooseCommoditySourceLevel,
+  chooseSourceLevel,
+  systemSourceMatch,
+} from "../src/encode/source-walk.js";
 import { parseAddedClaim, systemAddedIngredient } from "../src/encode/residuals.js";
 
 describe("chooseSourceLevel", () => {
@@ -47,6 +51,48 @@ describe("chooseSourceLevel", () => {
     ]);
     assert.deepEqual(choice.exact, ["a", "b"]);
     assert.equal(choice.useNode, false);
+  });
+});
+
+describe("chooseCommoditySourceLevel", () => {
+  it("takes the one exact child and does not open a broad sibling", () => {
+    const choice = chooseCommoditySourceLevel([
+      { code: "A0884", match: "exact" },
+      { code: "A04XT", match: "broad" },
+    ]);
+    assert.equal(choice.exact, "A0884");
+    assert.deepEqual(choice.descend, []);
+    assert.equal(choice.ambiguous, false);
+  });
+
+  it("opens broad children when none is exact", () => {
+    const choice = chooseCommoditySourceLevel([
+      { code: "A04XT", match: "broad" },
+      { code: "A0GMV", match: "none" },
+    ]);
+    assert.equal(choice.exact, null);
+    assert.deepEqual(choice.descend, ["A04XT"]);
+    assert.equal(choice.ambiguous, false);
+  });
+
+  it("makes no choice when several children are exact", () => {
+    const choice = chooseCommoditySourceLevel([
+      { code: "a", match: "exact" },
+      { code: "b", match: "exact" },
+    ]);
+    assert.equal(choice.exact, null);
+    assert.equal(choice.ambiguous, true);
+    assert.deepEqual(choice.descend, []);
+  });
+
+  it("adds nothing when every child is only a narrower kind", () => {
+    const choice = chooseCommoditySourceLevel([
+      { code: "A0884", match: "narrow" },
+      { code: "A04XT", match: "narrow" },
+    ]);
+    assert.equal(choice.exact, null);
+    assert.deepEqual(choice.descend, []);
+    assert.equal(choice.ambiguous, false);
   });
 });
 
