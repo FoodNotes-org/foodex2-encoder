@@ -6,12 +6,13 @@
  *
  * 1. One model pass: fit class per candidate (exact|broad|narrow|related|none).
  * 2. Prefer exact, else broad. Narrow, related, and none stay on the audit.
- * 3. When more than one broad remains, a core or extended term is kept over a
- *    hierarchy or generic term. The model picks among whatever is left when
- *    more than one remains. Related terms are not passed on.
+ * 3. When more than one broad remains, the score decides. A shelf that already
+ *    carries a process gets that bonus once. The model picks only among shelves
+ *    that share the top score. Related terms are not passed on.
  * 4. Otherwise within the winning class, C/E/P detail-level bonus may prefer a
  *    denser term; ties → deterministic tie-breaks (specificity, non-specific P,
- *    core/extended, code).
+ *    core/extended, code). The same order breaks a broad-score tie the model
+ *    does not answer.
  * 5. pickKind / residual fit is the winning tier (exact|broad).
  */
 
@@ -48,6 +49,11 @@ export function fitPoints(fit: CandidateFit | null | undefined): number {
  * Applied only within the same selectable fit class.
  */
 export const DETAIL_LEVEL_BONUS = 2;
+/**
+ * A broad shelf that already carries a process. Once, however many processes
+ * it lists. Larger than the detail bonus, so the process stands over core.
+ */
+export const PROCESS_BONUS = 3;
 const DETAIL_LEVELS = ["C", "E", "P"];
 
 function detailLevelBonus(detailLevel: string | null | undefined): number {
@@ -63,6 +69,8 @@ const SCORING_AUDIT = {
   detailLevelBonus: DETAIL_LEVEL_BONUS,
   detailLevels: DETAIL_LEVELS,
   detailBonusScope: "within_fit_class",
+  processBonus: PROCESS_BONUS,
+  processBonusScope: "broad_shelf_once",
 };
 
 /** Fit points + detail bonus (for audit). Shortlist uses fit class first. */
@@ -98,19 +106,28 @@ function isCoreOrExtended(detailLevel: string | null): boolean {
   return detailLevel === "C" || detailLevel === "E";
 }
 
+/** True when the term already carries a process, declared or inherited. */
+export function carriesProcess(cat: Catalogue, code: string): boolean {
+  return cat.impliedFacets(code).some((facet) => facet.startsWith("F28."));
+}
+
 /**
- * Among several broad shelves, a core or extended term stands over a hierarchy
- * or generic term. When none of the shelves is core or extended, the full set
- * stays.
+ * Score for choosing among broad shelves: fit, detail level, and one process
+ * bonus. An exact match is scored without the process bonus.
  */
-export function preferredBroadShelves(
+export function broadShelfScore(
   cat: Catalogue,
-  shelves: BaseTermCandidate[]
-): BaseTermCandidate[] {
-  const preferred = shelves.filter((candidate) =>
-    isCoreOrExtended(cat.term(candidate.code)?.detailLevel ?? null)
-  );
-  return preferred.length > 0 ? preferred : shelves;
+  code: string
+): { score: number; fitPoints: number; detailLevelBonus: number; processBonus: number } {
+  const points = fitPoints("broad");
+  const detail = detailLevelBonus(cat.term(code)?.detailLevel ?? null);
+  const process = carriesProcess(cat, code) ? PROCESS_BONUS : 0;
+  return {
+    score: points + detail + process,
+    fitPoints: points,
+    detailLevelBonus: detail,
+    processBonus: process,
+  };
 }
 
 function descendantsInSet(
@@ -187,7 +204,12 @@ function toScored(
   fit: CandidateFit | null,
   shortlisted: boolean,
   shortlistCodes: Set<string>,
-  scoreParts: { score: number; fitPoints: number; detailLevelBonus: number }
+  scoreParts: {
+    score: number;
+    fitPoints: number;
+    detailLevelBonus: number;
+    processBonus?: number;
+  }
 ): ScoredCandidate {
   const term = cat.term(candidate.code);
   const detailLevel = term?.detailLevel ?? null;
@@ -201,6 +223,7 @@ function toScored(
     score: scoreParts.score,
     fitPoints: scoreParts.fitPoints,
     detailLevelBonus: scoreParts.detailLevelBonus,
+    ...(scoreParts.processBonus !== undefined ? { processBonus: scoreParts.processBonus } : {}),
     shortlisted,
     ...(shortlisted
       ? {
@@ -249,7 +272,7 @@ export async function scoreTraversalCandidates(
   const scores = new Map(
     pool.map((c) => {
       const fit = byCode.get(c.code) ?? "none";
-      const parts = selectScore(cat, c.code, fit);
+      const parts = fit === "broad" ? broadShelfScore(cat, c.code) : selectScore(cat, c.code, fit);
       return [c.code, parts] as const;
     })
   );
@@ -290,17 +313,17 @@ export async function scoreTraversalCandidates(
   let shortlistCodes: Set<string>;
   let shortlist: BaseTermCandidate[];
   let maxScore: number;
-  let parentPickVia: "model" | "tie_break" | "core_or_extended" | null = null;
+  let parentPickVia: "model" | "tie_break" | "score" | null = null;
   let shelfPool: BaseTermCandidate[] | null = null;
 
   if (tier.fit === "broad" && tierPool.length > 1) {
-    shelfPool = preferredBroadShelves(cat, tierPool);
+    maxScore = Math.max(...tierPool.map((c) => scores.get(c.code)!.score));
+    shelfPool = tierPool.filter((c) => scores.get(c.code)!.score === maxScore);
     if (shelfPool.length === 1) {
       const only = shelfPool[0]!;
       shortlistCodes = new Set([only.code]);
       shortlist = [only];
-      maxScore = scores.get(only.code)!.score;
-      parentPickVia = "core_or_extended";
+      parentPickVia = "score";
     } else {
       const parentPick = await pickClosestParent(input, shelfPool, options);
       audit.push(...parentPick.audit);

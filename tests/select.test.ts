@@ -11,7 +11,8 @@ import {
   tieBreakRank,
   selectScore,
   fitPoints,
-  preferredBroadShelves,
+  broadShelfScore,
+  PROCESS_BONUS,
   DETAIL_LEVEL_BONUS,
 } from "../src/encode/select.js";
 import { otherSiblingFields } from "../src/encode/select-classify.js";
@@ -149,58 +150,34 @@ describe("tie-break within shortlist", () => {
   });
 });
 
-describe("preferredBroadShelves", () => {
+describe("broadShelfScore", () => {
   const cat = Catalogue.load();
-  const shelf = (code: string, name: string): BaseTermCandidate => ({
-    code,
-    name,
-    match: "broad",
+
+  it("puts a generic shelf that carries a process above a core shelf that does not", () => {
+    const smokedFish = broadShelfScore(cat, "A0EYS");
+    const sturgeon = broadShelfScore(cat, "A029E");
+    assert.equal(smokedFish.processBonus, PROCESS_BONUS);
+    assert.equal(sturgeon.processBonus, 0);
+    assert.ok(smokedFish.score > sturgeon.score);
   });
 
-  it("keeps a core term over a generic term and hierarchy terms", () => {
-    const shelves = [
-      shelf("A000J", "Grains and grain-based products"),
-      shelf("A0BY1", "Groats"),
-      shelf("A000K", "Cereals and cereal primary derivatives"),
-      shelf("A0C0Z", "Maize, milled"),
-    ];
-    assert.deepEqual(
-      preferredBroadShelves(cat, shelves).map((candidate) => candidate.code),
-      ["A0C0Z"]
-    );
+  it("keeps a core shelf above a generic shelf when both carry a process", () => {
+    const milled = broadShelfScore(cat, "A0C0Z");
+    const groats = broadShelfScore(cat, "A0BY1");
+    assert.equal(milled.processBonus, PROCESS_BONUS);
+    assert.equal(groats.processBonus, PROCESS_BONUS);
+    assert.ok(milled.score > groats.score);
   });
 
-  it("keeps an extended term over a generic term", () => {
-    const shelves = [
-      shelf("A0BY1", "Groats"),
-      shelf("A000T", "Maize grain"),
-    ];
-    assert.deepEqual(
-      preferredBroadShelves(cat, shelves).map((candidate) => candidate.code),
-      ["A000T"]
-    );
+  it("scores two core shelves that each carry one process as equal", () => {
+    const confectionery = broadShelfScore(cat, "A034R");
+    const candied = broadShelfScore(cat, "A01PS");
+    assert.equal(confectionery.score, candied.score);
   });
 
-  it("keeps every core or extended term when several qualify", () => {
-    const shelves = [
-      shelf("A0BY1", "Groats"),
-      shelf("A0C0Z", "Maize, milled"),
-      shelf("A000T", "Maize grain"),
-    ];
-    assert.deepEqual(
-      preferredBroadShelves(cat, shelves).map((candidate) => candidate.code),
-      ["A0C0Z", "A000T"]
-    );
-  });
-
-  it("leaves the set unchanged when none is core or extended", () => {
-    const shelves = [
-      shelf("A000J", "Grains and grain-based products"),
-      shelf("A0BY1", "Groats"),
-    ];
-    assert.deepEqual(
-      preferredBroadShelves(cat, shelves).map((candidate) => candidate.code),
-      ["A000J", "A0BY1"]
-    );
+  it("counts several processes once", () => {
+    const pepperoni = broadShelfScore(cat, "A025B");
+    const smokedFish = broadShelfScore(cat, "A0EYS");
+    assert.equal(pepperoni.processBonus, smokedFish.processBonus);
   });
 });

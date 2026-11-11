@@ -56,10 +56,12 @@ export interface ScoredCandidate {
   detailLevel: string | null;
   /** Select-stage fit class (SKOS-aligned labels; judged independently of recall). */
   fit: CandidateFit | null;
-  /** Fit-class points + C/E/P detail-level bonus (within class). */
+  /** Fit-class points + detail bonus, and for a broad shelf one process bonus. */
   score?: number;
   fitPoints?: number;
   detailLevelBonus?: number;
+  /** 3 when a broad shelf already carries a process, otherwise 0. */
+  processBonus?: number;
   /** True when this candidate was in the winning fit-class shortlist. */
   shortlisted: boolean;
   /** Deterministic tie-break flags when shortlisted. */
