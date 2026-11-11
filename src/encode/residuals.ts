@@ -603,6 +603,11 @@ export interface AssignResidualsOptions {
    * Lexical auto-accept and missing route → skip dish / foodstuff essence.
    */
   descriptionKind?: DescriptionKind | null;
+  /**
+   * Foods outside a mix's shared generic group that are a minor share of the
+   * product. Recorded as ingredients, not as source commodities.
+   */
+  minorFoods?: string[];
   /** English name of the country the description comes from. */
   country?: string | null;
   /**
@@ -662,6 +667,8 @@ interface PlaceContext {
    * attribute whose words sit inside one of these is that same fact.
    */
   originCovered: string[];
+  /** Minor-share foods in a mix. An attribute that names one is an ingredient. */
+  minorFoods: readonly string[];
 }
 
 function walkFood(ctx: PlaceContext): FacetWalkFood {
@@ -705,11 +712,28 @@ export function parseOriginRole(content: unknown): OriginRole | null {
  * Roles to try for an ingredient/source phrase, in order. The base type decides
  * when it can; otherwise the model is asked once.
  */
+function matchesMinorFood(phrase: string, minorFoods: readonly string[]): boolean {
+  return minorFoods.some((food) => wordsWithin(phrase, food) || wordsWithin(food, phrase));
+}
+
 async function originRolesFor(
   ctx: PlaceContext,
   phrase: string,
   kind: GapPropertyKind
 ): Promise<{ roles: OriginRole[]; detail: Record<string, unknown> }> {
+  if (matchesMinorFood(phrase, ctx.minorFoods)) {
+    return {
+      roles: ["contains"],
+      detail: {
+        via: "origin_role",
+        phrase,
+        kind,
+        food: ctx.baseName,
+        roles: ["contains"],
+        decidedBy: "minor_share",
+      },
+    };
+  }
   const fixed = originRolesForBaseType(ctx.baseTermType, ctx.descriptionKind, kind);
   if (fixed !== null) {
     return {
@@ -4097,6 +4121,7 @@ export async function assignResiduals(
     fortificationClaim: { status: "none" },
     numericClaim: { fatPercent: null, alcoholPercent: null },
     originCovered: [],
+    minorFoods: options.minorFoods ?? [],
   };
 
   if (options.facetSlots !== false) {

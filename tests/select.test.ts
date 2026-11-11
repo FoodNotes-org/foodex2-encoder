@@ -12,6 +12,9 @@ import {
   selectScore,
   fitPoints,
   broadShelfScore,
+  nearestGenericGroup,
+  sameNatureGroup,
+  parseMinorShare,
   PROCESS_BONUS,
   DETAIL_LEVEL_BONUS,
 } from "../src/encode/select.js";
@@ -179,5 +182,87 @@ describe("broadShelfScore", () => {
     const pepperoni = broadShelfScore(cat, "A025B");
     const smokedFish = broadShelfScore(cat, "A0EYS");
     assert.equal(pepperoni.processBonus, smokedFish.processBonus);
+  });
+});
+
+describe("same nature of a mix", () => {
+  const cat = Catalogue.load();
+  const leaves =
+    "mixed leafy vegetables (Italian corn salads, Roman rocket, lollo rosso, radicchio)";
+  const withOutsiders =
+    "mixed vegetable salad of carrots, sunflower seeds, Italian corn salads, Roman rocket, lollo rosso and radicchio";
+
+  function named(code: string, fit: "related" | "broad") {
+    return { code, name: cat.term(code)?.name ?? code, fit };
+  }
+
+  const leafCodes = ["A00KV", "A00LN", "A00LB", "A00LG"];
+
+  it("stops at the generic group, not the heading above it", () => {
+    assert.equal(nearestGenericGroup(cat, "A00LB"), "A00KR");
+    assert.equal(nearestGenericGroup(cat, "A00QH"), "A00QF");
+    assert.notEqual(nearestGenericGroup(cat, "A00QH"), "A00FJ");
+  });
+
+  it("uses the generic group the named leaves share", () => {
+    const found = sameNatureGroup(
+      cat,
+      leaves,
+      [
+        ...leafCodes.map((code) => named(code, "related")),
+        named("A00LM", "related"),
+        named("A00KR", "broad"),
+        named("A042C", "broad"),
+      ],
+      new Set(["A00KR", "A042C"])
+    );
+    assert.equal(found?.group, "A00KR");
+    assert.deepEqual(found?.outside, []);
+  });
+
+  it("keeps a strict majority and reports the foods outside it", () => {
+    const found = sameNatureGroup(
+      cat,
+      withOutsiders,
+      [
+        ...leafCodes.map((code) => named(code, "related")),
+        named("A00QH", "related"),
+        named("A015L", "related"),
+        named("A00KR", "broad"),
+        named("A042D", "broad"),
+      ],
+      new Set(["A00KR", "A042D"])
+    );
+    assert.equal(found?.group, "A00KR");
+    assert.deepEqual(found?.outside, ["A00QH", "A015L"]);
+  });
+
+  it("has no result when the named foods split evenly", () => {
+    const found = sameNatureGroup(
+      cat,
+      "carrots and lollo rosso",
+      [named("A00QH", "related"), named("A00LB", "related"), named("A00KR", "broad")],
+      new Set(["A00KR", "A00QF"])
+    );
+    assert.equal(found, null);
+  });
+
+  it("has no result when the walk did not accept the generic group", () => {
+    const found = sameNatureGroup(
+      cat,
+      leaves,
+      [...leafCodes.map((code) => named(code, "related")), named("A042C", "broad")],
+      new Set(["A042C"])
+    );
+    assert.equal(found, null);
+  });
+});
+
+describe("parseMinorShare", () => {
+  it("is true only when the reply says minor", () => {
+    assert.equal(parseMinorShare({ minor: true }), true);
+    assert.equal(parseMinorShare({ minor: false }), false);
+    assert.equal(parseMinorShare({}), false);
+    assert.equal(parseMinorShare(null), false);
   });
 });

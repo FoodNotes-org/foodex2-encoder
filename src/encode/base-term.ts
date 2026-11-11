@@ -52,7 +52,8 @@ async function withFacets(
   input: string,
   base: Omit<EncodeOk, "facets" | "freeText" | "code">,
   options: EncodeBaseTermOptions,
-  country: string | null
+  country: string | null,
+  minorFoods?: string[]
 ): Promise<EncodeResult> {
   if (options.baseOnly) {
     return {
@@ -70,6 +71,7 @@ async function withFacets(
       food: base.food ?? input,
       descriptionKind: base.descriptionKind ?? null,
       country,
+      ...(minorFoods !== undefined && minorFoods.length > 0 ? { minorFoods } : {}),
       ...(options.facetSlots === false ? { facetSlots: false } : {}),
     });
     base.audit.push(...assigned.audit);
@@ -261,7 +263,7 @@ export async function encodeBaseTerm(
       walks: collected.walks,
       steps: collected.steps,
     });
-    return withFacets(input, base, options, country);
+    return withFacets(input, base, options, country, selection.minorFoods);
   } catch (err: unknown) {
     return rejectFromError(err, audit);
   }

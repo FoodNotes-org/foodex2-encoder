@@ -6,9 +6,12 @@
  *
  * 1. One model pass: fit class per candidate (exact|broad|narrow|related|none).
  * 2. Prefer exact, else broad. Narrow, related, and none stay on the audit.
- * 3. When more than one broad remains, the score decides. A shelf that already
- *    carries a process gets that bonus once. The model picks only among shelves
- *    that share the top score. Related terms are not passed on.
+ * 3. For a mix, a generic group the named foods share is the base when the
+ *    walk already accepted it. A strict majority is enough when every food
+ *    outside that group is a minor share. Otherwise, when more than one broad
+ *    remains, the score decides. A shelf that already carries a process gets
+ *    that bonus once. The model picks only among shelves that share the top
+ *    score. Related terms are not passed on.
  * 4. Otherwise within the winning class, C/E/P detail-level bonus may prefer a
  *    denser term; ties → deterministic tie-breaks (specificity, non-specific P,
  *    core/extended, code). The same order breaks a broad-score tie the model
@@ -17,6 +20,9 @@
  */
 
 import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
+import { DEFAULT_COUNTRY_CODE, resolveCountry } from "../country.js";
+import { chatJson, defaultModel } from "../llm.js";
+import { contentTokens } from "../search/content-match.js";
 import { assessSelectClassify, pickClosestParent } from "./select-classify.js";
 import type {
   AuditEntry,
@@ -99,6 +105,11 @@ export interface SelectResult {
   pick: BaseTermRef | null;
   /** Winner's fit class; residual routing uses this (no post-pick call). */
   pickKind: SelectFit | null;
+  /**
+   * Named foods outside the shared generic group, kept because each is a minor
+   * share. Residuals record these as ingredients.
+   */
+  minorFoods?: string[];
   audit: AuditEntry[];
 }
 
@@ -128,6 +139,103 @@ export function broadShelfScore(
     detailLevelBonus: detail,
     processBonus: process,
   };
+}
+
+/** The nearest generic group above `code` in the exposure hierarchy, or `code` itself when it is generic. */
+export function nearestGenericGroup(cat: Catalogue, code: string): string | null {
+  const seen = new Set<string>();
+  let current: string | null = code;
+  while (current !== null && !seen.has(current)) {
+    seen.add(current);
+    if (cat.term(current)?.detailLevel === "M") return current;
+    current = cat.parent(current, DEFAULT_HIERARCHY);
+  }
+  return null;
+}
+
+/** True when every word of the catalogue name appears in the description. */
+export function nameStatedIn(name: string, input: string): boolean {
+  const nameTokens = contentTokens(name);
+  const inputTokens = contentTokens(input);
+  if (nameTokens.size === 0) return false;
+  for (const token of nameTokens) if (!inputTokens.has(token)) return false;
+  return true;
+}
+
+export interface SameNatureGroup {
+  /** Generic group that contains every stated component, or a strict majority of them. */
+  group: string;
+  /** Stated components whose own generic group is a different one. */
+  outside: string[];
+}
+
+/**
+ * For a mix, the generic group of the foods the description names.
+ * A food counts when selection called it related and its name is in the
+ * description. The group has to be one the walk already called broad. A group
+ * that contains only half, or that the walk did not accept, is no result.
+ */
+export function sameNatureGroup(
+  cat: Catalogue,
+  input: string,
+  candidates: readonly { code: string; name: string; fit: CandidateFit | null }[],
+  broadCodes: ReadonlySet<string>
+): SameNatureGroup | null {
+  const stated = candidates.filter(
+    (candidate) => candidate.fit === "related" && nameStatedIn(candidate.name, input)
+  );
+  if (stated.length < 2) return null;
+
+  const members = new Map<string, string[]>();
+  for (const component of stated) {
+    const generic = nearestGenericGroup(cat, component.code);
+    if (generic === null) continue;
+    const list = members.get(generic) ?? [];
+    list.push(component.code);
+    members.set(generic, list);
+  }
+
+  let best: { code: string; members: string[] } | null = null;
+  for (const [code, list] of members) {
+    if (best === null || list.length > best.members.length) best = { code, members: list };
+  }
+  if (best === null || best.members.length * 2 <= stated.length) return null;
+  if (!broadCodes.has(best.code)) return null;
+
+  return {
+    group: best.code,
+    outside: stated
+      .filter((component) => !best.members.includes(component.code))
+      .map((component) => component.code),
+  };
+}
+
+export function systemMinorShare(): string {
+  return `You are an expert in food classification.
+
+Decide whether every food in \`foods\` makes up a minor share of the food product in \`description\`, compared to the other foods in it.
+
+Given:
+- \`description\`: the food product.
+- \`country\`: the place whose food nomenclature \`description\` uses. Read \`description\` as understood there.
+- \`foods\`: foods named in \`description\`.
+
+Reply with JSON only:
+{"minor":true|false}
+`;
+}
+
+/** True only when the reply explicitly says every listed food is a minor share. */
+export function parseMinorShare(content: unknown): boolean {
+  if (content === null || typeof content !== "object") return false;
+  return (content as { minor?: unknown }).minor === true;
+}
+
+function promptCountry(country: string | null | undefined): string {
+  const given = country?.trim() ?? "";
+  if (given !== "") return given;
+  const resolved = resolveCountry(DEFAULT_COUNTRY_CODE);
+  return resolved.ok ? resolved.name : "European Union";
 }
 
 function descendantsInSet(
@@ -313,10 +421,78 @@ export async function scoreTraversalCandidates(
   let shortlistCodes: Set<string>;
   let shortlist: BaseTermCandidate[];
   let maxScore: number;
-  let parentPickVia: "model" | "tie_break" | "score" | null = null;
+  let parentPickVia: "model" | "tie_break" | "score" | "same_nature" | null = null;
   let shelfPool: BaseTermCandidate[] | null = null;
+  let minorFoods: string[] | undefined;
 
-  if (tier.fit === "broad" && tierPool.length > 1) {
+  const sameNature =
+    options.descriptionKind === "mix" && tier.fit === "broad"
+      ? sameNatureGroup(
+          cat,
+          input,
+          pool.map((candidate) => ({
+            code: candidate.code,
+            name: candidate.name,
+            fit: byCode.get(candidate.code) ?? null,
+          })),
+          new Set(
+            pool.filter((candidate) => candidate.match === "broad").map((candidate) => candidate.code)
+          )
+        )
+      : null;
+  let sameNaturePick: BaseTermCandidate | null = null;
+  if (sameNature !== null) {
+    const group = pool.find((candidate) => candidate.code === sameNature.group) ?? null;
+    const outside = sameNature.outside.flatMap((code) => {
+      const name = pool.find((candidate) => candidate.code === code)?.name;
+      return name === undefined ? [] : [name];
+    });
+    if (group !== null && outside.length === 0) {
+      sameNaturePick = group;
+    } else if (group !== null && outside.length > 0) {
+      const country = promptCountry(options.country);
+      const answered = await chatJson({
+        model: options.model?.trim() || defaultModel(),
+        system: systemMinorShare(),
+        user: JSON.stringify(
+          { description: input, country, foods: outside },
+          null,
+          2
+        ),
+      });
+      const minor = parseMinorShare(answered.content);
+      audit.push({
+        step: "select_minor_share",
+        detail: {
+          group: group.code,
+          name: group.name,
+          foods: outside,
+          minor,
+          model: answered.model,
+        },
+      });
+      if (minor) {
+        sameNaturePick = group;
+        minorFoods = outside;
+      }
+    }
+  }
+
+  if (sameNaturePick !== null) {
+    shortlistCodes = new Set([sameNaturePick.code]);
+    shortlist = [sameNaturePick];
+    maxScore = scores.get(sameNaturePick.code)!.score;
+    shelfPool = [sameNaturePick];
+    parentPickVia = "same_nature";
+    audit.push({
+      step: "select_same_nature",
+      detail: {
+        group: sameNaturePick.code,
+        name: sameNaturePick.name,
+        ...(minorFoods !== undefined ? { minorFoods } : {}),
+      },
+    });
+  } else if (tier.fit === "broad" && tierPool.length > 1) {
     maxScore = Math.max(...tierPool.map((c) => scores.get(c.code)!.score));
     shelfPool = tierPool.filter((c) => scores.get(c.code)!.score === maxScore);
     if (shelfPool.length === 1) {
@@ -428,6 +604,7 @@ export async function scoreTraversalCandidates(
     scored,
     pick,
     pickKind: pick === null ? null : tier.fit,
+    ...(minorFoods !== undefined ? { minorFoods } : {}),
     audit,
   };
 }
