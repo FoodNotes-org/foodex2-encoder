@@ -3004,7 +3004,6 @@ function orChoiceFacets(
 async function resolveSourcePhrase(ctx: PlaceContext, lookup: string): Promise<ClosedResolution> {
   const walked = await resolveSourceWalk(ctx.cat, lookup, {
     model: ctx.model,
-    food: ctx.input,
     country: ctx.country,
     implied: ctx.implied,
   });

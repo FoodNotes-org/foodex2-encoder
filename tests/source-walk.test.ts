@@ -97,14 +97,12 @@ describe("chooseCommoditySourceLevel", () => {
 });
 
 describe("systemSourceMatch", () => {
-  it("names the country with the food when a country is given", () => {
-    const prompt = systemSourceMatch(true);
-    assert.match(prompt, /hypernym of `lookingFor`/);
-    assert.match(prompt, /food nomenclature of: `country`/);
-  });
-
-  it("omits the country when none is given", () => {
-    assert.equal(systemSourceMatch(false).includes("`country`"), false);
+  it("treats a name that can denote more than one source as not exact", () => {
+    const prompt = systemSourceMatch();
+    assert.match(prompt, /denotes this term and no source outside it/);
+    assert.match(prompt, /can also denote a source outside this term/);
+    assert.match(prompt, /contains every source `lookingFor` can denote/);
+    assert.equal(prompt.includes("`food`"), false);
   });
 });
 

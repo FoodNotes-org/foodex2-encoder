@@ -8,7 +8,6 @@
 
 import { chatJson } from "../llm.js";
 import { Catalogue } from "../catalogue.js";
-import { countryParagraph } from "../country.js";
 import { impliedRelation } from "../rules/index.js";
 import { catalogueLookup } from "../rules/catalogue-lookup.js";
 import { searchTerms } from "../search/lexical.js";
@@ -42,23 +41,23 @@ export function chooseSourceLevel(
   return { exact: [], descend: [], useNode: visit !== "root" && nodeIsBroad };
 }
 
-export function systemSourceMatch(withCountry: boolean): string {
+export function systemSourceMatch(): string {
   return `You are an expert in food classification.
 
-Your task is to match an organism or other source named in a food against source terms in a food catalogue.
+Your task is to match a food source against source terms in a food catalogue.
 
 You are given:
-- \`food\`: the food being coded.
-- \`lookingFor\`: the source named in that food.
-- \`parent\`: the source group these terms sit under.
+- \`lookingFor\`: the food source.
+- \`country\`: the country from which the food source is reported.
 - \`terms\`: the source terms to judge. Each has a \`code\` and a \`name\`. A term that has children also has \`directSubcategories\`. A term that has a scope note also has \`note\`.
-${countryParagraph(withCountry, "food")}
+- \`parent\`: the source group these terms sit under.
+
 Compare \`lookingFor\` with the class the term denotes. Use the term's name and, when present, its \`directSubcategories\` and its \`note\`.
 
 For each term, assign one match.
-- exact: \`lookingFor\` and the term denote the same source
-- broad: the term is a hypernym of \`lookingFor\`
-- narrow: the term is a hyponym of \`lookingFor\`
+- exact: in the nomenclature of \`country\`, \`lookingFor\` denotes this term and no source outside it
+- broad: in that nomenclature, this term contains every source \`lookingFor\` can denote, and it contains other sources too
+- narrow: in that nomenclature, \`lookingFor\` can denote this term, and it can also denote a source outside this term
 - related: associated, and neither is a hypernym or a hyponym of the other
 - none: none of the above
 
@@ -109,7 +108,6 @@ async function matchSourceTerms(
   cat: Catalogue,
   model: string,
   system: string,
-  food: string,
   lookingFor: string,
   parentName: string,
   codes: string[],
@@ -126,7 +124,6 @@ async function matchSourceTerms(
         system,
         user: JSON.stringify(
           {
-            food,
             lookingFor,
             ...(country !== null && country !== "" ? { country } : {}),
             parent: parentName,
@@ -159,7 +156,6 @@ export async function resolveSourceWalk(
   phrase: string,
   options: {
     model: string;
-    food: string;
     country: string | null;
     implied: Set<string>;
   }
@@ -168,7 +164,7 @@ export async function resolveSourceWalk(
   const recall = [
     ...new Set([...lexicalSourceHits(phrase), ...(await embeddingSourceHits(cat, phrase))]),
   ].filter((code) => cat.belongsTo(code, SOURCE));
-  const system = systemSourceMatch(options.country !== null && options.country !== "");
+  const system = systemSourceMatch();
   const visited = new Set<string>();
   let exact: string | null = null;
   let ambiguous = false;
@@ -185,7 +181,6 @@ export async function resolveSourceWalk(
         cat,
         options.model,
         system,
-        options.food,
         phrase,
         cat.parent(current, SOURCE) === null
           ? "Natural sources"
@@ -222,7 +217,6 @@ export async function resolveSourceWalk(
           cat,
           options.model,
           system,
-          options.food,
           phrase,
           cat.term(node.code)?.name ?? node.code,
           children,
