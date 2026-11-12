@@ -11,6 +11,7 @@ import {
   LADDER_LABELS,
   classifySystemPrompt,
 } from "./classify-ladder.js";
+import { entailedProperties } from "./entailed-properties.js";
 import type {
   AuditEntry,
   BaseTermCandidate,
@@ -56,9 +57,11 @@ function classifyCandidatePayload(candidate: BaseTermCandidate) {
   const cat = Catalogue.load();
   const other = otherSiblingFields(cat, candidate.code, candidate.name);
   const note = cat.term(candidate.code)?.scopeNote?.trim();
+  const properties = entailedProperties(cat, candidate.code);
   return {
     ...candidatePayload(candidate),
     ...(note ? { note } : {}),
+    ...(properties.length > 0 ? { properties } : {}),
     ...(other !== undefined ? other : {}),
   };
 }

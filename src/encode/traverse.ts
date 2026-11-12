@@ -37,6 +37,7 @@ import {
   LADDER_LABELS,
   classifySystemPrompt,
 } from "./classify-ladder.js";
+import { entailedProperties, type EntailedProperty } from "./entailed-properties.js";
 import type {
   AuditEntry,
   BaseTermCandidate,
@@ -73,6 +74,8 @@ interface TraversalChildView {
   contains?: string[];
   /** Catalogue scope note, when the term has one. */
   note?: string;
+  /** Characteristics the class entails, when it has any. */
+  properties?: EntailedProperty[];
 }
 
 interface RawCandidate {
@@ -110,6 +113,9 @@ function classifyTermEntry(child: TraversalChildView): Record<string, unknown> {
   }
   if (child.note !== undefined && child.note !== "") {
     entry.note = child.note;
+  }
+  if (child.properties !== undefined && child.properties.length > 0) {
+    entry.properties = child.properties;
   }
   return entry;
 }
@@ -171,7 +177,13 @@ function traversalChildView(cat: Catalogue, code: string): TraversalChildView {
   const term = cat.term(code);
   const subgroups = listChildren(cat, code).map((c) => c.name);
   const note = term?.scopeNote?.trim();
-  const base = { code, name: term?.name ?? code, ...(note ? { note } : {}) };
+  const properties = entailedProperties(cat, code);
+  const base = {
+    code,
+    name: term?.name ?? code,
+    ...(note ? { note } : {}),
+    ...(properties.length > 0 ? { properties } : {}),
+  };
   if (subgroups.length > 0) {
     return { ...base, contains: subgroups };
   }

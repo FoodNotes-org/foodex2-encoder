@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
 import { classifySystemPrompt } from "../src/encode/classify-ladder.js";
+import { entailedProperties } from "../src/encode/entailed-properties.js";
 import {
   embeddingHitWalkSeed,
   parseDescriptionKind,
@@ -90,9 +91,31 @@ describe("embeddingHitWalkSeed", () => {
   });
 });
 
+describe("entailedProperties", () => {
+  const cat = Catalogue.load();
+
+  it("names the processes a liquid whole egg already entails", () => {
+    const properties = entailedProperties(cat, "A031R");
+    assert.ok(
+      properties.some(
+        (property) => property.kind === "Process" && property.name === "Removal of external layer"
+      )
+    );
+    assert.ok(
+      properties.some((property) => property.kind === "Process" && property.name === "Stirring")
+    );
+  });
+
+  it("is empty when the term is unknown", () => {
+    assert.deepEqual(entailedProperties(cat, "NOPE"), []);
+  });
+});
+
 describe("classifySystemPrompt", () => {
+  const compare =
+    "Compare `item` with the class each term denotes, using the term's `name`, any `directSubcategories`, any `note`, and any `properties` to decide its exact scope.";
   const walkOther =
-    'When a term\'s name contains the word "other", the term denotes the members of `parent` that are not members of the sibling terms in `terms`.';
+    'When a term\'s name contains the word "other" or "not separately listed", the term denotes all members of `parent` that are not members of its sibling terms in `terms`.';
   const pickOther =
     'When a term\'s name contains the word "other", the term denotes the members of that term\'s `parent` that are not members of that term\'s `siblings`.';
 
@@ -102,11 +125,13 @@ describe("classifySystemPrompt", () => {
       readSubcategories: true,
     });
     assert.equal(prompt.includes("A hypernym is the broader class."), false);
+    assert.ok(prompt.includes(compare));
     assert.ok(
       prompt.includes(
-        "Compare `item` with the class the term denotes. Use the term's name and, when present, its `directSubcategories` and its `note`."
+        "`properties`, if included, are characteristics entailed by the class. Each has a `kind` and a `name`."
       )
     );
+    assert.equal(prompt.includes("catalogue structure"), false);
     assert.ok(prompt.includes("- broad: the term is a hypernym of `item`"));
     assert.ok(prompt.includes("- narrow: the term is a hyponym of `item`"));
     assert.equal(prompt.includes("in order"), false);
@@ -129,6 +154,13 @@ describe("classifySystemPrompt", () => {
     });
     assert.ok(prompt.includes(pickOther));
     assert.ok(prompt.includes("`siblings`"));
+    assert.ok(prompt.includes(compare));
+    assert.ok(
+      prompt.includes(
+        "`properties`, if included, are characteristics entailed by the class. Each has a `kind` and a `name`."
+      )
+    );
+    assert.equal(prompt.includes("catalogue structure"), false);
     assert.equal(prompt.includes(walkOther), false);
   });
 
@@ -139,7 +171,7 @@ describe("classifySystemPrompt", () => {
       withCountry: true,
     });
     const line =
-      "- `item`: the food description, to be understood in the food nomenclature in: `country`.";
+      "- `item`: the food description, as understood in the food nomenclature of: `country`.";
     assert.equal(prompt.split(line).length - 1, 1);
     assert.ok(
       prompt.startsWith(
