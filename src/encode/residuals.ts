@@ -614,7 +614,7 @@ export interface AssignResidualsOptions {
   country?: string | null;
   /**
    * Attribute slots: one split, every route may propose, one gate chooses.
-   * False keeps the legacy residual path. Default true on this branch.
+   * False keeps the legacy residual path, which dishes always take. Default true on this branch.
    */
   facetSlots?: boolean;
   /**
@@ -4472,7 +4472,7 @@ export async function assignResiduals(
     named: options.named ?? null,
   };
 
-  if (options.facetSlots !== false) {
+  if (options.facetSlots !== false && !isDishKind(ctx.descriptionKind)) {
     return assignResidualSlots(ctx, input, audit);
   }
 
