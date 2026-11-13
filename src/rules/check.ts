@@ -29,7 +29,7 @@ const FORBIDDEN_PROCESSES = rulesData.forbiddenProcesses as Record<string, strin
  * EFSA's "warn group" for BR16 and BR19: the nearest of the term and its
  * Reporting-hierarchy ancestors that has forbidden processes listed.
  */
-function warnGroup(term: RuleTerm): string | null {
+export function warnGroup(term: RuleTerm): string | null {
   const ancestors = term.hierarchies[REPORTING_HIERARCHY]?.ancestors ?? [];
   return [term.code, ...[...ancestors].reverse()].find((code) => code in FORBIDDEN_PROCESSES) ?? null;
 }

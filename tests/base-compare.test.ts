@@ -10,8 +10,11 @@ import {
   natureProcessCodes,
   parseProcessGroup,
   parseStatedProcesses,
+  processesToSetAside,
+  removePhrases,
   table22ProcessCodes,
   termsImplyingProcess,
+  type StatedProcess,
 } from "../src/encode/base-compare.js";
 
 const cat = Catalogue.load();
@@ -45,6 +48,11 @@ describe("nature-changing processes", () => {
     assert.equal(allowed.has("A07LL"), false);
   });
 
+  it("lists separation in liquid phase under today's code", () => {
+    assert.equal(nature.has("A0EKQ"), true);
+    assert.equal(nature.has("A0EJP"), false);
+  });
+
   it("finds Popped cereals among the groups that already imply puffing", () => {
     const groups = termsImplyingProcess(cat, "A07LL");
     assert.ok(groups.some((group) => group.code === "A04LL"));
@@ -52,23 +60,67 @@ describe("nature-changing processes", () => {
   });
 });
 
+describe("processesToSetAside", () => {
+  const freezing: StatedProcess = { code: "A07KQ", phrase: "frozen" };
+  const pasteurisation: StatedProcess = { code: "A07HV", phrase: "pasteurized" };
+
+  it("takes out a table 22 treatment the chosen group does not cover", () => {
+    assert.deepEqual(processesToSetAside([freezing, pasteurisation], []), [
+      freezing,
+      pasteurisation,
+    ]);
+  });
+
+  it("keeps a treatment the chosen group already covers", () => {
+    assert.deepEqual(processesToSetAside([freezing, pasteurisation], ["A07KQ"]), [pasteurisation]);
+  });
+});
+
+describe("removePhrases", () => {
+  it("cuts each phrase and the empty comma parts it leaves", () => {
+    assert.deepEqual(removePhrases("Egg, whole, raw, frozen, pasteurized", ["frozen", "pasteurized"]), {
+      text: "Egg, whole, raw",
+      removed: ["frozen", "pasteurized"],
+    });
+    assert.deepEqual(removePhrases("Courgette, fried in corn oil", ["fried in corn oil"]), {
+      text: "Courgette",
+      removed: ["fried in corn oil"],
+    });
+    assert.deepEqual(removePhrases("Kabeljauw gekookt", ["Gekookt"]), {
+      text: "Kabeljauw",
+      removed: ["gekookt"],
+    });
+  });
+
+  it("leaves a phrase that is not in the description", () => {
+    assert.deepEqual(removePhrases("tuna in brine, canned", ["tinned"]), {
+      text: "tuna in brine, canned",
+      removed: [],
+    });
+  });
+
+  it("keeps the description whole when nothing would remain", () => {
+    assert.deepEqual(removePhrases("Quinoa flour", ["Quinoa flour"]), { text: "Quinoa flour", removed: [] });
+  });
+});
+
 describe("parseStatedProcesses", () => {
-  it("keeps a listed process and its exception flag", () => {
+  it("keeps a listed process and the words that state it", () => {
     assert.deepEqual(
       parseStatedProcesses(
-        { processes: [{ code: "a07hp", exception: false }, { code: "A07GT", exception: true }] },
+        { processes: [{ code: "a07hp", phrase: " chocolate-coated " }, { code: "A07GT" }] },
         allowed
       ),
       [
-        { code: "A07HP", exception: false },
-        { code: "A07GT", exception: true },
+        { code: "A07HP", phrase: "chocolate-coated" },
+        { code: "A07GT", phrase: null },
       ]
     );
   });
 
   it("drops a process that is not in the table and an empty list is none", () => {
     assert.deepEqual(
-      parseStatedProcesses({ processes: [{ code: "A07KG", exception: false }] }, allowed),
+      parseStatedProcesses({ processes: [{ code: "A07KG", phrase: "dried" }] }, allowed),
       []
     );
     assert.deepEqual(parseStatedProcesses({ processes: [] }, allowed), []);
@@ -90,3 +142,10 @@ describe("parseProcessGroup", () => {
   });
 });
 
+
+describe("groups offered for a treatment", () => {
+  it("never offers a term that is not reportable (Potato boiled)", () => {
+    const codes = termsImplyingProcess(cat, "A07GL").map((group) => group.code);
+    assert.equal(codes.includes("A011P"), false);
+  });
+});

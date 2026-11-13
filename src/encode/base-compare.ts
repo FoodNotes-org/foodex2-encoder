@@ -1,18 +1,21 @@
 /**
- * For a foodstuff, a process that produces a different kind of food (guidance
- * Tables 4 and 5) is checked first. A group that already implies it can be the
+ * For a foodstuff, a process that produces a different kind of food from the
+ * foods it applies to (guidance Tables 4 and 5, rules/efsa-processes.yaml) is
+ * checked first. A group that already implies it can be the
  * base, and that process stays in the description. A process normally applied
- * straight to a raw commodity (guidance Table 22) is then a facet only when no
- * catalogue group already implies it. A group that does is a candidate for the
- * base. When none of those groups is the food, the walk still compares the
- * whole description, and the process is recorded afterwards as a facet. A
- * Table 22 process that only restates a process already found is not taken. A
- * dish or a mix is not handled here.
+ * straight to a raw commodity (guidance Table 22) is then taken out of the
+ * description the base is matched against, unless a catalogue group that
+ * already implies it is this food: the model names the words that state it,
+ * and code cuts them out. The original description is what the facets
+ * are read from. A Table 22 process that only restates a process already found
+ * is not taken. A dish or a mix is not handled here.
  */
 
-import { Catalogue, isInExposureTree } from "../catalogue.js";
+import { Catalogue, DEFAULT_HIERARCHY, isInExposureTree } from "../catalogue.js";
+import { isHierarchyTerm } from "../rules/check.js";
 import { countryParagraph } from "../country.js";
 import { chatJson } from "../llm.js";
+import { NEW_FOOD_TREATMENTS } from "../rules/processes.js";
 
 /** Process hierarchy, where Table 22 child descriptors sit. */
 const PROCESS_HIERARCHY = "process";
@@ -69,56 +72,10 @@ const TABLE22_ROOTS = [
   "A07HQ",
 ] as const;
 
-/**
- * Processes named in guidance Tables 4 and 5: each produces a different kind
- * of food. Descendants are not added. The named process is the one to match.
- */
-const NATURE_PROCESSES = [
-  "A0CRH",
-  "A07KD",
-  "A0C6F",
-  "A07JP",
-  "A07JQ",
-  "A07KG",
-  "A07JT",
-  "A07KC",
-  "A0CQZ",
-  "A0BYP",
-  "A07JV",
-  "A0C00",
-  "A0C01",
-  "A0C6E",
-  "A07MH",
-  "A0C02",
-  "A0C03",
-  "A0C0B",
-  "A0C04",
-  "A0C6N",
-  "A07GG",
-  "A07GR",
-  "A07GX",
-  "A07GY",
-  "A07HC",
-  "A07HJ",
-  "A0CRL",
-  "A07MA",
-  "A07LF",
-  "A07LG",
-  "A07LH",
-  "A07LL",
-  "A0C0G",
-  "A07MF",
-  "A0EJP",
-  "A07MK",
-  "A07LN",
-  "A07MJ",
-  "A07KF",
-  "A07ML",
-] as const;
-
 export interface StatedProcess {
   code: string;
-  exception: boolean;
+  /** The words from the description that state it, or null when not given. */
+  phrase: string | null;
 }
 
 export interface ProcessGroup {
@@ -141,8 +98,23 @@ let cachedImplied: Map<string, ImpliedGroup[]> | null = null;
 /** Processes named in Tables 4 and 5 that this catalogue still contains. */
 export function natureProcessCodes(cat: Catalogue): ReadonlySet<string> {
   if (cachedNatureCodes !== null) return cachedNatureCodes;
-  cachedNatureCodes = new Set(NATURE_PROCESSES.filter((code) => cat.term(code) !== undefined));
+  cachedNatureCodes = new Set(
+    NEW_FOOD_TREATMENTS.map((row) => row.code).filter((code) => cat.term(code) !== undefined)
+  );
   return cachedNatureCodes;
+}
+
+/** Tables 4 and 5 rows as the model sees them: EFSA's foods and outcomes for each. */
+function listedNatureTreatments(
+  cat: Catalogue
+): Array<{ code: string; name: string; applied_to: string; leads_to: string }> {
+  const codes = natureProcessCodes(cat);
+  return NEW_FOOD_TREATMENTS.filter((row) => codes.has(row.code)).map((row) => ({
+    code: row.code,
+    name: cat.term(row.code)?.name ?? row.code,
+    applied_to: row.appliedTo,
+    leads_to: row.leadsTo,
+  }));
 }
 
 export function table22ProcessCodes(cat: Catalogue): ReadonlySet<string> {
@@ -164,7 +136,8 @@ function impliedIndex(cat: Catalogue): Map<string, ImpliedGroup[]> {
   const index = new Map<string, ImpliedGroup[]>();
   for (const [code, term] of Object.entries(cat.data.terms)) {
     if (term.termType === "f" || term.status === "DEPRECATED") continue;
-    if (!isInExposureTree(term)) continue;
+    if (!isInExposureTree(term) || !cat.isReportable(code, DEFAULT_HIERARCHY)) continue;
+    if (isHierarchyTerm(term)) continue;
     for (const facet of cat.impliedFacets(code)) {
       if (!facet.startsWith("F28.")) continue;
       const process = facet.slice("F28.".length);
@@ -185,7 +158,10 @@ function impliedIndex(cat: Catalogue): Map<string, ImpliedGroup[]> {
   return index;
 }
 
-/** Exposure terms, other than facet descriptors, that already imply this process. */
+/**
+ * Exposure terms that already imply this process and can be a base: reportable,
+ * and neither a facet descriptor nor a hierarchy term.
+ */
 export function termsImplyingProcess(cat: Catalogue, processCode: string): ImpliedGroup[] {
   return impliedIndex(cat).get(processCode) ?? [];
 }
@@ -215,7 +191,8 @@ export function parseStatedProcesses(
     const code = raw.trim().toUpperCase();
     if (!allowed.has(code) || seen.has(code)) continue;
     seen.add(code);
-    out.push({ code, exception: (item as { exception?: unknown }).exception === true });
+    const phrase = (item as { phrase?: unknown }).phrase;
+    out.push({ code, phrase: typeof phrase === "string" && phrase.trim() !== "" ? phrase.trim() : null });
   }
   return out;
 }
@@ -237,24 +214,24 @@ export function parseProcessGroup(
 function systemNatureProcesses(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-Task: name which of these processes, if any, the description states. Each process produces a different kind of food.
+Task: name which of these treatments, if any, the description states and, for this food, make a different kind of food.
 
 Given:
 - \`description\`: the food description.
-- \`processes\`: each has a \`code\` and a \`name\`.
+- \`treatments\`: each has a \`code\`, a \`name\`, \`applied_to\` (the foods it makes a different kind of food from) and \`leads_to\` (the kinds of food it makes).
 ${countryParagraph(withCountry, "description")}
-Return the most specific process the description states.
+A treatment counts only when the food it was applied to is one of its \`applied_to\` foods.
 
 Reply with JSON only:
 {"processes":[{"code":"<code>"}]}
 
-An empty list means the description states none of these processes.`;
+An empty list means no stated treatment makes this food a different kind of food.`;
 }
 
 function systemStatedProcesses(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-Task: name which of these processes, if any, the description states.
+Task: name which of these processes, if any, the description states, and the words that state each.
 
 Given:
 - \`description\`: the food description.
@@ -263,8 +240,10 @@ Given:
 ${countryParagraph(withCountry, "description")}
 Return the most specific process the description states. A process that only restates a process in \`already\` is not stated.
 
+For each process, \`phrase\` is the words from the description that state it, with any detail that qualifies it. A phrase never includes the words that name the food.
+
 Reply with JSON only:
-{"processes":[{"code":"<code>"}]}
+{"processes":[{"code":"<code>","phrase":"<text>"}]}
 
 An empty list means the description states none of these processes.`;
 }
@@ -279,6 +258,7 @@ Given:
 - \`terms\`: each has a \`code\` and a \`name\`. A term that has a scope note also has \`note\`.
 ${countryParagraph(withCountry, "description")}
 A term counts when the food is that term. A term that is only an ingredient, or only the food before the process, does not count.
+A term does not count when it is a different product from the one the description names.
 
 Reply with JSON only:
 {"code":"<code>"|null}`;
@@ -292,6 +272,10 @@ export interface BaseCompare {
   processGroup: ProcessGroup | null;
   seeds: string[];
   detail: Record<string, unknown>;
+  /** Words taken out of the description, each stating a Table 22 treatment. */
+  treatmentsApplied: string[];
+  /** Every treatment found stated: new-food ones first, then Table 22 ones. */
+  statedTreatments: string[];
 }
 
 function unchanged(description: string, detail: Record<string, unknown>): BaseCompare {
@@ -301,6 +285,8 @@ function unchanged(description: string, detail: Record<string, unknown>): BaseCo
     processGroup: null,
     seeds: [],
     detail: { ...detail, compareAs: description, processGroup: null },
+    treatmentsApplied: [],
+    statedTreatments: [],
   };
 }
 
@@ -384,6 +370,40 @@ async function chooseProcessGroup(
   };
 }
 
+/** Table 22 treatments to take out of the description. A treatment the chosen group already covers stays. */
+export function processesToSetAside(
+  stated: readonly StatedProcess[],
+  covered: readonly string[]
+): StatedProcess[] {
+  const keep = new Set(covered);
+  return stated.filter((process) => !keep.has(process.code));
+}
+
+/**
+ * The description with each phrase cut out where it occurs, and the phrases
+ * that were. A phrase not found as written is left. Empty comma parts are
+ * dropped; when nothing would remain the description is kept whole.
+ */
+export function removePhrases(
+  description: string,
+  phrases: readonly string[]
+): { text: string; removed: string[] } {
+  let text = description;
+  const removed: string[] = [];
+  for (const phrase of phrases) {
+    const at = text.toLowerCase().indexOf(phrase.toLowerCase());
+    if (at < 0) continue;
+    removed.push(text.slice(at, at + phrase.length));
+    text = `${text.slice(0, at)} ${text.slice(at + phrase.length)}`;
+  }
+  const cleaned = text
+    .split(",")
+    .map((part) => part.replace(/\s+/g, " ").trim())
+    .filter((part) => part !== "")
+    .join(", ");
+  return cleaned === "" ? { text: description, removed: [] } : { text: cleaned, removed };
+}
+
 /** Foodstuff only. A dish or a mix keeps the description as given. */
 export async function resolveBaseCompare(
   description: string,
@@ -398,7 +418,7 @@ export async function resolveBaseCompare(
     model,
     system: systemNatureProcesses(withCountry),
     user: JSON.stringify(
-      { description, ...countryField, processes: listedProcesses(cat, natureProcessCodes(cat)) },
+      { description, ...countryField, treatments: listedNatureTreatments(cat) },
       null,
       2
     ),
@@ -454,7 +474,11 @@ export async function resolveBaseCompare(
     groupModel = table22Choice.model ?? groupModel;
   }
 
-  const compareAs = description;
+  const aside = processesToSetAside(table22Only, processGroup?.processes ?? []);
+  const { text: compareAs, removed } = removePhrases(
+    description,
+    aside.map((process) => process.phrase).filter((phrase): phrase is string => phrase !== null)
+  );
 
   if (nature.length === 0 && stated.length === 0) {
     return unchanged(description, {
@@ -483,8 +507,12 @@ export async function resolveBaseCompare(
       judged: table22Parts.judged,
       skipped: table22Parts.skipped,
       groups: table22Parts.groups.map((group) => group.code),
+      aside: aside.map((process) => process.code),
+      removed,
       processGroup: processGroup?.code ?? null,
       compareAs,
     },
+    treatmentsApplied: removed,
+    statedTreatments: [...nature, ...table22Only].map((process) => process.code),
   };
 }

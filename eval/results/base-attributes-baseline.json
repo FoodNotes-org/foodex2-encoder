@@ -1,0 +1,4432 @@
+{
+  "_provenance": {
+    "generated_by": "scripts/base-attributes-eval.ts",
+    "generated_at": "2026-11-12T14:07:43.863Z",
+    "model": "openai/gpt-6.1-sol",
+    "mtx_version": "17.1",
+    "git_commit": "8e5d3eb",
+    "uncommitted_src": [
+      "src/encode/base-compare.ts",
+      "src/encode/traverse.ts",
+      "src/eval/base-attributes.ts"
+    ],
+    "runs": 3
+  },
+  "summary": {
+    "overall": {
+      "basePass": 97,
+      "baseRuns": 138,
+      "stableCases": 30,
+      "cases": 46,
+      "treatPass": 83,
+      "treatRuns": 135
+    },
+    "by_family": {
+      "F1": {
+        "basePass": 43,
+        "baseRuns": 48,
+        "stableCases": 13,
+        "cases": 16,
+        "treatPass": 39,
+        "treatRuns": 45
+      },
+      "F2": {
+        "basePass": 29,
+        "baseRuns": 45,
+        "stableCases": 8,
+        "cases": 15,
+        "treatPass": 24,
+        "treatRuns": 45
+      },
+      "F3": {
+        "basePass": 12,
+        "baseRuns": 33,
+        "stableCases": 3,
+        "cases": 11,
+        "treatPass": 3,
+        "treatRuns": 33
+      },
+      "F4": {
+        "basePass": 3,
+        "baseRuns": 9,
+        "stableCases": 1,
+        "cases": 3,
+        "treatPass": 9,
+        "treatRuns": 9
+      },
+      "F5": {
+        "basePass": 21,
+        "baseRuns": 21,
+        "stableCases": 7,
+        "cases": 7,
+        "treatPass": 11,
+        "treatRuns": 21
+      },
+      "F6": {
+        "basePass": 6,
+        "baseRuns": 12,
+        "stableCases": 2,
+        "cases": 4,
+        "treatPass": 6,
+        "treatRuns": 12
+      },
+      "F7": {
+        "basePass": 0,
+        "baseRuns": 9,
+        "stableCases": 0,
+        "cases": 3,
+        "treatPass": 3,
+        "treatRuns": 9
+      },
+      "F8": {
+        "basePass": 4,
+        "baseRuns": 9,
+        "stableCases": 1,
+        "cases": 3,
+        "treatPass": 0,
+        "treatRuns": 9
+      },
+      "F9": {
+        "basePass": 0,
+        "baseRuns": 9,
+        "stableCases": 0,
+        "cases": 3,
+        "treatPass": 3,
+        "treatRuns": 9
+      }
+    },
+    "total_cost_usd": 7.9114
+  },
+  "cases": [
+    {
+      "id": "usda-sorghum-puffed",
+      "input": "Sorghum, puffed",
+      "country": "US",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A04LL"
+      ],
+      "runs": [
+        {
+          "pick": "A04LL",
+          "pick_name": "Popped cereals",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07LL"
+          ],
+          "stated": [],
+          "process_group": "A04LL",
+          "override": null,
+          "compare_as": "Sorghum, puffed",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 55656,
+          "cost_usd": 0.0641285
+        },
+        {
+          "pick": "A04LL",
+          "pick_name": "Popped cereals",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07LL"
+          ],
+          "stated": [],
+          "process_group": "A04LL",
+          "override": null,
+          "compare_as": "Sorghum, puffed",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 37936,
+          "cost_usd": 0.027832799999999998
+        },
+        {
+          "pick": "A04LL",
+          "pick_name": "Popped cereals",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07LL"
+          ],
+          "stated": [],
+          "process_group": "A04LL",
+          "override": null,
+          "compare_as": "Sorghum, puffed",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 54800,
+          "cost_usd": 0.054827299999999995
+        }
+      ]
+    },
+    {
+      "id": "efsa-smoked-sturgeon",
+      "input": "smoked Adriatic sturgeon meat",
+      "country": "EU",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A0EYS"
+      ],
+      "runs": [
+        {
+          "pick": "A0EYS",
+          "pick_name": "Smoked fish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JV"
+          ],
+          "stated": [],
+          "process_group": "A0EYS",
+          "override": null,
+          "compare_as": "smoked Adriatic sturgeon meat",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 38913,
+          "cost_usd": 0.0228456
+        },
+        {
+          "pick": "A0EYS",
+          "pick_name": "Smoked fish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JV"
+          ],
+          "stated": [],
+          "process_group": "A0EYS",
+          "override": null,
+          "compare_as": "smoked Adriatic sturgeon meat",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 34543,
+          "cost_usd": 0.062888
+        },
+        {
+          "pick": "A0EYS",
+          "pick_name": "Smoked fish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JV"
+          ],
+          "stated": [],
+          "process_group": "A0EYS",
+          "override": null,
+          "compare_as": "smoked Adriatic sturgeon meat",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 34729,
+          "cost_usd": 0.0274616
+        }
+      ]
+    },
+    {
+      "id": "new-smoked-salmon",
+      "input": "smoked salmon",
+      "country": "EU",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A02KF"
+      ],
+      "runs": [
+        {
+          "pick": "A02KF",
+          "pick_name": "Smoked salmon",
+          "status": "ok",
+          "reason": null,
+          "route": null,
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": null,
+          "base_pass": true,
+          "treatments_pass": null,
+          "new_food_missing": [
+            "A07JV"
+          ],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 38,
+          "cost_usd": 0
+        },
+        {
+          "pick": "A02KF",
+          "pick_name": "Smoked salmon",
+          "status": "ok",
+          "reason": null,
+          "route": null,
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": null,
+          "base_pass": true,
+          "treatments_pass": null,
+          "new_food_missing": [
+            "A07JV"
+          ],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 36,
+          "cost_usd": 0
+        },
+        {
+          "pick": "A02KF",
+          "pick_name": "Smoked salmon",
+          "status": "ok",
+          "reason": null,
+          "route": null,
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": null,
+          "base_pass": true,
+          "treatments_pass": null,
+          "new_food_missing": [
+            "A07JV"
+          ],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 35,
+          "cost_usd": 0
+        }
+      ]
+    },
+    {
+      "id": "efsa-dried-kangaroo",
+      "input": "dried kangaroo meat",
+      "country": "EU",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A04MP"
+      ],
+      "runs": [
+        {
+          "pick": "A04MP",
+          "pick_name": "Mammals or birds dried meat",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07KG"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "dried kangaroo meat",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 29789,
+          "cost_usd": 0.038526
+        },
+        {
+          "pick": "A04MP",
+          "pick_name": "Mammals or birds dried meat",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07KG"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "dried kangaroo meat",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 35349,
+          "cost_usd": 0.021161999999999997
+        },
+        {
+          "pick": "A04MP",
+          "pick_name": "Mammals or birds dried meat",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07KG"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "dried kangaroo meat",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 33334,
+          "cost_usd": 0.049314000000000004
+        }
+      ]
+    },
+    {
+      "id": "efsa-maize-groats",
+      "input": "maize groats",
+      "country": "EU",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A0C0Z"
+      ],
+      "runs": [
+        {
+          "pick": "A0BY1",
+          "pick_name": "Groats",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "maize groats",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 50028,
+          "cost_usd": 0.05198439999999999
+        },
+        {
+          "pick": "A002N",
+          "pick_name": "Maize semolina",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": "A002N",
+          "override": [
+            "A0BY1",
+            "A002N"
+          ],
+          "compare_as": "maize groats",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 51638,
+          "cost_usd": 0.06966930000000002
+        },
+        {
+          "pick": "A0C0Z",
+          "pick_name": "Maize, milled",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "maize groats",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 50955,
+          "cost_usd": 0.03482999999999999
+        }
+      ]
+    },
+    {
+      "id": "efsa-glutinous-rice-flour",
+      "input": "flour obtained from glutinous rice",
+      "country": "EU",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A003F"
+      ],
+      "runs": [
+        {
+          "pick": "A003F",
+          "pick_name": "Rice flour",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "flour obtained from glutinous rice",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 47891,
+          "cost_usd": 0.064722
+        },
+        {
+          "pick": "A003F",
+          "pick_name": "Rice flour",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "flour obtained from glutinous rice",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 42571,
+          "cost_usd": 0.0563085
+        },
+        {
+          "pick": "A003F",
+          "pick_name": "Rice flour",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "flour obtained from glutinous rice",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 47562,
+          "cost_usd": 0.0262245
+        }
+      ]
+    },
+    {
+      "id": "efsa-quinoa-flour",
+      "input": "Quinoa flour",
+      "country": "EU",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A04KT"
+      ],
+      "runs": [
+        {
+          "pick": "A04KT",
+          "pick_name": "Cereal and cereal-like flours not separately listed",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Quinoa flour",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 26311,
+          "cost_usd": 0.065793
+        },
+        {
+          "pick": "A04KT",
+          "pick_name": "Cereal and cereal-like flours not separately listed",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Quinoa flour",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 28868,
+          "cost_usd": 0.0182866
+        },
+        {
+          "pick": "A04KT",
+          "pick_name": "Cereal and cereal-like flours not separately listed",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Quinoa flour",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 27839,
+          "cost_usd": 0.0184366
+        }
+      ]
+    },
+    {
+      "id": "usda-quinoa-flour-pregelatinized",
+      "input": "Quinoa flour, pre-gelatinized, organic",
+      "country": "US",
+      "families": [
+        "F1",
+        "F8"
+      ],
+      "open": false,
+      "expected_base": [
+        "A04KT"
+      ],
+      "runs": [
+        {
+          "pick": "A000R",
+          "pick_name": "Quinoa grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C0G"
+          ],
+          "stated": [
+            "A07LA"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Quinoa, pre-gelatinized, organic",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A0C03"
+          ],
+          "wrongly_new_food": [
+            "A0C0G"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 49591,
+          "cost_usd": 0.074636
+        },
+        {
+          "pick": "A04KT",
+          "pick_name": "Cereal and cereal-like flours not separately listed",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C0G"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Quinoa flour, pre-gelatinized, organic",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A0C03"
+          ],
+          "wrongly_new_food": [
+            "A0C0G"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 36616,
+          "cost_usd": 0.0624847
+        },
+        {
+          "pick": "A000R",
+          "pick_name": "Quinoa grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C0G"
+          ],
+          "stated": [
+            "A07LA"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Quinoa, pre-gelatinized, organic",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A0C03"
+          ],
+          "wrongly_new_food": [
+            "A0C0G"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 39452,
+          "cost_usd": 0.0222448
+        }
+      ]
+    },
+    {
+      "id": "nevo-dried-pears",
+      "input": "Peren gedroogd",
+      "country": "NL",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A01MH"
+      ],
+      "runs": [
+        {
+          "pick": "A01MH",
+          "pick_name": "Dried pears",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07KG"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Peren gedroogd",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 28752,
+          "cost_usd": 0.058750000000000004
+        },
+        {
+          "pick": "A01MH",
+          "pick_name": "Dried pears",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07KG"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Peren gedroogd",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 26039,
+          "cost_usd": 0.0203094
+        },
+        {
+          "pick": "A01MH",
+          "pick_name": "Dried pears",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07KG"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Peren gedroogd",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 31275,
+          "cost_usd": 0.015067000000000002
+        }
+      ]
+    },
+    {
+      "id": "nevo-rice-flour-wholegrain",
+      "input": "Meel rijst- volkoren",
+      "country": "NL",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A003F"
+      ],
+      "runs": [
+        {
+          "pick": "A003F",
+          "pick_name": "Rice flour",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Meel rijst- volkoren",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 57018,
+          "cost_usd": 0.07538699999999998
+        },
+        {
+          "pick": "A003F",
+          "pick_name": "Rice flour",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Meel rijst- volkoren",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 55467,
+          "cost_usd": 0.0260606
+        },
+        {
+          "pick": "A003F",
+          "pick_name": "Rice flour",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Meel rijst- volkoren",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 46134,
+          "cost_usd": 0.0447992
+        }
+      ]
+    },
+    {
+      "id": "cofid-potato-chips",
+      "input": "Potato chips, fried in commercial oil, from takeaway fish and chip shops",
+      "country": "GB",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A0BYV"
+      ],
+      "runs": [
+        {
+          "pick": "A0BYV",
+          "pick_name": "French fries from cut potato",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [
+            "A07GV"
+          ],
+          "process_group": "A0BYV",
+          "override": null,
+          "compare_as": "Potato chips, fried in commercial oil, from takeaway fish and chip shops",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 55410,
+          "cost_usd": 0.06570350000000001
+        },
+        {
+          "pick": "A0BYV",
+          "pick_name": "French fries from cut potato",
+          "status": "ok",
+          "reason": null,
+          "route": "dish",
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": null,
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A07GR"
+          ],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 66167,
+          "cost_usd": 0.110413
+        },
+        {
+          "pick": "A0BYV",
+          "pick_name": "French fries from cut potato",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [
+            "A07GV"
+          ],
+          "process_group": "A0BYV",
+          "override": null,
+          "compare_as": "Potato chips, fried in commercial oil, from takeaway fish and chip shops",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 59622,
+          "cost_usd": 0.0317123
+        }
+      ]
+    },
+    {
+      "id": "cofid-butter-beans-canned",
+      "input": "Beans, butter, canned, re-heated, drained",
+      "country": "GB",
+      "families": [
+        "F1",
+        "F2"
+      ],
+      "open": false,
+      "expected_base": [
+        "A01AZ"
+      ],
+      "runs": [
+        {
+          "pick": "A0ETQ",
+          "pick_name": "Canned/jarred vegetables",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [
+            "A07HD"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Beans, butter, canned, re-heated, drained",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07HD"
+          ],
+          "ms": 54809,
+          "cost_usd": 0.07317399999999999
+        },
+        {
+          "pick": "A01AZ",
+          "pick_name": "Canned or jarred legumes",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [
+            "A07HD"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Beans, butter, canned, re-heated, drained",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07HD"
+          ],
+          "ms": 47237,
+          "cost_usd": 0.04309439999999999
+        },
+        {
+          "pick": "A01AZ",
+          "pick_name": "Canned or jarred legumes",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [
+            "A07HD"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Beans, butter, canned, re-heated, drained",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07HD"
+          ],
+          "ms": 52326,
+          "cost_usd": 0.0225584
+        }
+      ]
+    },
+    {
+      "id": "eval-canned-peaches",
+      "input": "canned peaches in fruit juice",
+      "country": "EU",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A01NY"
+      ],
+      "runs": [
+        {
+          "pick": "A01NY",
+          "pick_name": "Canned or jarred peach",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "canned peaches in fruit juice",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 47250,
+          "cost_usd": 0.11813649999999999
+        },
+        {
+          "pick": "A01NY",
+          "pick_name": "Canned or jarred peach",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "canned peaches in fruit juice",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 47101,
+          "cost_usd": 0.028422500000000003
+        },
+        {
+          "pick": "A01NY",
+          "pick_name": "Canned or jarred peach",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "canned peaches in fruit juice",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 48173,
+          "cost_usd": 0.029592500000000008
+        }
+      ]
+    },
+    {
+      "id": "eval-canned-shellfish",
+      "input": "canned shellfish",
+      "country": "EU",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A0BZ5"
+      ],
+      "runs": [
+        {
+          "pick": "A0BZ5",
+          "pick_name": "Canned seafood",
+          "status": "ok",
+          "reason": null,
+          "route": "category",
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": null,
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A0BYP"
+          ],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 59889,
+          "cost_usd": 0.1870085
+        },
+        {
+          "pick": "A0BZ5",
+          "pick_name": "Canned seafood",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "canned shellfish",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 71203,
+          "cost_usd": 0.19526649999999998
+        },
+        {
+          "pick": "A0BZ5",
+          "pick_name": "Canned seafood",
+          "status": "ok",
+          "reason": null,
+          "route": "category",
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": null,
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A0BYP"
+          ],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 67580,
+          "cost_usd": 0.06659969999999998
+        }
+      ]
+    },
+    {
+      "id": "eval-tuna-brine",
+      "input": "tuna in brine, canned",
+      "country": "EU",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A0FBT"
+      ],
+      "runs": [
+        {
+          "pick": "A0FBT",
+          "pick_name": "Canned tunas and similar",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "tuna in brine, canned",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 41868,
+          "cost_usd": 0.0902915
+        },
+        {
+          "pick": "A0FBT",
+          "pick_name": "Canned tunas and similar",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "tuna in brine, canned",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 44817,
+          "cost_usd": 0.0263211
+        },
+        {
+          "pick": "A0FBT",
+          "pick_name": "Canned tunas and similar",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "tuna in brine, canned",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 41544,
+          "cost_usd": 0.026491099999999993
+        }
+      ]
+    },
+    {
+      "id": "eval-sardines-olive-oil",
+      "input": "sardines in olive oil, canned",
+      "country": "EU",
+      "families": [
+        "F1"
+      ],
+      "open": false,
+      "expected_base": [
+        "A0FBZ"
+      ],
+      "runs": [
+        {
+          "pick": "A0FBZ",
+          "pick_name": "Canned sardines",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "sardines in olive oil, canned",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 30427,
+          "cost_usd": 0.070298
+        },
+        {
+          "pick": "A0FBZ",
+          "pick_name": "Canned sardines",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "sardines in olive oil, canned",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 40860,
+          "cost_usd": 0.0254192
+        },
+        {
+          "pick": "A0FBZ",
+          "pick_name": "Canned sardines",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "sardines in olive oil, canned",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 35595,
+          "cost_usd": 0.022155199999999996
+        }
+      ]
+    },
+    {
+      "id": "usda-snow-crab-frozen",
+      "input": "Snow crab, legs only, frozen",
+      "country": "US",
+      "families": [
+        "F2"
+      ],
+      "open": false,
+      "expected_base": [
+        "A0FCQ"
+      ],
+      "runs": [
+        {
+          "pick": "A0FCQ",
+          "pick_name": "Tanner crabs (generic)",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07KQ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Snow crab, legs only",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KQ"
+          ],
+          "ms": 24120,
+          "cost_usd": 0.048424499999999995
+        },
+        {
+          "pick": "A0FCQ",
+          "pick_name": "Tanner crabs (generic)",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07KQ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Snow crab, legs only",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KQ"
+          ],
+          "ms": 28687,
+          "cost_usd": 0.0146925
+        },
+        {
+          "pick": "A0FCQ",
+          "pick_name": "Tanner crabs (generic)",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07KQ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Snow crab, legs only",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KQ"
+          ],
+          "ms": 32039,
+          "cost_usd": 0.014582499999999998
+        }
+      ]
+    },
+    {
+      "id": "usda-tuna-frozen",
+      "input": "Tuna, ahi or yellowfin, frozen, wild caught",
+      "country": "US",
+      "families": [
+        "F2"
+      ],
+      "open": false,
+      "expected_base": [
+        "A02EG"
+      ],
+      "runs": [
+        {
+          "pick": "A02EG",
+          "pick_name": "Tuna, yellowfin",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07KQ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Tuna, ahi or yellowfin, wild caught",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KQ"
+          ],
+          "ms": 32283,
+          "cost_usd": 0.060491500000000004
+        },
+        {
+          "pick": "A02EG",
+          "pick_name": "Tuna, yellowfin",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07KQ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Tuna, ahi or yellowfin, wild caught",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KQ"
+          ],
+          "ms": 36766,
+          "cost_usd": 0.0165159
+        },
+        {
+          "pick": "A02EG",
+          "pick_name": "Tuna, yellowfin",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07KQ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Tuna, ahi or yellowfin, wild caught",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KQ"
+          ],
+          "ms": 37560,
+          "cost_usd": 0.0161959
+        }
+      ]
+    },
+    {
+      "id": "usda-swordfish-frozen",
+      "input": "Swordfish, frozen, wild caught",
+      "country": "US",
+      "families": [
+        "F2"
+      ],
+      "open": false,
+      "expected_base": [
+        "A07Y0"
+      ],
+      "runs": [
+        {
+          "pick": "A07Y0",
+          "pick_name": "Swordfish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07KQ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Swordfish, wild caught",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KQ"
+          ],
+          "ms": 30172,
+          "cost_usd": 0.0673135
+        },
+        {
+          "pick": "A07Y0",
+          "pick_name": "Swordfish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07KQ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Swordfish, wild caught",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KQ"
+          ],
+          "ms": 44173,
+          "cost_usd": 0.0646266
+        },
+        {
+          "pick": "A07Y0",
+          "pick_name": "Swordfish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07KQ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Swordfish, wild caught",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KQ"
+          ],
+          "ms": 33650,
+          "cost_usd": 0.0148551
+        }
+      ]
+    },
+    {
+      "id": "usda-oj-refrigerated",
+      "input": "Orange juice, no pulp, not fortified, not from concentrate, refrigerated",
+      "country": "US",
+      "families": [
+        "F2",
+        "F5"
+      ],
+      "open": false,
+      "expected_base": [
+        "A03AM"
+      ],
+      "runs": [
+        {
+          "pick": "A03AM",
+          "pick_name": "Juice, orange",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07LN"
+          ],
+          "stated": [
+            "A07KP"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Orange juice, no pulp, not fortified, not from concentrate",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KP"
+          ],
+          "ms": 40845,
+          "cost_usd": 0.0690167
+        },
+        {
+          "pick": "A03AM",
+          "pick_name": "Juice, orange",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07LN"
+          ],
+          "stated": [
+            "A07KP"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Orange juice, no pulp, not fortified, not from concentrate",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KP"
+          ],
+          "ms": 42105,
+          "cost_usd": 0.025385899999999996
+        },
+        {
+          "pick": "A03AM",
+          "pick_name": "Juice, orange",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07LN"
+          ],
+          "stated": [
+            "A07KP"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Orange juice, no pulp, not fortified, not from concentrate",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KP"
+          ],
+          "ms": 42595,
+          "cost_usd": 0.05741869999999999
+        }
+      ]
+    },
+    {
+      "id": "usda-grapefruit-juice-refrigerated",
+      "input": "Grapefruit juice, red, not fortified, not from concentrate, refrigerated",
+      "country": "US",
+      "families": [
+        "F2",
+        "F5"
+      ],
+      "open": false,
+      "expected_base": [
+        "A03AL"
+      ],
+      "runs": [
+        {
+          "pick": "A03AL",
+          "pick_name": "Juice, grapefruit",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07LN"
+          ],
+          "stated": [
+            "A07KP"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Grapefruit juice, red, not fortified, not from concentrate",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KP"
+          ],
+          "ms": 46964,
+          "cost_usd": 0.20472949999999998
+        },
+        {
+          "pick": "A03AL",
+          "pick_name": "Juice, grapefruit",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07LN"
+          ],
+          "stated": [
+            "A07KP"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Grapefruit juice, red, not fortified, not from concentrate",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KP"
+          ],
+          "ms": 46359,
+          "cost_usd": 0.06208270000000001
+        },
+        {
+          "pick": "A03AL",
+          "pick_name": "Juice, grapefruit",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07LN"
+          ],
+          "stated": [
+            "A07KP"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Grapefruit juice, red, not fortified, not from concentrate",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07KP"
+          ],
+          "ms": 45993,
+          "cost_usd": 0.0653237
+        }
+      ]
+    },
+    {
+      "id": "eval-canned-organic-oj",
+      "input": "canned organic orange juice",
+      "country": "EU",
+      "families": [
+        "F2",
+        "F3"
+      ],
+      "open": false,
+      "expected_base": [
+        "A03AM"
+      ],
+      "runs": [
+        {
+          "pick": "A03AM",
+          "pick_name": "Juice, orange",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "canned organic orange juice",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A07LN"
+          ],
+          "wrongly_new_food": [
+            "A0BYP"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A0BYP"
+          ],
+          "ms": 50361,
+          "cost_usd": 0.1121165
+        },
+        {
+          "pick": "A03AM",
+          "pick_name": "Juice, orange",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "canned organic orange juice",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A07LN"
+          ],
+          "wrongly_new_food": [
+            "A0BYP"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A0BYP"
+          ],
+          "ms": 51187,
+          "cost_usd": 0.0292933
+        },
+        {
+          "pick": "A03AM",
+          "pick_name": "Juice, orange",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "canned organic orange juice",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A07LN"
+          ],
+          "wrongly_new_food": [
+            "A0BYP"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A0BYP"
+          ],
+          "ms": 48449,
+          "cost_usd": 0.029993299999999997
+        }
+      ]
+    },
+    {
+      "id": "nevo-cod-boiled",
+      "input": "Kabeljauw gekookt",
+      "country": "NL",
+      "families": [
+        "F2",
+        "F3"
+      ],
+      "open": false,
+      "expected_base": [
+        "A02BV"
+      ],
+      "runs": [
+        {
+          "pick": "A04NL",
+          "pick_name": "Fish and seafood processed",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Kabeljauw gekookt",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 58452,
+          "cost_usd": 0.03733009999999999
+        },
+        {
+          "pick": "A02KB",
+          "pick_name": "Processed or preserved fish (including processed offal)",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Kabeljauw gekookt",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 54626,
+          "cost_usd": 0.0803133
+        },
+        {
+          "pick": "A02KB",
+          "pick_name": "Processed or preserved fish (including processed offal)",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Kabeljauw gekookt",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 60628,
+          "cost_usd": 0.0313129
+        }
+      ]
+    },
+    {
+      "id": "nevo-sprouts-boiled",
+      "input": "Spruitjes gekookt",
+      "country": "NL",
+      "families": [
+        "F2",
+        "F3"
+      ],
+      "open": false,
+      "expected_base": [
+        "A00FV"
+      ],
+      "runs": [
+        {
+          "pick": "A00FJ",
+          "pick_name": "Vegetables and vegetable products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Spruitjes gekookt",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 47143,
+          "cost_usd": 0.079162
+        },
+        {
+          "pick": "A00FV",
+          "pick_name": "Brussels sprouts",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Spruitjes",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 42569,
+          "cost_usd": 0.06318259999999999
+        },
+        {
+          "pick": "A00FJ",
+          "pick_name": "Vegetables and vegetable products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Spruitjes gekookt",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 50819,
+          "cost_usd": 0.023906399999999998
+        }
+      ]
+    },
+    {
+      "id": "cofid-celery-boiled",
+      "input": "Celery, boiled in unsalted water",
+      "country": "GB",
+      "families": [
+        "F2",
+        "F3"
+      ],
+      "open": false,
+      "expected_base": [
+        "A00RY"
+      ],
+      "runs": [
+        {
+          "pick": "A00RY",
+          "pick_name": "Celeries",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Celery, boiled in unsalted water",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 43895,
+          "cost_usd": 0.17981400000000003
+        },
+        {
+          "pick": "A00RY",
+          "pick_name": "Celeries",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Celery, boiled in unsalted water",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 48617,
+          "cost_usd": 0.051902000000000004
+        },
+        {
+          "pick": "A00RY",
+          "pick_name": "Celeries",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Celery, boiled in unsalted water",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 52380,
+          "cost_usd": 0.051542000000000004
+        }
+      ]
+    },
+    {
+      "id": "cofid-black-gram-boiled",
+      "input": "Black gram, urad gram, whole, dried, boiled in unsalted water",
+      "country": "GB",
+      "families": [
+        "F2",
+        "F3"
+      ],
+      "open": false,
+      "expected_base": [
+        "A013C"
+      ],
+      "runs": [
+        {
+          "pick": "A013C",
+          "pick_name": "Black gram (dry seeds)",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Black gram, urad gram, whole, dried, boiled in unsalted water",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A07KG"
+          ],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 56852,
+          "cost_usd": 0.09426300000000001
+        },
+        {
+          "pick": "A013C",
+          "pick_name": "Black gram (dry seeds)",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Black gram, urad gram, whole, dried, boiled in unsalted water",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A07KG"
+          ],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 49198,
+          "cost_usd": 0.030118600000000006
+        },
+        {
+          "pick": "A01AY",
+          "pick_name": "Processed legumes, nuts, oilseeds and spices",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Black gram, urad gram, whole, dried, boiled in unsalted water",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A07KG"
+          ],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 54032,
+          "cost_usd": 0.031396600000000004
+        }
+      ]
+    },
+    {
+      "id": "cofid-coley-grilled",
+      "input": "Coley, flesh only, grilled",
+      "country": "GB",
+      "families": [
+        "F2"
+      ],
+      "open": false,
+      "expected_base": [
+        "A02CF"
+      ],
+      "runs": [
+        {
+          "pick": "A02CF",
+          "pick_name": "Coalfish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GY"
+          ],
+          "stated": [
+            "A07GZ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Coley, flesh only",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GZ"
+          ],
+          "ms": 51285,
+          "cost_usd": 0.0792255
+        },
+        {
+          "pick": "A02CF",
+          "pick_name": "Coalfish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GY"
+          ],
+          "stated": [
+            "A07GZ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Coley, flesh only",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GZ"
+          ],
+          "ms": 74451,
+          "cost_usd": 0.0241803
+        },
+        {
+          "pick": "A02CF",
+          "pick_name": "Coalfish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GY"
+          ],
+          "stated": [
+            "A07GZ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Coley, flesh only",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GZ"
+          ],
+          "ms": 59250,
+          "cost_usd": 0.0239503
+        }
+      ]
+    },
+    {
+      "id": "new-potatoes-boiled",
+      "input": "potatoes, boiled",
+      "country": "EU",
+      "families": [
+        "F2",
+        "F7",
+        "F9"
+      ],
+      "open": false,
+      "expected_base": [
+        "A00ZT"
+      ],
+      "runs": [
+        {
+          "pick": "A011P",
+          "pick_name": "Potato boiled",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": "A011P",
+          "override": null,
+          "compare_as": "potatoes, boiled",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 60087,
+          "cost_usd": 0.0298212
+        },
+        {
+          "pick": "A011P",
+          "pick_name": "Potato boiled",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": "A011P",
+          "override": null,
+          "compare_as": "potatoes, boiled",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 54081,
+          "cost_usd": 0.032332299999999994
+        },
+        {
+          "pick": "A011P",
+          "pick_name": "Potato boiled",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": "A011P",
+          "override": null,
+          "compare_as": "potatoes, boiled",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 56645,
+          "cost_usd": 0.028291200000000002
+        }
+      ]
+    },
+    {
+      "id": "new-rice-parboiled",
+      "input": "rice grain, parboiled",
+      "country": "EU",
+      "families": [
+        "F2",
+        "F7",
+        "F9"
+      ],
+      "open": false,
+      "expected_base": [
+        "A001D"
+      ],
+      "runs": [
+        {
+          "pick": "A003E",
+          "pick_name": "Rice grain, parboiled",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "rice grain, parboiled",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 56905,
+          "cost_usd": 0.0668855
+        },
+        {
+          "pick": "A003E",
+          "pick_name": "Rice grain, parboiled",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "rice grain, parboiled",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 64719,
+          "cost_usd": 0.0176047
+        },
+        {
+          "pick": "A003E",
+          "pick_name": "Rice grain, parboiled",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "rice grain, parboiled",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 63673,
+          "cost_usd": 0.0166547
+        }
+      ]
+    },
+    {
+      "id": "new-pork-boiled",
+      "input": "pork, boiled",
+      "country": "EU",
+      "families": [
+        "F2",
+        "F3"
+      ],
+      "open": false,
+      "expected_base": [
+        "A01RG"
+      ],
+      "runs": [
+        {
+          "pick": "A01QR",
+          "pick_name": "Meat and meat products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "pork, boiled",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 67762,
+          "cost_usd": 0.085619
+        },
+        {
+          "pick": "A01QR",
+          "pick_name": "Meat and meat products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "pork, boiled",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 86984,
+          "cost_usd": 0.026828599999999998
+        },
+        {
+          "pick": "A01QR",
+          "pick_name": "Meat and meat products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "pork, boiled",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GL"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GL"
+          ],
+          "ms": 78893,
+          "cost_usd": 0.0362677
+        }
+      ]
+    },
+    {
+      "id": "new-egg-boiled",
+      "input": "hen egg, boiled",
+      "country": "EU",
+      "families": [
+        "F3"
+      ],
+      "open": false,
+      "expected_base": [
+        "A032B"
+      ],
+      "runs": [
+        {
+          "pick": "A032B",
+          "pick_name": "Boiled eggs",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": "A032B",
+          "override": null,
+          "compare_as": "hen egg, boiled",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 47082,
+          "cost_usd": 0.043144
+        },
+        {
+          "pick": "A032B",
+          "pick_name": "Boiled eggs",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": "A032B",
+          "override": null,
+          "compare_as": "hen egg, boiled",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 53489,
+          "cost_usd": 0.022823299999999998
+        },
+        {
+          "pick": "A032B",
+          "pick_name": "Boiled eggs",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GL"
+          ],
+          "process_group": "A032B",
+          "override": null,
+          "compare_as": "hen egg, boiled",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 51745,
+          "cost_usd": 0.0162632
+        }
+      ]
+    },
+    {
+      "id": "usda-chorizo-pan-fried",
+      "input": "Sausage, pork, chorizo, link or ground, cooked, pan-fried",
+      "country": "US",
+      "families": [
+        "F3",
+        "F7"
+      ],
+      "open": false,
+      "expected_base": [
+        "A024F"
+      ],
+      "runs": [
+        {
+          "pick": "A025J",
+          "pick_name": "Cooked sausages (generic)",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [
+            "A07GS",
+            "A07KY"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Sausage, pork, chorizo, link or ground, cooked, pan-fried",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GS"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GS"
+          ],
+          "ms": 84545,
+          "cost_usd": 0.08555449999999999
+        },
+        {
+          "pick": "A0EYP",
+          "pick_name": "Preserved or partly preserved sausages",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [
+            "A07GS",
+            "A07LA"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Sausage, pork, chorizo, link or ground, cooked, pan-fried",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GS"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GS"
+          ],
+          "ms": 87349,
+          "cost_usd": 0.0239905
+        },
+        {
+          "pick": "A0EYP",
+          "pick_name": "Preserved or partly preserved sausages",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [
+            "A07GS",
+            "A07LA"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Sausage, pork, chorizo, link or ground, cooked, pan-fried",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GS"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GS"
+          ],
+          "ms": 80792,
+          "cost_usd": 0.023840499999999997
+        }
+      ]
+    },
+    {
+      "id": "cofid-courgette-fried",
+      "input": "Courgette, fried in corn oil",
+      "country": "GB",
+      "families": [
+        "F3"
+      ],
+      "open": false,
+      "expected_base": [
+        "A00JR"
+      ],
+      "runs": [
+        {
+          "pick": "A00ZA",
+          "pick_name": "Processed or preserved vegetables and similar",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Courgette, fried in corn oil",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GR"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GR"
+          ],
+          "ms": 84413,
+          "cost_usd": 0.09517250000000002
+        },
+        {
+          "pick": "A00ZA",
+          "pick_name": "Processed or preserved vegetables and similar",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Courgette, fried in corn oil",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GR"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GR"
+          ],
+          "ms": 92476,
+          "cost_usd": 0.0342341
+        },
+        {
+          "pick": "A00ZA",
+          "pick_name": "Processed or preserved vegetables and similar",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Courgette, fried in corn oil",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GR"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GR"
+          ],
+          "ms": 95212,
+          "cost_usd": 0.0332641
+        }
+      ]
+    },
+    {
+      "id": "cofid-chicken-stir-fried",
+      "input": "Chicken, breast, strips, stir-fried in corn oil",
+      "country": "GB",
+      "families": [
+        "F3"
+      ],
+      "open": false,
+      "expected_base": [
+        "A01SP"
+      ],
+      "runs": [
+        {
+          "pick": "A01QR",
+          "pick_name": "Meat and meat products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [
+            "A07GT",
+            "A07KX"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Chicken, breast, fried in corn oil",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GT"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GT"
+          ],
+          "ms": 66203,
+          "cost_usd": 0.09473250000000001
+        },
+        {
+          "pick": "A01QR",
+          "pick_name": "Meat and meat products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [
+            "A07GT",
+            "A07KX"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Chicken, breast, fried in corn oil",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GT"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GT"
+          ],
+          "ms": 72998,
+          "cost_usd": 0.034196899999999995
+        },
+        {
+          "pick": "A01QR",
+          "pick_name": "Meat and meat products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [
+            "A07GT",
+            "A07KX"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Chicken, breast, fried in corn oil",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GT"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GT"
+          ],
+          "ms": 67634,
+          "cost_usd": 0.0336969
+        }
+      ]
+    },
+    {
+      "id": "cofid-pork-mince-stewed",
+      "input": "Pork, mince, stewed",
+      "country": "GB",
+      "families": [
+        "F3",
+        "F6"
+      ],
+      "open": false,
+      "expected_base": [
+        "A04AC"
+      ],
+      "runs": [
+        {
+          "pick": "A01RG",
+          "pick_name": "Pig fresh meat",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GM",
+            "A07KY"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Pork",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GG"
+          ],
+          "form_lost": [
+            "mince"
+          ],
+          "facet_seen": [
+            "A07GM"
+          ],
+          "ms": 116163,
+          "cost_usd": 0.34954050000000003
+        },
+        {
+          "pick": "A01QR",
+          "pick_name": "Meat and meat products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GM",
+            "A07KY"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Pork, mince, stewed",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GG"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GM"
+          ],
+          "ms": 71852,
+          "cost_usd": 0.0755688
+        },
+        {
+          "pick": "A01QR",
+          "pick_name": "Meat and meat products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GG"
+          ],
+          "stated": [
+            "A07GM",
+            "A07KY"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Pork, mince, stewed",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GG"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GM"
+          ],
+          "ms": 75766,
+          "cost_usd": 0.0347275
+        }
+      ]
+    },
+    {
+      "id": "cofid-duck-roasted",
+      "input": "Duck, roasted, meat, fat and skin",
+      "country": "GB",
+      "families": [
+        "F3",
+        "F9"
+      ],
+      "open": true,
+      "expected_base": [
+        "A01QR"
+      ],
+      "runs": [
+        {
+          "pick": "A01QR",
+          "pick_name": "Meat and meat products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GY"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Duck, roasted, meat, fat and skin",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GY"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GY"
+          ],
+          "ms": 76941,
+          "cost_usd": 0.0954833
+        },
+        {
+          "pick": "A01QR",
+          "pick_name": "Meat and meat products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GY"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Duck, roasted, meat, fat and skin",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GY"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GY"
+          ],
+          "ms": 64286,
+          "cost_usd": 0.0409295
+        },
+        {
+          "pick": "A01QR",
+          "pick_name": "Meat and meat products",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GY"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Duck, roasted, meat, fat and skin",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07GY"
+          ],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GY"
+          ],
+          "ms": 69097,
+          "cost_usd": 0.0392681
+        }
+      ]
+    },
+    {
+      "id": "eval-smoked-sprats-canned",
+      "input": "smoked sprats in a can",
+      "country": "EU",
+      "families": [
+        "F4"
+      ],
+      "open": false,
+      "expected_base": [
+        "A0FBY"
+      ],
+      "runs": [
+        {
+          "pick": "A0EYS",
+          "pick_name": "Smoked fish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JV",
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": "A0EYS",
+          "override": [
+            "A0FBY",
+            "A0EYS"
+          ],
+          "compare_as": "smoked sprats in a can",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 77050,
+          "cost_usd": 0.14647620000000003
+        },
+        {
+          "pick": "A0EYS",
+          "pick_name": "Smoked fish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JV",
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": "A0EYS",
+          "override": [
+            "A0FBY",
+            "A0EYS"
+          ],
+          "compare_as": "smoked sprats in a can",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 73665,
+          "cost_usd": 0.07226179999999999
+        },
+        {
+          "pick": "A0EYS",
+          "pick_name": "Smoked fish",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JV",
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": "A0EYS",
+          "override": [
+            "A0FBY",
+            "A0EYS"
+          ],
+          "compare_as": "smoked sprats in a can",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 74686,
+          "cost_usd": 0.051029
+        }
+      ]
+    },
+    {
+      "id": "new-mackerel-smoked-canned",
+      "input": "canned smoked mackerel",
+      "country": "EU",
+      "families": [
+        "F4"
+      ],
+      "open": false,
+      "expected_base": [
+        "A0FBV"
+      ],
+      "runs": [
+        {
+          "pick": "A16EM",
+          "pick_name": "Smoked mackerel",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JV",
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": "A16EM",
+          "override": [
+            "A0FBV",
+            "A16EM"
+          ],
+          "compare_as": "canned smoked mackerel",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 64994,
+          "cost_usd": 0.0814801
+        },
+        {
+          "pick": "A16EM",
+          "pick_name": "Smoked mackerel",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0BYP",
+            "A07JV"
+          ],
+          "stated": [],
+          "process_group": "A16EM",
+          "override": [
+            "A0FBV",
+            "A16EM"
+          ],
+          "compare_as": "canned smoked mackerel",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 62882,
+          "cost_usd": 0.034720499999999994
+        },
+        {
+          "pick": "A16EM",
+          "pick_name": "Smoked mackerel",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JV",
+            "A0BYP"
+          ],
+          "stated": [],
+          "process_group": "A16EM",
+          "override": [
+            "A0FBV",
+            "A16EM"
+          ],
+          "compare_as": "canned smoked mackerel",
+          "base_pass": false,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 69084,
+          "cost_usd": 0.026382100000000002
+        }
+      ]
+    },
+    {
+      "id": "new-cod-dried-salted",
+      "input": "dried salted cod",
+      "country": "EU",
+      "families": [
+        "F4"
+      ],
+      "open": false,
+      "expected_base": [
+        "A0FCB"
+      ],
+      "runs": [
+        {
+          "pick": "A0FCB",
+          "pick_name": "Salted cod",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JP",
+            "A07KG"
+          ],
+          "stated": [],
+          "process_group": "A0FCB",
+          "override": null,
+          "compare_as": "dried salted cod",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 80694,
+          "cost_usd": 0.08509899999999998
+        },
+        {
+          "pick": "A0FCB",
+          "pick_name": "Salted cod",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JP",
+            "A07KG"
+          ],
+          "stated": [],
+          "process_group": "A0FCB",
+          "override": null,
+          "compare_as": "dried salted cod",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 76393,
+          "cost_usd": 0.028143400000000002
+        },
+        {
+          "pick": "A0FCB",
+          "pick_name": "Salted cod",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JP",
+            "A07KG"
+          ],
+          "stated": [],
+          "process_group": "A0FCB",
+          "override": null,
+          "compare_as": "dried salted cod",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 81308,
+          "cost_usd": 0.028113400000000004
+        }
+      ]
+    },
+    {
+      "id": "efsa-candied-peel-chocolate",
+      "input": "candied citrus peel, chocolate-coated",
+      "country": "EU",
+      "families": [
+        "F4",
+        "F7"
+      ],
+      "open": true,
+      "expected_base": [
+        "A034R",
+        "A01PS"
+      ],
+      "runs": [
+        {
+          "pick": "A034R",
+          "pick_name": "Chocolate coated confectionery",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JQ"
+          ],
+          "stated": [
+            "A07HP"
+          ],
+          "process_group": "A034R",
+          "override": null,
+          "compare_as": "candied citrus peel, chocolate-coated",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 101713,
+          "cost_usd": 0.094623
+        },
+        {
+          "pick": "A034R",
+          "pick_name": "Chocolate coated confectionery",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JQ"
+          ],
+          "stated": [
+            "A07HP"
+          ],
+          "process_group": "A034R",
+          "override": null,
+          "compare_as": "candied citrus peel, chocolate-coated",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 97176,
+          "cost_usd": 0.046036600000000004
+        },
+        {
+          "pick": "A034R",
+          "pick_name": "Chocolate coated confectionery",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07JQ"
+          ],
+          "stated": [
+            "A07HP"
+          ],
+          "process_group": "A034R",
+          "override": null,
+          "compare_as": "candied citrus peel, chocolate-coated",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 105558,
+          "cost_usd": 0.04841910000000001
+        }
+      ]
+    },
+    {
+      "id": "new-almonds-chocolate",
+      "input": "chocolate-coated almonds",
+      "country": "EU",
+      "families": [
+        "F7"
+      ],
+      "open": true,
+      "expected_base": [
+        "A034R",
+        "A014D"
+      ],
+      "runs": [
+        {
+          "pick": "A034R",
+          "pick_name": "Chocolate coated confectionery",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07HP"
+          ],
+          "process_group": "A034R",
+          "override": null,
+          "compare_as": "chocolate-coated almonds",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 102169,
+          "cost_usd": 0.09969650000000002
+        },
+        {
+          "pick": "A034R",
+          "pick_name": "Chocolate coated confectionery",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07HP"
+          ],
+          "process_group": "A034R",
+          "override": null,
+          "compare_as": "chocolate-coated almonds",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 92386,
+          "cost_usd": 0.2070788
+        },
+        {
+          "pick": "A034R",
+          "pick_name": "Chocolate coated confectionery",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07HP"
+          ],
+          "process_group": "A034R",
+          "override": null,
+          "compare_as": "chocolate-coated almonds",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 93403,
+          "cost_usd": 0.07600639999999999
+        }
+      ]
+    },
+    {
+      "id": "usda-bulgur",
+      "input": "Bulgur, dry, raw",
+      "country": "US",
+      "families": [
+        "F5"
+      ],
+      "open": false,
+      "expected_base": [
+        "A004G"
+      ],
+      "runs": [
+        {
+          "pick": "A004G",
+          "pick_name": "Bulgur",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Bulgur, dry, raw",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 71910,
+          "cost_usd": 0.10436500000000001
+        },
+        {
+          "pick": "A004G",
+          "pick_name": "Bulgur",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07KG"
+          ],
+          "stated": [
+            "A07GL",
+            "A07LA"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Bulgur, dry, raw",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07KG"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 82298,
+          "cost_usd": 0.032574399999999996
+        },
+        {
+          "pick": "A004G",
+          "pick_name": "Bulgur",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07KG"
+          ],
+          "stated": [
+            "A07GL",
+            "A07LA"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Bulgur, dry, raw",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A07KG"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 88986,
+          "cost_usd": 0.0287416
+        }
+      ]
+    },
+    {
+      "id": "usda-farro-pearled",
+      "input": "Farro, pearled, dry, raw",
+      "country": "US",
+      "families": [
+        "F5",
+        "F8"
+      ],
+      "open": false,
+      "expected_base": [
+        "A001Q"
+      ],
+      "runs": [
+        {
+          "pick": "A001Q",
+          "pick_name": "Emmer wheat grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Farro, pearled, dry, raw",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A0C03"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 85086,
+          "cost_usd": 0.08668950000000002
+        },
+        {
+          "pick": "A001Q",
+          "pick_name": "Emmer wheat grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Farro, pearled, dry, raw",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A0C03"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 86937,
+          "cost_usd": 0.027464699999999998
+        },
+        {
+          "pick": "A001Q",
+          "pick_name": "Emmer wheat grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Farro, pearled, dry, raw",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A0C03"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 85203,
+          "cost_usd": 0.027304700000000005
+        }
+      ]
+    },
+    {
+      "id": "usda-wild-rice",
+      "input": "Wild rice, dry, raw",
+      "country": "US",
+      "families": [
+        "F5"
+      ],
+      "open": false,
+      "expected_base": [
+        "A001J"
+      ],
+      "runs": [
+        {
+          "pick": "A001J",
+          "pick_name": "Indian rice grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Wild rice, dry, raw",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 69824,
+          "cost_usd": 0.0834665
+        },
+        {
+          "pick": "A001J",
+          "pick_name": "Indian rice grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Wild rice, dry, raw",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 64321,
+          "cost_usd": 0.028460399999999997
+        },
+        {
+          "pick": "A001J",
+          "pick_name": "Indian rice grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Wild rice, dry, raw",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 61411,
+          "cost_usd": 0.0209073
+        }
+      ]
+    },
+    {
+      "id": "usda-sorghum-pearled",
+      "input": "Sorghum grain, white, pearled, unenriched, dry, raw",
+      "country": "US",
+      "families": [
+        "F5"
+      ],
+      "open": false,
+      "expected_base": [
+        "A001L"
+      ],
+      "runs": [
+        {
+          "pick": "A001L",
+          "pick_name": "Sorghum grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Sorghum grain, white, pearled, unenriched, dry, raw",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A0C03"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 59907,
+          "cost_usd": 0.048085699999999995
+        },
+        {
+          "pick": "A001L",
+          "pick_name": "Sorghum grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Sorghum grain, white, pearled, unenriched, dry, raw",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A0C03"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 67135,
+          "cost_usd": 0.058147500000000005
+        },
+        {
+          "pick": "A001L",
+          "pick_name": "Sorghum grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0C03"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Sorghum grain, white, pearled, unenriched, dry, raw",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [
+            "A0C03"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 69602,
+          "cost_usd": 0.024809100000000004
+        }
+      ]
+    },
+    {
+      "id": "eval-oj-from-concentrate",
+      "input": "orange juice from concentrate",
+      "country": "EU",
+      "families": [
+        "F5"
+      ],
+      "open": false,
+      "expected_base": [
+        "A03AM"
+      ],
+      "runs": [
+        {
+          "pick": "A03AM",
+          "pick_name": "Juice, orange",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07KF"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "orange juice from concentrate",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A07LN"
+          ],
+          "wrongly_new_food": [
+            "A07KF"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 66002,
+          "cost_usd": 0.1035245
+        },
+        {
+          "pick": "A03AM",
+          "pick_name": "Juice, orange",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07LN"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "orange juice from concentrate",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 67722,
+          "cost_usd": 0.03446590000000001
+        },
+        {
+          "pick": "A03AM",
+          "pick_name": "Juice, orange",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07KF"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "orange juice from concentrate",
+          "base_pass": true,
+          "treatments_pass": false,
+          "new_food_missing": [
+            "A07LN"
+          ],
+          "wrongly_new_food": [
+            "A07KF"
+          ],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 69798,
+          "cost_usd": 0.028870099999999996
+        }
+      ]
+    },
+    {
+      "id": "usda-egg-frozen-pasteurized",
+      "input": "Egg, whole, raw, frozen, pasteurized",
+      "country": "US",
+      "families": [
+        "F6",
+        "F8",
+        "F9"
+      ],
+      "open": false,
+      "expected_base": [
+        "A031R",
+        "A0F6E"
+      ],
+      "runs": [
+        {
+          "pick": "A031G",
+          "pick_name": "Hen eggs",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07HV",
+            "A07KQ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Egg, whole, raw",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [
+            "frozen"
+          ],
+          "facet_seen": [
+            "A07KQ",
+            "A07HV"
+          ],
+          "ms": 45474,
+          "cost_usd": 0.026338300000000005
+        },
+        {
+          "pick": "A031G",
+          "pick_name": "Hen eggs",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07HV",
+            "A07KQ"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Egg, whole, raw",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [
+            "frozen"
+          ],
+          "facet_seen": [
+            "A07KQ",
+            "A07HV"
+          ],
+          "ms": 45682,
+          "cost_usd": 0.0252483
+        },
+        {
+          "pick": "A031G",
+          "pick_name": "Hen eggs",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07KQ",
+            "A07HV"
+          ],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Egg, whole, raw",
+          "base_pass": false,
+          "treatments_pass": false,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [
+            "frozen"
+          ],
+          "facet_seen": [
+            "A07KQ",
+            "A07HV"
+          ],
+          "ms": 41334,
+          "cost_usd": 0.024948299999999996
+        }
+      ]
+    },
+    {
+      "id": "usda-eggs-grade-a",
+      "input": "Eggs, Grade A, Large, egg whole",
+      "country": "US",
+      "families": [
+        "F6"
+      ],
+      "open": false,
+      "expected_base": [
+        "A031G"
+      ],
+      "runs": [
+        {
+          "pick": "A031G",
+          "pick_name": "Hen eggs",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Eggs, Grade A, Large, egg whole",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 44734,
+          "cost_usd": 0.040237100000000005
+        },
+        {
+          "pick": "A031G",
+          "pick_name": "Hen eggs",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Eggs, Grade A, Large, egg whole",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 45916,
+          "cost_usd": 0.0247661
+        },
+        {
+          "pick": "A031G",
+          "pick_name": "Hen eggs",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "Eggs, Grade A, Large, egg whole",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 44256,
+          "cost_usd": 0.0239211
+        }
+      ]
+    },
+    {
+      "id": "new-egg-beaten",
+      "input": "whole egg, beaten",
+      "country": "EU",
+      "families": [
+        "F6"
+      ],
+      "open": false,
+      "expected_base": [
+        "A031R",
+        "A0F6E"
+      ],
+      "runs": [
+        {
+          "pick": "A031R",
+          "pick_name": "Hen egg mixed whole",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0CRL"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "whole egg, beaten",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 68307,
+          "cost_usd": 0.0597545
+        },
+        {
+          "pick": "A031R",
+          "pick_name": "Hen egg mixed whole",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0CRL"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "whole egg, beaten",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 63714,
+          "cost_usd": 0.021878900000000003
+        },
+        {
+          "pick": "A031R",
+          "pick_name": "Hen egg mixed whole",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A0CRL"
+          ],
+          "stated": [],
+          "process_group": null,
+          "override": null,
+          "compare_as": "whole egg, beaten",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 59732,
+          "cost_usd": 0.0217889
+        }
+      ]
+    }
+  ]
+}

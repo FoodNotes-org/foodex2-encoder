@@ -5,11 +5,10 @@
  *   else → expo traversal (embeddings tip walk seeds) → selection → residuals
  */
 
-import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
+import { Catalogue } from "../catalogue.js";
 import { DEFAULT_COUNTRY_CODE, resolveCountry } from "../country.js";
 import { searchTerms } from "../search/lexical.js";
 import { isProviderInfraReason, LlmError } from "../llm.js";
-import { termImpliesProcesses } from "./base-compare.js";
 import { formatFoodEx2Code } from "./foodex2-code.js";
 import { evaluateLexicalAccept } from "./lexical-accept.js";
 import { assignResiduals } from "./residuals.js";
@@ -220,30 +219,11 @@ export async function encodeBaseTerm(
       model: options.model,
       descriptionKind: collected.descriptionKind,
       country,
+      treatments: collected.treatmentsApplied,
     });
     audit.push(...selection.audit);
 
-    const group = collected.processGroup;
-    let pick = selection.pick;
-    let pickKind = selection.pickKind;
-    const cat = Catalogue.load();
-    const groupWins =
-      group !== null &&
-      (pick === null ||
-        (!cat.isAncestor(group.code, pick.code, DEFAULT_HIERARCHY) &&
-          !termImpliesProcesses(cat, pick.code, group.processes)));
-    if (groupWins && group !== null) {
-      audit.push({
-        step: "process_group",
-        detail: {
-          from: pick?.code ?? null,
-          to: group.code,
-          processes: group.processes,
-        },
-      });
-      pick = { code: group.code, name: group.name };
-      pickKind = "exact";
-    }
+    const { pick, pickKind } = selection;
 
     if (pick === null) {
       return {

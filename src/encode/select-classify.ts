@@ -9,7 +9,10 @@ import { chatJson, defaultModel } from "../llm.js";
 import { parseClassifications, pickAllowedCode } from "./answers.js";
 import {
   LADDER_LABELS,
+  TERM_FIELDS_GIVEN,
+  TERM_NOTE_GIVEN,
   classifySystemPrompt,
+  itemGiven,
 } from "./classify-ladder.js";
 import { entailedProperties } from "./entailed-properties.js";
 import type {
@@ -40,7 +43,7 @@ export function otherSiblingFields(
   code: string,
   name: string
 ): { parent: string; siblings: string[] } | undefined {
-  if (!/\bother\b/i.test(name)) return undefined;
+  if (!/\bother\b/i.test(name) && !/not separately listed/i.test(name)) return undefined;
   const parentCode = cat.parent(code, DEFAULT_HIERARCHY);
   if (parentCode === null) return undefined;
   const parent = parentCode === EXPO_ROOT ? "Food" : cat.term(parentCode)?.name;
@@ -78,6 +81,7 @@ export async function assessSelectClassify(
     model?: string;
     descriptionKind?: DescriptionKind | null;
     country?: string | null;
+    treatments?: readonly string[];
   } = {}
 ): Promise<AssessSelectClassifyResult> {
   const audit: AuditEntry[] = [];
@@ -88,8 +92,10 @@ export async function assessSelectClassify(
 
   const descriptionKind = options.descriptionKind ?? null;
   const country = options.country ?? null;
+  const treatments = options.treatments ?? [];
   const payload = {
     item: food,
+    ...(treatments.length > 0 ? { treatments } : {}),
     ...(country !== null ? { country } : {}),
     ...(descriptionKind !== null ? { descriptionKind } : {}),
     terms: pool.map((c) => classifyCandidatePayload(c)),
@@ -123,53 +129,48 @@ export async function assessSelectClassify(
   return { byCode, audit };
 }
 
-function systemSelectParent(withCountry: boolean): string {
-  const food = withCountry
-    ? "- `food`: the food description, to be understood in the food nomenclature in: `country`."
-    : "- `food`: the food as described.";
-  const opening = withCountry
-    ? "You are an expert in food classification. Read `food` in the food nomenclature in `country`."
-    : "You are an expert in food classification.";
-  return `${opening}
+export function systemProductKind(withCountry: boolean): string {
+  return `You are an expert in food classification.
 
-Your task is to choose among catalogue terms as possible shelves for the food.
-First, find the \`candidates\`, if any, that subsume \`food\`.
+Task: the food belongs to each of these catalogue terms, and none of them contains another. Choose the term for the kind of product the food is primarily eaten as.
 
 Given:
-${food}
-- \`candidates\`: catalogue terms, each with a \`code\`, a \`name\` and, for some, a \`note\` on what the term means and how to use it.
+${itemGiven(withCountry)}
+- \`terms\`: the catalogue terms to choose from. ${TERM_FIELDS_GIVEN} ${TERM_NOTE_GIVEN}
 
-Reply with JSON only, with the code of that term, or null if \`food\` belongs to none of them:
-{"code":"<code>"|null}
+Use your own knowledge of how the food is eaten.
+
+Reply with JSON only:
+{"code":"<code>"}
 `;
 }
 
-export interface PickClosestParentResult {
+export interface PickProductKindResult {
   code: string | null;
   audit: AuditEntry[];
 }
 
-/** Among the broad shelf candidates passed in, pick one. */
-export async function pickClosestParent(
+/** Among broad terms that each contain the food and none of which contains another, pick one. */
+export async function pickProductKind(
   food: string,
-  parents: BaseTermCandidate[],
+  terms: BaseTermCandidate[],
   options: { model?: string; country?: string | null } = {}
-): Promise<PickClosestParentResult> {
+): Promise<PickProductKindResult> {
   const audit: AuditEntry[] = [];
-  if (parents.length === 0) {
+  if (terms.length === 0) {
     return { code: null, audit };
   }
-  if (parents.length === 1) {
-    return { code: parents[0]!.code, audit };
+  if (terms.length === 1) {
+    return { code: terms[0]!.code, audit };
   }
 
-  const allowed = new Set(parents.map((c) => c.code));
+  const allowed = new Set(terms.map((c) => c.code));
   const cat = Catalogue.load();
   const country = options.country ?? null;
   const payload = {
-    food,
+    item: food,
     ...(country !== null ? { country } : {}),
-    candidates: parents.map((c) => {
+    terms: terms.map((c) => {
       const note = cat.term(c.code)?.scopeNote?.trim();
       return { ...candidatePayload(c), ...(note ? { note } : {}) };
     }),
@@ -177,18 +178,18 @@ export async function pickClosestParent(
 
   const { content, model } = await chatJson({
     model: options.model?.trim() || defaultModel(),
-    system: systemSelectParent(country !== null),
+    system: systemProductKind(country !== null),
     user: JSON.stringify(payload, null, 2),
   });
 
   const code = pickAllowedCode(content, allowed);
 
   audit.push({
-    step: "select_parent_pick",
+    step: "select_product_kind",
     detail: {
       model,
       food,
-      candidates: parents.map((c) => ({ code: c.code, name: c.name })),
+      terms: terms.map((c) => ({ code: c.code, name: c.name })),
       pick: code,
     },
   });

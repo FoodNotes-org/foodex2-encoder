@@ -114,10 +114,12 @@ describe("entailedProperties", () => {
 describe("classifySystemPrompt", () => {
   const compare =
     "Compare `item` with the class each term denotes, using the term's `name`, any `directSubcategories`, any `note`, and any `properties` to decide its exact scope.";
-  const walkOther =
-    'When a term\'s name contains the word "other" or "not separately listed", the term denotes all members of `parent` that are not members of its sibling terms in `terms`.';
-  const pickOther =
-    'When a term\'s name contains the word "other", the term denotes the members of that term\'s `parent` that are not members of that term\'s `siblings`.';
+  const remainder =
+    'When a term\'s name contains the word "other" or "not separately listed", the term denotes the members of that term\'s `parent` that are not members of that term\'s `siblings`.';
+  const terms =
+    '- `terms`: the catalogue terms to judge. Each has a `code` and a `name`. `directSubcategories`, if included, are the names of the terms that sit directly under that term. `note`, if included, is the scope note, which says what that term covers. `properties`, if included, are characteristics entailed by the class. Each has a `kind` and a `name`. A term whose `name` contains "other" or "not separately listed" also has `parent`, the term it sits under, and `siblings`, the other terms directly under that parent.';
+  const kind =
+    "- `descriptionKind`: which kind of description `item` is: a foodstuff, a food category, a dish, a dish type, or a mix of foods.";
 
   it("asks once for one relation, in hypernym and hyponym terms", () => {
     const prompt = classifySystemPrompt({
@@ -132,6 +134,7 @@ describe("classifySystemPrompt", () => {
       )
     );
     assert.equal(prompt.includes("catalogue structure"), false);
+    assert.ok(prompt.includes("- exact: `item` and the term denote the same class"));
     assert.ok(prompt.includes("- broad: the term is a hypernym of `item`"));
     assert.ok(prompt.includes("- narrow: the term is a hyponym of `item`"));
     assert.equal(prompt.includes("in order"), false);
@@ -139,29 +142,18 @@ describe("classifySystemPrompt", () => {
     assert.equal(prompt.includes("strict sense"), false);
   });
 
-  it("defines other from the sibling list when the terms are one parent's children", () => {
-    const prompt = classifySystemPrompt({
-      answerKey: "match",
-      readSubcategories: true,
-    });
-    assert.ok(prompt.includes(walkOther));
-    assert.equal(prompt.includes(pickOther), false);
-  });
-
-  it("defines other from each term's own parent and siblings in a mixed pool", () => {
-    const prompt = classifySystemPrompt({
-      answerKey: "fit",
-    });
-    assert.ok(prompt.includes(pickOther));
-    assert.ok(prompt.includes("`siblings`"));
-    assert.ok(prompt.includes(compare));
-    assert.ok(
-      prompt.includes(
-        "`properties`, if included, are characteristics entailed by the class. Each has a `kind` and a `name`."
-      )
-    );
-    assert.equal(prompt.includes("catalogue structure"), false);
-    assert.equal(prompt.includes(walkOther), false);
+  it("uses one wording for the walk and the final pick", () => {
+    const walk = classifySystemPrompt({ answerKey: "match", readSubcategories: true });
+    const pick = classifySystemPrompt({ answerKey: "fit" });
+    const same = (prompt: string) =>
+      prompt
+        .replaceAll('"match"', '"fit"')
+        .replaceAll("assign one match", "assign one fit")
+        .replace("\n- `parent`: the catalogue term these terms sit under.", "");
+    assert.equal(same(walk), same(pick));
+    assert.equal(walk.includes(remainder), true);
+    assert.equal(walk.includes(terms), true);
+    assert.equal(walk.includes(kind), true);
   });
 
   it("reads the food description in the country's nomenclature", () => {
@@ -171,8 +163,10 @@ describe("classifySystemPrompt", () => {
       withCountry: true,
     });
     const line =
-      "- `item`: the food description, as understood in the food nomenclature of: `country`.";
+      "- `item`: the food description. It denotes the class that name has in the food nomenclature of `country`.";
     assert.equal(prompt.split(line).length - 1, 1);
+    const select = classifySystemPrompt({ answerKey: "fit", withCountry: true });
+    assert.equal(select.split(line).length - 1, 1);
     assert.ok(
       prompt.startsWith(
         "You are an expert in food classification.\n\nYour task is to match a food description against terms in a food catalogue."

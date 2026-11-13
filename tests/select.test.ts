@@ -8,6 +8,7 @@ import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
 import {
   selectableFitTier,
+  hierarchyTermsHeldBack,
   tieBreakRank,
   selectScore,
   fitPoints,
@@ -17,8 +18,10 @@ import {
   parseMinorShare,
   PROCESS_BONUS,
   DETAIL_LEVEL_BONUS,
+  narrowestTerms,
 } from "../src/encode/select.js";
-import { otherSiblingFields } from "../src/encode/select-classify.js";
+import { otherSiblingFields, systemProductKind } from "../src/encode/select-classify.js";
+import { TERM_NOTE_GIVEN, classifySystemPrompt, itemGiven } from "../src/encode/classify-ladder.js";
 import type { BaseTermCandidate, CandidateFit } from "../src/encode/types.js";
 
 describe("otherSiblingFields", () => {
@@ -29,6 +32,20 @@ describe("otherSiblingFields", () => {
       parent: "Cooked cured (or seasoned) poultry meat",
       siblings: ["Cooked turkey meat", "Corned turkey"],
     });
+  });
+
+  it("names the parent and the other children for a term not separately listed", () => {
+    const fields = otherSiblingFields(
+      cat,
+      "A04KT",
+      "Cereal and cereal-like flours not separately listed"
+    );
+    assert.equal(fields?.parent, "Cereal and cereal-like flours");
+    assert.equal(fields?.siblings.includes("Wheat flour"), true);
+    assert.equal(
+      fields?.siblings.includes("Cereal and cereal-like flours not separately listed"),
+      false
+    );
   });
 
   it("adds nothing when the name does not say other", () => {
@@ -153,6 +170,43 @@ describe("tie-break within shortlist", () => {
   });
 });
 
+describe("narrowest broad terms", () => {
+  const cat = Catalogue.load();
+  const term = (code: string): BaseTermCandidate => ({
+    code,
+    name: cat.term(code)?.name ?? code,
+    match: "broad",
+  });
+
+  it("drops a term that contains another, and keeps terms that cut across", () => {
+    const kept = narrowestTerms(cat, [term("A0F1N"), term("A043X"), term("A046F")]);
+    assert.deepEqual(
+      kept.map((c) => c.code),
+      ["A043X", "A046F"]
+    );
+  });
+
+  it("keeps a single term when the others all contain it", () => {
+    const kept = narrowestTerms(cat, [term("A03YJ"), term("A03YL")]);
+    assert.deepEqual(
+      kept.map((c) => c.code),
+      ["A03YL"]
+    );
+  });
+});
+
+describe("product-kind prompt", () => {
+  it("reads item and scope notes in the same words as the matching prompt", () => {
+    const kind = systemProductKind(true);
+    const match = classifySystemPrompt({ answerKey: "fit", withCountry: true });
+    assert.equal(kind.includes(itemGiven(true)), true);
+    assert.equal(match.includes(itemGiven(true)), true);
+    assert.equal(kind.includes(TERM_NOTE_GIVEN), true);
+    assert.equal(match.includes(TERM_NOTE_GIVEN), true);
+    assert.equal(kind.includes("primarily eaten as"), true);
+  });
+});
+
 describe("broadShelfScore", () => {
   const cat = Catalogue.load();
 
@@ -264,5 +318,29 @@ describe("parseMinorShare", () => {
     assert.equal(parseMinorShare({ minor: false }), false);
     assert.equal(parseMinorShare({}), false);
     assert.equal(parseMinorShare(null), false);
+  });
+});
+
+describe("hierarchy terms only as a last resort", () => {
+  const cat = Catalogue.load();
+  const pool: BaseTermCandidate[] = [
+    { code: "A01QR", name: "Meat and meat products", match: "broad" },
+    { code: "A01SR", name: "Duck fresh meat", match: "broad" },
+  ];
+
+  it("holds back Meat and meat products when Duck fresh meat is accepted", () => {
+    const byCode = new Map<string, CandidateFit>([
+      ["A01QR", "exact"],
+      ["A01SR", "broad"],
+    ]);
+    assert.deepEqual(hierarchyTermsHeldBack(cat, byCode, pool), ["A01QR"]);
+  });
+
+  it("keeps the hierarchy term when nothing else is accepted", () => {
+    const byCode = new Map<string, CandidateFit>([
+      ["A01QR", "broad"],
+      ["A01SR", "related"],
+    ]);
+    assert.deepEqual(hierarchyTermsHeldBack(cat, byCode, pool), []);
   });
 });

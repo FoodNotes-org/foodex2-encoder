@@ -9,9 +9,11 @@
  * 3. For a mix, a generic group the named foods share is the base when the
  *    walk already accepted it. A strict majority is enough when every food
  *    outside that group is a minor share. Otherwise, when more than one broad
- *    remains, the score decides. A shelf that already carries a process gets
- *    that bonus once. The model picks only among shelves that share the top
- *    score. Related terms are not passed on.
+ *    remains, a broad term that contains another is dropped. When more than
+ *    one is left, the model picks the kind of product the food is primarily
+ *    eaten as. Only when it gives no usable answer does the score decide: a
+ *    shelf that already carries a process gets that bonus once. Related terms
+ *    are not passed on.
  * 4. Otherwise within the winning class, C/E/P detail-level bonus may prefer a
  *    denser term; ties → deterministic tie-breaks (specificity, non-specific P,
  *    core/extended, code). The same order breaks a broad-score tie the model
@@ -23,7 +25,7 @@ import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
 import { DEFAULT_COUNTRY_CODE, resolveCountry } from "../country.js";
 import { chatJson, defaultModel } from "../llm.js";
 import { contentTokens } from "../search/content-match.js";
-import { assessSelectClassify, pickClosestParent } from "./select-classify.js";
+import { assessSelectClassify, pickProductKind } from "./select-classify.js";
 import type {
   AuditEntry,
   BaseTermCandidate,
@@ -96,6 +98,8 @@ export interface SelectOptions {
   descriptionKind?: DescriptionKind | null;
   /** English name of the country the description comes from. */
   country?: string | null;
+  /** Words taken out of the input, each stating a treatment applied to it. */
+  treatments?: readonly string[];
 }
 
 export interface SelectResult {
@@ -252,6 +256,15 @@ function descendantsInSet(
   return out;
 }
 
+/** The terms in `pool` that contain no other term in `pool`. */
+export function narrowestTerms(
+  cat: Catalogue,
+  pool: readonly BaseTermCandidate[]
+): BaseTermCandidate[] {
+  const codes = new Set(pool.map((c) => c.code));
+  return pool.filter((c) => descendantsInSet(cat, c.code, codes).length === 0);
+}
+
 /** Prefer exact, else broad. Empty if neither present. */
 export function selectableFitTier(
   byCode: Map<string, CandidateFit>,
@@ -264,6 +277,23 @@ export function selectableFitTier(
     if (codes.size > 0) return { fit, codes };
   }
   return null;
+}
+
+/**
+ * Accepted hierarchy terms (detail level H) to leave out because a term of any
+ * other detail level was accepted too. Empty when only hierarchy terms fit.
+ */
+export function hierarchyTermsHeldBack(
+  cat: Catalogue,
+  byCode: Map<string, CandidateFit>,
+  pool: BaseTermCandidate[]
+): string[] {
+  const accepted = pool.filter((c) =>
+    (SELECTABLE_FITS as CandidateFit[]).includes(byCode.get(c.code) ?? "none")
+  );
+  const isHierarchy = (code: string) => cat.term(code)?.detailLevel === "H";
+  if (accepted.every((c) => isHierarchy(c.code))) return [];
+  return accepted.filter((c) => isHierarchy(c.code)).map((c) => c.code);
 }
 
 /** Lower rank is better. Compared only among score-tied candidates. */
@@ -385,7 +415,11 @@ export async function scoreTraversalCandidates(
     })
   );
 
-  const tier = selectableFitTier(byCode, pool);
+  const hierarchyHeldBack = hierarchyTermsHeldBack(cat, byCode, pool);
+  const tier = selectableFitTier(
+    byCode,
+    pool.filter((c) => !hierarchyHeldBack.includes(c.code))
+  );
   if (tier === null) {
     const scored = pool
       .map((candidate) =>
@@ -421,7 +455,7 @@ export async function scoreTraversalCandidates(
   let shortlistCodes: Set<string>;
   let shortlist: BaseTermCandidate[];
   let maxScore: number;
-  let parentPickVia: "model" | "tie_break" | "score" | "same_nature" | null = null;
+  let parentPickVia: "model" | "tie_break" | "narrowest" | "same_nature" | null = null;
   let shelfPool: BaseTermCandidate[] | null = null;
   let minorFoods: string[] | undefined;
 
@@ -493,19 +527,19 @@ export async function scoreTraversalCandidates(
       },
     });
   } else if (tier.fit === "broad" && tierPool.length > 1) {
-    maxScore = Math.max(...tierPool.map((c) => scores.get(c.code)!.score));
-    shelfPool = tierPool.filter((c) => scores.get(c.code)!.score === maxScore);
+    shelfPool = narrowestTerms(cat, tierPool);
     if (shelfPool.length === 1) {
       const only = shelfPool[0]!;
       shortlistCodes = new Set([only.code]);
       shortlist = [only];
-      parentPickVia = "score";
+      maxScore = scores.get(only.code)!.score;
+      parentPickVia = "narrowest";
     } else {
-      const parentPick = await pickClosestParent(input, shelfPool, options);
-      audit.push(...parentPick.audit);
+      const kindPick = await pickProductKind(input, shelfPool, options);
+      audit.push(...kindPick.audit);
       const chosen =
-        parentPick.code !== null
-          ? shelfPool.find((c) => c.code === parentPick.code) ?? null
+        kindPick.code !== null
+          ? shelfPool.find((c) => c.code === kindPick.code) ?? null
           : null;
       if (chosen !== null) {
         shortlistCodes = new Set([chosen.code]);
@@ -513,14 +547,15 @@ export async function scoreTraversalCandidates(
         maxScore = scores.get(chosen.code)!.score;
         parentPickVia = "model";
       } else {
-        shortlistCodes = new Set(shelfPool.map((c) => c.code));
-        shortlist = [...shelfPool].sort((a, b) =>
+        maxScore = Math.max(...shelfPool.map((c) => scores.get(c.code)!.score));
+        const top = shelfPool.filter((c) => scores.get(c.code)!.score === maxScore);
+        shortlistCodes = new Set(top.map((c) => c.code));
+        shortlist = [...top].sort((a, b) =>
           compareTieBreak(
             tieBreakRank(cat, a, shortlistCodes).rank,
             tieBreakRank(cat, b, shortlistCodes).rank
           )
         );
-        maxScore = scores.get(shortlist[0]!.code)!.score;
         parentPickVia = "tie_break";
       }
     }
@@ -575,6 +610,7 @@ export async function scoreTraversalCandidates(
     detail: {
       scoring: SCORING_AUDIT,
       winningFit: tier.fit,
+      ...(hierarchyHeldBack.length > 0 ? { hierarchyHeldBack } : {}),
       maxScore,
       tierSize: tier.codes.size,
       ...(shelfPool !== null

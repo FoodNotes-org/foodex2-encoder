@@ -1,0 +1,542 @@
+# Base-term attribute fixture — tests only the base-term decision for a
+# foodstuff: which stated treatments make a new food (and so pick the base),
+# which stay facets, and which base results. Rules and families refer to
+# rules/base-term.yaml.
+#
+# Run: npm run base-eval [-- --runs 3 --concurrency 12 --only id,id]
+# Results land in eval/results/base-attributes.json.
+#
+# Fields per case:
+#   input        food description as the source gives it
+#   country      ISO code, or EU
+#   source       where the row comes from (eval set, reference-set file, or new)
+#   families     case families in rules/base-term.yaml (F1..F9)
+#   rules        rules the case exercises (BT-nn)
+#   base         expected base term(s), any-of; first is preferred
+#   forbid_base  base terms the pick must not be
+#   new_food     treatments that must be judged to make a new food; each entry
+#                may be A|B; a more specific treatment under one counts
+#   facet_only   treatments that must stay facets: not judged to make a new
+#                food (the treatment, a broader or a narrower one)
+#   misread      treatments the description does not state as making a new
+#                food; same check as facet_only
+#   form         words that show the physical form of the food and must stay
+#                in the description the walk compares with
+#   open         true = expected base is undecided; reported, not scored
+#   note         rationale
+
+cases:
+  # --- F1: a treatment makes a new food; the base is the group for it ---
+  - id: usda-sorghum-puffed
+    input: Sorghum, puffed
+    country: US
+    source: usda-fdc-foundation
+    families: F1
+    rules: BT-02, BT-07
+    base: A04LL
+    new_food: A07LL
+    note: Puffing is in Table 4; Popped cereals implies it.
+
+  - id: efsa-smoked-sturgeon
+    input: smoked Adriatic sturgeon meat
+    country: EU
+    source: efsa-foodex2-guidance-2015
+    families: F1
+    rules: BT-02, BT-07
+    base: A0EYS
+    new_food: A07JV
+
+  - id: new-smoked-salmon
+    input: smoked salmon
+    country: EU
+    source: new
+    families: F1
+    rules: BT-02, BT-07
+    base: A02KF
+    forbid_base: A02KD
+    new_food: A07JV
+    note: Classified as smoked fish + salmon, not salmon + smoking; Smoked salmon is that group.
+
+  - id: efsa-dried-kangaroo
+    input: dried kangaroo meat
+    country: EU
+    source: efsa-foodex2-guidance-2015
+    families: F1
+    rules: BT-02, BT-07
+    base: A04MP
+    new_food: A07KG
+
+  - id: efsa-maize-groats
+    input: maize groats
+    country: EU
+    source: efsa-foodex2-guidance-2015
+    families: F1, F9
+    rules: BT-02
+    base: A0BY1
+    new_food: A0C03
+    note: No maize groats term exists. Groats is roughly crushed cereal and maize is the source. Maize semolina is a different product (Jorn, 2026-11-12).
+
+  - id: efsa-glutinous-rice-flour
+    input: flour obtained from glutinous rice
+    country: EU
+    source: efsa-foodex2-guidance-2015
+    families: F1
+    rules: BT-02
+    base: A003F
+    new_food: A0C03
+
+  - id: efsa-quinoa-flour
+    input: Quinoa flour
+    country: EU
+    source: eval encode-quinoa-flour / efsa-foodex2-guidance-2015
+    families: F1
+    rules: BT-02, BT-07
+    base: A04KT
+    forbid_base: A04KS
+    new_food: A0C03
+    misread: A0C0G
+
+  - id: usda-quinoa-flour-pregelatinized
+    input: Quinoa flour, pre-gelatinized, organic
+    country: US
+    source: usda-fdc-foundation
+    families: F1, F8
+    rules: BT-02, BT-08
+    base: A04KT
+    new_food: A0C03
+    facet_only: A07LK
+    misread: A0C0G
+    note: Pre-gelatinising has no group for quinoa flour; it stays a facet.
+
+  - id: nevo-dried-pears
+    input: Peren gedroogd
+    country: NL
+    source: nevo-online-2025
+    families: F1
+    rules: BT-02
+    base: A01MH
+    new_food: A07KG
+
+  - id: nevo-rice-flour-wholegrain
+    input: Meel rijst- volkoren
+    country: NL
+    source: nevo-online-2025
+    families: F1
+    rules: BT-02
+    base: A003F
+    new_food: A0C03
+
+  - id: cofid-potato-chips
+    input: Potato chips, fried in commercial oil, from takeaway fish and chip shops
+    country: GB
+    source: cofid-2021
+    families: F1
+    rules: BT-02, BT-07
+    base: A0BYV
+    new_food: A07GR
+    note: Frying applies to potatoes in Table 5.
+
+  - id: cofid-butter-beans-canned
+    input: Beans, butter, canned, re-heated, drained
+    country: GB
+    source: cofid-2021
+    families: F1, F2
+    rules: BT-02, BT-03
+    base: A01AZ
+    new_food: A0BYP
+    facet_only: A07HD
+
+  - id: eval-canned-peaches
+    input: canned peaches in fruit juice
+    country: EU
+    source: eval encode-peaches-fruit-juice
+    families: F1
+    rules: BT-02
+    base: A01NY
+    new_food: A0BYP
+
+  - id: eval-canned-shellfish
+    input: canned shellfish
+    country: EU
+    source: eval encode-canned-shellfish
+    families: F1
+    rules: BT-02
+    base: A0BZ5
+    new_food: A0BYP
+
+  - id: eval-tuna-brine
+    input: tuna in brine, canned
+    country: EU
+    source: eval encode-tuna-brine
+    families: F1
+    rules: BT-02, BT-06
+    base: A0FBT
+    new_food: A0BYP
+
+  - id: eval-sardines-olive-oil
+    input: sardines in olive oil, canned
+    country: EU
+    source: eval encode-sardines-olive-oil
+    families: F1
+    rules: BT-02
+    base: A0FBZ
+    new_food: A0BYP
+
+  # --- F2: the treatment only adds a facet; the base is the plain food ---
+  - id: usda-snow-crab-frozen
+    input: Snow crab, legs only, frozen
+    country: US
+    source: usda-fdc-foundation
+    families: F2
+    rules: BT-03
+    base: A0FCQ
+    facet_only: A07KQ
+
+  - id: usda-tuna-frozen
+    input: Tuna, ahi or yellowfin, frozen, wild caught
+    country: US
+    source: usda-fdc-foundation
+    families: F2
+    rules: BT-03
+    base: A02EG
+    facet_only: A07KQ
+
+  - id: usda-swordfish-frozen
+    input: Swordfish, frozen, wild caught
+    country: US
+    source: usda-fdc-foundation
+    families: F2
+    rules: BT-03
+    base: A07Y0
+    facet_only: A07KQ
+
+  - id: usda-oj-refrigerated
+    input: Orange juice, no pulp, not fortified, not from concentrate, refrigerated
+    country: US
+    source: usda-fdc-foundation
+    families: F2, F5
+    rules: BT-03
+    base: A03AM
+    new_food: A07LN
+    facet_only: A07KP
+    misread: A07KF
+
+  - id: usda-grapefruit-juice-refrigerated
+    input: Grapefruit juice, red, not fortified, not from concentrate, refrigerated
+    country: US
+    source: usda-fdc-foundation
+    families: F2, F5
+    rules: BT-03
+    base: A03AL
+    new_food: A07LN
+    facet_only: A07KP
+    misread: A07KF
+
+  - id: eval-canned-organic-oj
+    input: canned organic orange juice
+    country: EU
+    source: eval encode-canned-organic-orange-juice
+    families: F2, F3
+    rules: BT-02, BT-03
+    base: A03AM
+    new_food: A07LN
+    facet_only: A0BYP
+    note: Canning makes a new food only for vegetables, fruit, meat, fish and seafood (Table 4); on a juice it is a facet.
+
+  - id: nevo-cod-boiled
+    input: Kabeljauw gekookt
+    country: NL
+    source: nevo-online-2025
+    families: F2, F3
+    rules: BT-03, BT-02
+    base: A02BX
+    forbid_base: A02BV
+    facet_only: A07GL
+    note: >-
+      Cooking in water makes a new food only for eggs (Table 5). In the Netherlands the bare
+      name "kabeljauw" is reserved for Gadus morhua; Pacific and Greenland cod must be sold as
+      "Pacifische" and "Groenlandse kabeljauw" (Warenwetregeling handelsbenamingen vis, 5.1).
+      Departs from RIVM's published A02BV (Jorn, 2026-11-13).
+
+  - id: nevo-sprouts-boiled
+    input: Spruitjes gekookt
+    country: NL
+    source: nevo-online-2025
+    families: F2, F3
+    rules: BT-03, BT-02
+    base: A00FV
+    facet_only: A07GL
+
+  - id: cofid-celery-boiled
+    input: Celery, boiled in unsalted water
+    country: GB
+    source: cofid-2021
+    families: F2, F3
+    rules: BT-03, BT-02
+    base: A00RY
+    facet_only: A07GL
+
+  - id: cofid-black-gram-boiled
+    input: Black gram, urad gram, whole, dried, boiled in unsalted water
+    country: GB
+    source: cofid-2021
+    families: F2, F3
+    rules: BT-02, BT-03
+    base: A013C
+    new_food: A07KG
+    facet_only: A07GL
+    note: Black gram (dry seeds) implies drying; boiling stays a facet.
+
+  - id: cofid-coley-grilled
+    input: Coley, flesh only, grilled
+    country: GB
+    source: cofid-2021
+    families: F2
+    rules: BT-03
+    base: A02CF
+    facet_only: A07GZ
+
+  - id: new-potatoes-boiled
+    input: potatoes, boiled
+    country: EU
+    source: new
+    families: F2, F7, F9
+    rules: BT-03, BT-05
+    base: A00ZT
+    forbid_base: A011P
+    facet_only: A07GL
+    note: Potato boiled is not reportable; maintenance 2015 says boiling creates no new food.
+
+  - id: new-rice-parboiled
+    input: rice grain, parboiled
+    country: EU
+    source: new
+    families: F2, F7, F9
+    rules: BT-03, BT-05
+    base: A001D
+    forbid_base: A003E
+    facet_only: A07LK
+    misread: A07GG
+    note: Rice grain, parboiled is not reportable.
+
+  - id: new-pork-boiled
+    input: pork, boiled
+    country: EU
+    source: new
+    families: F2, F3
+    rules: BT-03, BT-02
+    base: A01RG
+    facet_only: A07GL
+
+  # --- F3: a treatment makes a new food only for some foods ---
+  - id: new-egg-boiled
+    input: hen egg, boiled
+    country: EU
+    source: new
+    families: F3
+    rules: BT-02, BT-07
+    base: A032B
+    new_food: A07GL|A07GG
+    note: Cooking in water applies to eggs in Table 5.
+
+  - id: usda-chorizo-pan-fried
+    input: Sausage, pork, chorizo, link or ground, cooked, pan-fried
+    country: US
+    source: usda-fdc-foundation
+    families: F3, F7
+    rules: BT-03, BT-16
+    base: A024G
+    forbid_base: A025J
+    facet_only: A07GS
+    note: US ground chorizo is fresh and not cured, and is cooked before eating. Pan-frying is a kitchen treatment, not cooking during production (Jorn, 2026-11-12).
+
+  - id: cofid-courgette-fried
+    input: Courgette, fried in corn oil
+    country: GB
+    source: cofid-2021
+    families: F3
+    rules: BT-02, BT-03
+    base: A00JR
+    facet_only: A07GR
+
+  - id: cofid-chicken-stir-fried
+    input: Chicken, breast, strips, stir-fried in corn oil
+    country: GB
+    source: cofid-2021
+    families: F3
+    rules: BT-02, BT-03
+    base: A01SP
+    facet_only: A07GT
+
+  - id: cofid-pork-mince-stewed
+    input: Pork, mince, stewed
+    country: GB
+    source: cofid-2021
+    families: F3, F6
+    rules: BT-03, BT-12
+    base: A04AC
+    facet_only: A07GM
+    misread: A07GG
+    form: mince
+
+  - id: cofid-duck-roasted
+    input: Duck, roasted, meat, fat and skin
+    country: GB
+    source: cofid-2021
+    families: F3, F9
+    rules: BT-03, BT-10
+    base: A01SR
+    forbid_base: A01QR
+    facet_only: A07GY
+    note: The bird as eaten, fat and skin on. Duck fresh meat allows intrinsic fat; with skin is the part consumed. A01SR#F20.A07QQ$F28.A07GY. Meat and meat products is a hierarchy term (Jorn, 2026-11-12).
+
+  - id: cofid-sweet-white-sauce
+    input: White sauce, sweet, made with skimmed milk, homemade
+    country: GB
+    source: cofid-2021
+    families: F7
+    rules: BT-15
+    base: A046F
+    forbid_base: A0F1N, A043X
+    note: >-
+      By their scope notes the food can be both a béchamel (milk sauce with a roux) and a
+      dessert sauce (sweet, for desserts); neither term contains the other. It is primarily
+      eaten as a dessert sauce (BT-15, Jorn, 2026-11-13).
+
+  # --- F4: two treatments compete (Table 6 priority) ---
+  - id: eval-smoked-sprats-canned
+    input: smoked sprats in a can
+    country: EU
+    source: eval encode-smoked-sprats-canned
+    families: F4
+    rules: BT-06
+    base: A0FBY
+    forbid_base: A0EYS
+    new_food: A07JV, A0BYP
+    note: EFSA's own example; canned outranks smoked.
+
+  - id: new-mackerel-smoked-canned
+    input: canned smoked mackerel
+    country: EU
+    source: new
+    families: F4
+    rules: BT-06
+    base: A0FBV
+    forbid_base: A16EM
+    new_food: A07JV, A0BYP
+
+  - id: new-cod-dried-salted
+    input: dried salted cod
+    country: EU
+    source: new
+    families: F4
+    rules: BT-06
+    base: A0FCB
+    forbid_base: A02JS
+    new_food: A07KG, A07JP
+    note: Salted outranks dried.
+
+  - id: efsa-candied-peel-chocolate
+    input: candied citrus peel, chocolate-coated
+    country: EU
+    source: efsa-foodex2-guidance-2015
+    families: F4, F7
+    rules: BT-15
+    base: A034R
+    new_food: A07JQ|A07JR
+    note: >-
+      Both a candied fruit and a chocolate-coated confection; neither term contains the other,
+      so the kind of product it is primarily eaten as decides (BT-15). Departs from EFSA's 5.13
+      code A01PS (Jorn, 2026-11-13).
+
+  - id: new-almonds-chocolate
+    input: chocolate-coated almonds
+    country: EU
+    source: new
+    families: F7
+    rules: BT-15
+    base: A034R
+    note: >-
+      Eaten as a chocolate sweet, and Chocolate coated confectionery's scope covers it (BT-15).
+      Departs from Table 10, which lists chocolate-coated nuts as commodity plus minor
+      ingredient (Jorn, 2026-11-13).
+
+  # --- F5: words that look like a treatment but are not one ---
+  - id: usda-bulgur
+    input: Bulgur, dry, raw
+    country: US
+    source: usda-fdc-foundation
+    families: F5
+    rules: BT-11
+    base: A004G
+    misread: A07KG
+
+  - id: usda-farro-pearled
+    input: Farro, pearled, dry, raw
+    country: US
+    source: usda-fdc-foundation
+    families: F5, F8
+    rules: BT-11, BT-08
+    base: A001Q
+    misread: A07KG, A0C03
+
+  - id: usda-wild-rice
+    input: Wild rice, dry, raw
+    country: US
+    source: usda-fdc-foundation
+    families: F5
+    rules: BT-11
+    base: A001J
+    misread: A07KG
+
+  - id: usda-sorghum-pearled
+    input: Sorghum grain, white, pearled, unenriched, dry, raw
+    country: US
+    source: usda-fdc-foundation
+    families: F5
+    rules: BT-11
+    base: A001L
+    misread: A07KG, A0C03
+
+  - id: eval-oj-from-concentrate
+    input: orange juice from concentrate
+    country: EU
+    source: eval encode-oj-from-concentrate
+    families: F5
+    rules: BT-02, BT-04
+    base: A03AM
+    new_food: A07LN
+    misread: A07KF
+    note: Reconstituted juice is juice, not a concentrate.
+
+  # --- F6: words that show the form of the food ---
+  - id: usda-egg-frozen-pasteurized
+    input: Egg, whole, raw, frozen, pasteurized
+    country: US
+    source: usda-fdc-foundation
+    families: F6, F8, F9
+    rules: BT-12, BT-10, BT-03
+    base: A031R, A0F6E
+    forbid_base: A04NZ, A031G
+    facet_only: A07KQ, A07HV
+    form: frozen
+    note: Frozen whole egg is out of the shell and mixed; Processed eggs is a hierarchy term.
+
+  - id: usda-eggs-grade-a
+    input: Eggs, Grade A, Large, egg whole
+    country: US
+    source: usda-fdc-foundation
+    families: F6
+    rules: BT-12
+    base: A031G
+    forbid_base: A031R, A0F6E
+
+  - id: new-egg-beaten
+    input: whole egg, beaten
+    country: EU
+    source: new
+    families: F6
+    rules: BT-12
+    base: A031R, A0F6E
+    forbid_base: A031G
+    form: beaten

@@ -185,6 +185,10 @@ export interface TraverseCollectResult {
   descriptionKind: DescriptionKind | null;
   /** Food the base-term walk compared. The full description for a dish or a mix. */
   compareAs: string;
+  /** Words taken out of the description, each stating a treatment applied to the food. */
+  treatmentsApplied: string[];
+  /** Every treatment the description was found to state. */
+  statedTreatments: string[];
   /**
    * Catalogue term that already implies a Table 22 process and was judged to be
    * this food. Null when the description is not a foodstuff, or no such term fits.

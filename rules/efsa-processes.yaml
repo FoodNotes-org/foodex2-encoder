@@ -1,0 +1,136 @@
+# EFSA's process tables, as data: which treatments make a new food, and for
+# which foods (guidance Tables 4 and 5); which are normally only a facet on the
+# raw commodity (Table 22); and which wins when several apply (Table 6).
+#
+# Source: EFSA (2015) FoodEx2 revision 2, EN-804, section 3.1.2-3.1.3 and
+# 5.4.1. Markdown copy: foodex2-atlas/vendor/efsa-guidance-rev2/markdown.md.
+# Built into src/rules/rules-data.json by `npm run build:rules`.
+#
+# The foods a treatment applies to, in code:
+#   1. EFSA's validator data (vendor/efsa-business-rules/BR_Data.csv, 2020):
+#      a food group and the processes that would recreate an existing
+#      derivative. Newer than the tables, so it wins where it speaks
+#      (rules/conflicts.yaml: newest EFSA wording first).
+#   2. `also_groups` below: our reading of the table's "applied to" words,
+#      only where the validator data is silent. Reporting-hierarchy codes.
+#   3. Neither: the row has EFSA's words only, and a model judges them.
+#
+# A stated treatment is judged by the nearest row on its process-hierarchy
+# chain (itself, then its parents). Boiling sits under Cooking in water, which
+# sits under Cooking (Table 22): boiled eggs are a new food; boiled potatoes
+# are potatoes with a boiling facet.
+
+mtx_release: "17.1"
+
+# Tables 4 and 5. `process` is EFSA's wording; the catalogue name may differ.
+new_food:
+  - { code: A0CRH, table: 4, process: Seasoning, applied_to: "Meat, milk", leads_to: "Sausages and other charcuterie products, cheese" }
+  - { code: A07KD, table: 4, process: Curing, applied_to: "Meat, milk", leads_to: "Sausages and other charcuterie products, cheese" }
+  - { code: A0C6F, table: 4, process: Ripening, applied_to: "Meat, milk", leads_to: "Sausages and other charcuterie products, cheese" }
+  - { code: A07JP, table: 4, process: Preserving by salt, applied_to: "Vegetables, meat, fish, seafood", leads_to: "Salt preserves" }
+  - { code: A07JQ, table: 4, process: Preserving by sugars, applied_to: "Fruit, chestnuts. Candying is included", leads_to: "Sugar preserves, candied materials and similar" }
+  - { code: A07KG, table: 4, process: Drying (dehydration), applied_to: "Meat, fish, seafood, milk, egg, vegetables, legumes, fruit. Spices and infusion materials are considered default", leads_to: "Dried food" }
+  - { code: A07JT, table: 4, process: Marinating, applied_to: "Meat, fish, seafood", leads_to: "Marinated meat, fish or seafood" }
+  - { code: A07KC, table: 4, process: Pickling, applied_to: Vegetables, leads_to: "Pickled vegetables" }
+  - { code: A0CQZ, table: 4, process: Fermentation, applied_to: "Milk, vegetables, meat", leads_to: "Fermented milk products, fermented vegetables, sausages and other charcuterie products, cheese" }
+  - { code: A0BYP, table: 4, process: Canning/jarring, applied_to: "Vegetable, fruit, meat, fish, seafood", leads_to: Preserves }
+  - { code: A07JV, table: 4, process: Smoking, applied_to: "Meat, fish, seafood", leads_to: "Smoked meat, fish or seafood" }
+  - { code: A0C00, table: 5, process: Winemaking, applied_to: "Grape and other fruits", leads_to: "Wine and similar" }
+  - { code: A0C01, table: 5, process: Beer production, applied_to: "Malted cereals", leads_to: Beer }
+  - { code: A0C6E, table: 5, process: Cheesemaking, applied_to: Milk, leads_to: Cheese }
+  - { code: A07MH, table: 5, process: Churning, applied_to: "Milk, cream", leads_to: Butter }
+  - { code: A0C02, table: 5, process: Oil production, applied_to: "Oil fruits and oilseeds", leads_to: "Oils and fats" }
+  - { code: A0C03, table: 5, process: Grain milling, applied_to: "Cereal grains and similar", leads_to: "Flours, groats, etc." }
+  - { code: A0C0B, table: 5, process: Grain milling—starch production, applied_to: "Cereal grains and similar starch sources", leads_to: Starch }
+  - { code: A0C04, table: 5, process: Sugar production, applied_to: "Sugar plants", leads_to: Sugar }
+  - { code: A0C6N, table: 5, process: Pulping/mashing, applied_to: "Fruit, vegetables", leads_to: "Fruit/vegetable purée" }
+  - { code: A07GG, table: 5, process: Cooking in water, applied_to: Eggs, leads_to: "Hardened egg products" }
+  - code: A07GR
+    table: 5
+    process: Frying
+    applied_to: Potatoes
+    leads_to: "Fries, chips and other potato snacks"
+    also_groups: [A0DPP]
+  - code: A07GX
+    table: 5
+    process: Baking
+    applied_to: "Cereal milling products and other ingredients"
+    leads_to: "Bakery products"
+    also_groups: [A0ETP]
+  - code: A07GY
+    table: 5
+    process: Roasting (baking with fat)
+    applied_to: Potatoes
+    leads_to: "Roasted potatoes"
+    also_groups: [A0DPP]
+  - code: A07HC
+    table: 5
+    process: Toasting
+    applied_to: "Coffee beans"
+    leads_to: "Toasted coffee"
+    also_groups: [A0D9J]
+  - code: A07HJ
+    table: 5
+    process: Caramelization/browning
+    applied_to: Sugar
+    leads_to: Caramel
+    also_groups: [A0BY6]
+    note: Table 22 says caramelisation creates derivatives in sugar and milk; the validator data covers milk.
+  - { code: A0CRL, table: 5, process: Mixing, applied_to: "Creation of compound food", leads_to: "Recipes (composite food)" }
+  - { code: A07MA, table: 5, process: Filling, applied_to: "Filled branches of unfilled bases", leads_to: "Filled pasta, filled bakery products" }
+  - { code: A07LF, table: 5, process: Extrusion, applied_to: "Cereals, snack production", leads_to: "Extruded snacks and breakfast cereals" }
+  - { code: A07LG, table: 5, process: Flaking, applied_to: Cereals, leads_to: "Cereal flakes" }
+  - { code: A07LH, table: 5, process: Flattening/rolling, applied_to: Cereals, leads_to: "Rolled cereals" }
+  - { code: A07LL, table: 5, process: Puffing/expanding, applied_to: Cereals, leads_to: "Puffed cereals" }
+  - { code: A0C0G, table: 5, process: Gelling, applied_to: "Milk, water", leads_to: "Desserts, jellies" }
+  - { code: A07MF, table: 5, process: Distillation, applied_to: "Fruits or sugary/starchy sources", leads_to: "Alcohol and related products" }
+  - code: A0EKQ
+    table: 5
+    process: Separation (in liquid phase)
+    applied_to: Milk
+    leads_to: Cream
+    efsa_code: A0EJP
+    note: EFSA's table prints A0EJP, which in MTX 17.1 is Live insects and arachnids (as part-nature).
+  - { code: A07MK, table: 5, process: Brewing/infusion, applied_to: "Infusion materials, cacao, coffee etc.", leads_to: "Hot drinks" }
+  - { code: A07LN, table: 5, process: Juicing, applied_to: "Fruit, vegetables", leads_to: "Fruit and vegetable juices and nectars" }
+  - { code: A07MJ, table: 5, process: Extraction, applied_to: "Meat, fish, yeast, infusion materials", leads_to: Extracts }
+  - { code: A07KF, table: 5, process: Concentration/evaporation, applied_to: "Milk, juices from vegetable and fruit", leads_to: Concentrates }
+  - { code: A07ML, table: 5, process: Crystallisation, applied_to: "Natural sources of purified ingredients", leads_to: "All 'purified ingredients' such as the protein- and carbohydrate-based ones, salt" }
+
+# Table 22: normally applied straight to the raw commodity. Child descriptors
+# are included. `exceptions` is EFSA's column, where a derivative group exists.
+facet_only:
+  - codes: [A07KS, A07KT, A07KV, A07KX, A07KY, A07KZ, A07LA, A0C6N]
+    descriptors: "Physical division/dimension reduction (and child descriptors) portioning, slicing, dicing and stripe-cutting, mincing/chopping/cutting, grating, grinding/milling/crushing, pulping/mashing"
+    exceptions: "Some groups exist for minced meat. Milling associated with separation processes creates grain derivatives; however, specific grain milling descriptors are applicable instead. Mashing, associated with separating parts and eventual cooking, leads to purée groups existing in some groups of derivatives of plant origin"
+  - codes: [A07JB, A0BZG, A0BZL, A07JE, A07JF, A07JG, A07JH, A07JC, A07JD, A07JJ, A0CSQ]
+    descriptors: "Physical decontamination treatment, aspiration, desliming, cleaning, brushing, washing, centrifugal cleaning, high pressure treating (pascalisation), microfiltering, irradiation, surface treatment with sanitising agents"
+  - codes: [A07KN, A07KP, A07KQ, A07KR]
+    descriptors: "Lowering temperature, chilling, freezing, individually quick frozen (IQF) freezing (flash/blast freezing)"
+  - codes: [A07HR, A07HT, A07HV, A07HX, A07HY, A07HZ, A07JA]
+    descriptors: "Thermal treatment (heating for preservation), low pasteurisation (thermisation), pasteurisation, high pasteurisation (extending shelf life), UHT, statical sterilisation (in batch or package), hot-filling"
+  - codes: [A0BA1]
+    descriptors: "Cooking and similar thermal preparation processes (including all the child processes, with some exceptions)"
+    exceptions: "Frying/roasting for potatoes creates new derivatives; cooking eggs creates new derivatives; caramelisation/browning creates derivatives, e.g. in sugar and milk"
+  - { codes: [A0BYN], descriptors: "Aseptic filling" }
+  - { codes: [A07JK], descriptors: "Vacuum-packing" }
+  - { codes: [A07HK], descriptors: "Breading" }
+  - { codes: [A07HL], descriptors: "Battering" }
+  - { codes: [A07HM], descriptors: "Glazing/icing" }
+  - { codes: [A07HN], descriptors: "Sugar coating" }
+  - { codes: [A07HP], descriptors: "Chocolate coating" }
+  - { codes: [A07HQ], descriptors: "Nut coating" }
+
+# Table 6, highest priority first. `processes` are the catalogue descriptors
+# for each group's treatment; the table names groups, not codes, so the
+# mapping is ours.
+priority:
+  - { group: "Purée/textured/structured", processes: [A0C6N, A07LM] }
+  - { group: "Marinated/pickled/fermented", processes: [A07JT, A07KC, A0CQZ] }
+  - { group: "In vinegar or brine", processes: [A0F2N, A07JM] }
+  - { group: "In alcohol or spirits", processes: [A0CER] }
+  - { group: "Salted", processes: [A07JP] }
+  - { group: "Candied or sugar-preserved", processes: [A07JQ] }
+  - { group: "Dried", processes: [A07KG] }
+  - { group: "Canned/jarred", processes: [A0BYP] }
+  - { group: "Smoked", processes: [A07JV] }

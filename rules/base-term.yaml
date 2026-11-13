@@ -1,0 +1,508 @@
+# Base-term rules: which words of a food description choose the base term, and
+# which are left for facets. Phase 0 of the plan in
+# canvases/base-term-attributes-plan.canvas.tsx.
+#
+# Hand-maintained. Nothing reads this file yet. The fixture (Phase 1) and the data
+# file for EFSA's Tables 4, 5, 6 and 22 (Phase 2) are written from it.
+#
+# Source precedence is the one in conflicts.yaml:
+#   what a term is (names, placement, implied facets, reportability):
+#     the MTX catalogue data wins
+#   how to code something: the newest EFSA wording (maintenance reports), then the
+#     2015 guidance
+#   our own interpretations are labelled `ours: true`
+#
+# status:
+#   settled     EFSA wording, catalogue data, or confirmed by Jorn
+#   proposed    our interpretation, awaiting sign-off
+#   experiment  decided by a test on the fixture, not by argument
+#
+# decision_by (on proposed rules only):
+#   engineering  how the encoder is built; shown through fixture results, no food
+#                judgement needed
+#   jorn         a food-classification judgement; each is brought as a case with two
+#                codes and a recommendation, not as an abstract rule
+#
+# Scope: foodstuffs. Mixes and dishes have their own paths (guidance 3.1.10, 5.7).
+#
+# Source labels:
+#   guidance 2015      The food classification and description system FoodEx2
+#                      (revision 2), EFSA supporting publication 2015:EN-804
+#   maintenance 2015   FoodEx2 maintenance 2015, EFSA supporting publication
+#                      2016:EN-1049
+
+# The order in which a treatment in a description is judged. A rung is reached only
+# when the one above does not settle it.
+ladder:
+  - rung: 1
+    source: EFSA's tables
+    question: >-
+      Is the treatment in Table 4 or 5 for this kind of food (creates a new food),
+      or in Table 22 (does not), with its exceptions? A Table 22 treatment that only
+      transforms the food is a facet even where a legacy group carries it.
+    rules: [BT-02, BT-03, BT-04, BT-06]
+  - rung: 2
+    source: The catalogue
+    question: >-
+      For a treatment that creates a new food: does a group designed for this food
+      with this attribute exist, and does its scope cover the food? The most
+      specific such group wins. A hierarchy term only when nothing else is accepted.
+    rules: [BT-05, BT-07, BT-08, BT-10, BT-13, BT-15, BT-16, BT-17]
+  - rung: 3
+    source: EFSA's own test
+    question: >-
+      Does the treatment subtract, add or chemically transform a component, change
+      how the product is used, or make it a different product on the shelf?
+    rules: [BT-09]
+  - rung: 4
+    source: Otherwise
+    question: It is a facet on the base term.
+    rules: [BT-03]
+
+rules:
+  - id: BT-01
+    topic: Order of reading a description
+    status: proposed
+    decision_by: engineering
+    ours: true
+    sources:
+      - source: guidance 2015, 3.1.6, Table 9
+        says: >-
+          The implicit facets build the food list in a fixed order: part-nature (type
+          of food), then source, source-commodities or ingredients, then process.
+    verdict: >-
+      Judge the type of food and its origin first, and the treatments after. A
+      treatment judgement ranks the shelves the walk found. It never overrules the
+      classification of the food.
+    why: >-
+      EFSA states the order for building groups. Reading a description in the same
+      order is our application. Judging treatments first is what let frying attach to
+      a sausage and a late override replace Canned sprats with Smoked fish.
+    families: [F1, F3, F4]
+
+  - id: BT-02
+    topic: Treatments that create a new food (Tables 4 and 5)
+    status: settled
+    sources:
+      - source: guidance 2015, 3.1.2, Tables 4 and 5
+        says: >-
+          Each listed process leads to a new group for the foods in the "applied to"
+          column: frying and roasting for potatoes, cooking in water for eggs,
+          gelling for milk and water, drying for meat, fish, seafood, milk, egg,
+          vegetables, legumes and fruit (spices and infusion materials are dried by
+          default), smoking for meat, fish and seafood, and so on.
+      - source: guidance 2015, 5.1.6
+        says: >-
+          Consider a derivative group when a product is obtained from a raw commodity
+          by one of the treatments in Table 4.
+    verdict: >-
+      A Table 4 or 5 treatment creates a new food only for the foods its "applied to"
+      column names. For any other food it is a facet. A process listed in both Table 5
+      and Table 22 (frying, roasting, baking, toasting, caramelising, mashing, cooking
+      in water) follows that column. Child treatments count (flour production under
+      grain milling, mould culturing under fermentation).
+    why: >-
+      Table 22's exceptions column repeats Table 5's "applied to" column, so EFSA's
+      own tables already agree. The code lists the names only, which is how frying
+      reached a sausage, cooking in water pork mince and gelling quinoa flour.
+    families: [F1, F3, F5]
+    examples:
+      - { input: "Sorghum, puffed", base: A04LL, note: "puffing is Table 5 for cereals" }
+      - { input: "Pork, mince, stewed", base: A04AC, note: "cooking in water is Table 5 for eggs only" }
+
+  - id: BT-03
+    topic: Treatments that do not create a new food (Table 22) are facets
+    status: settled
+    sources:
+      - source: guidance 2015, 5.4.1, Table 22
+        says: >-
+          Treatments that do not create a new nature are applied as facets to raw
+          commodities: dimension reduction, physical decontamination, lowering
+          temperature (chilling, freezing), thermal treatment (pasteurisation, UHT,
+          sterilisation), cooking and its children, packing, coating.
+      - source: maintenance 2015, 3.4
+        says: >-
+          "boiling does not create a new nature, thus it can be added to a base term as
+          facet descriptor, but should not be used to create a new food group."
+    verdict: >-
+      A Table 22 treatment that only transforms the food (cutting, chilling, freezing,
+      pasteurising, boiling, cooking) is a facet on the base term of a raw commodity
+      or derivative. It never defines that base, and a group is never chosen because
+      it carries one. A treatment that adds an ingredient (coating, breading,
+      battering) follows BT-15. Composite groups follow BT-16.
+    why: EFSA says so twice, and the maintenance report gives a worked code.
+    families: [F2, F7]
+    examples:
+      - { input: "Potatoes, boiled", base: A00ZT, facets: [F28.A07GL], note: "EFSA's own code, maintenance 2015 3.4" }
+      - { input: "Snow crab, legs only, frozen", base: A0FCQ, facets: [F28.A07KQ] }
+
+  - id: BT-04
+    topic: Table 22 exceptions
+    status: settled
+    sources:
+      - source: guidance 2015, Table 22, right column
+        says: >-
+          Frying and roasting for potatoes create new derivatives; cooking eggs
+          creates new derivatives; caramelisation and browning create derivatives in
+          sugar and milk. Some groups exist for minced meat. Milling with separation
+          creates grain derivatives. Mashing, with separating parts and eventual
+          cooking, leads to purée groups in some plant derivatives.
+    verdict: >-
+      For those foods the treatment is nature-changing (BT-02) and the group is the
+      base: poached, fried and boiled eggs, minced meat, groats, purée.
+    why: These are the cases where the catalogue holds a group EFSA intends to be used.
+    families: [F1, F3]
+
+  - id: BT-05
+    topic: A group defined only by a Table 22 treatment
+    status: settled
+    sources:
+      - source: maintenance 2015, 3.4, Table 7
+        says: >-
+          "'boiled potato' (A011P) should not exist as base term and should be coded
+          as A00ZT#F28.A07GL." Potato boiled (A011P), Potato baked (A011R) and Rice
+          grain, parboiled (A003E) are marked optional, and their use is discouraged.
+      - source: guidance 2015, 5.4.1
+        says: >-
+          Such a group exists "only in rare cases ... mostly as a result of a legacy of
+          food groups which have not been removed from the system".
+      - source: MTX 17.1 catalogue data
+        says: >-
+          A011P, A011R and A003E are not reportable in the exposure and reporting
+          hierarchies. 91 exposure-tree terms are not reportable.
+    verdict: >-
+      A term that is not reportable in the exposure hierarchy is never a base
+      candidate.
+    why: >-
+      The catalogue already records EFSA's decision for the three terms it named. The
+      walk does not apply the flag today, so these terms can be chosen.
+    families: [F2, F7]
+    examples:
+      - { input: "Rice grain, parboiled", base: A001D, facets: [F28.A07LK], note: "A003E is not reportable" }
+
+  - id: BT-06
+    topic: Several treatments that create a new food
+    status: settled
+    sources:
+      - source: guidance 2015, 3.1.3, Table 6
+        says: >-
+          Top-down priority for the base: purée, textured or structured; marinated,
+          pickled or fermented; in vinegar or brine; in alcohol or spirits; salted;
+          candied or sugar-preserved; dried; canned or jarred; smoked. The first group
+          that applies is the base and the other treatments are facets.
+      - source: guidance 2015, 3.1.3
+        says: >-
+          "smoked sprats in a can belong to the canned fish group and smoking is
+          added as a facet descriptor."
+    verdict: >-
+      Rank in code by Table 6. The highest applicable treatment gives the base. The
+      rest are facets. No cut-off on how many groups carry a treatment.
+    why: >-
+      EFSA's own example fails today because canning's 37 groups are over a cut-off
+      of 15 and only smoking's groups are offered.
+    families: [F4]
+    examples:
+      - { input: "smoked sprats in a can", base: A0FBY, facets: [F28.A07JV], note: "also an eval case" }
+
+  - id: BT-07
+    topic: A group designed for the food with an attribute wins
+    status: settled
+    sources:
+      - source: guidance 2015, 5.14.4
+        says: >-
+          "One of the most common mistakes ... is to 'build' from a raw commodity plus
+          a process facet descriptor, where a separate derivative-ingredient group
+          already exists."
+      - source: guidance 2015, 3.1.6, Table 9
+        says: >-
+          Adding a treatment to a nature and source generates a group, for example
+          mincing added to pig muscle generates minced pig muscle.
+      - source: Jorn
+        says: >-
+          A group designed for a class takes precedence. Otherwise Smoked fish would
+          never be used. Smoked salmon is not a plain commodity.
+    verdict: >-
+      For a treatment that creates a new food (BT-02, BT-04, BT-08), the group
+      designed for it wins over the raw commodity with the treatment added as a
+      facet. The most specific such group wins: Smoked salmon, then Smoked fish plus
+      a source, then a raw fish plus smoking.
+    why: >-
+      EFSA names the mistake but not the tie between a specific and a generic
+      derivative group. Taking the most specific is ours.
+    ours: true
+    families: [F1, F8]
+    examples:
+      - { input: "smoked salmon", base: A02KF, note: "own term, core, salmons as source commodity" }
+      - { input: "smoked Adriatic sturgeon meat", base: A0EYS, facets: [F01.A0884, F27.A029E], note: "guidance 5.11-2, confirmed" }
+
+  - id: BT-08
+    topic: Treatments in no table
+    status: settled
+    sources:
+      - source: MTX 17.1 catalogue data
+        says: >-
+          1,106 treatments are built into derivative groups in the exposure tree. 85
+          (7.7%) are in neither Table 4/5 nor Table 22: removal of external layer (16
+          groups), refining (13), stirring (12), separation in a liquid phase (10),
+          hydrolysis (8), decaffeinating (5).
+      - source: Jorn
+        says: Assign to the base term that appears designed for a class of cases.
+    verdict: >-
+      A treatment in no table creates a new food where the catalogue builds it into
+      derivative groups (BT-07 applies). Where no group carries it, it is a facet.
+    why: The catalogue records EFSA's decision where the tables are silent.
+    families: [F8]
+    examples:
+      - { input: "Egg, whole, raw, frozen, pasteurized", base: A031R, note: "shell removal and stirring define the liquid egg" }
+
+  - id: BT-09
+    topic: What remains, by EFSA's own test
+    status: settled
+    ours: true
+    sources:
+      - source: guidance 2015, 3.1.2
+        says: >-
+          The treatments that change the nature were chosen on "an expected change in
+          composition (subtraction, addition or chemical transformation of macro- or
+          microcomponents), the traditional use by the consumer, and the usual
+          distinction between products on the shelf at the point of sale", and on
+          expected differences in chemical and microbiological contamination.
+      - source: Jorn
+        says: Attributes that permanently changed the food make the food.
+    verdict: >-
+      For a treatment the tables and the catalogue do not settle, it is part of what
+      makes the food if it changes what is in it or how it is bought and used. It is
+      a facet otherwise. This rung ranks below rungs 1 and 2.
+    why: >-
+      "Permanent" alone is not the test. Pasteurising, cooking and mincing are
+      permanent and EFSA lists them as facets, and drying can be undone by adding
+      water while EFSA makes dried food a new food.
+    families: [F8]
+
+  - id: BT-10
+    topic: Hierarchy terms
+    status: settled
+    sources:
+      - source: guidance 2015, 5.2
+        says: >-
+          "Never use hierarchy terms." Rarely, when the information was lost earlier,
+          use hierarchy terms from the exposure hierarchy.
+      - source: guidance 2015, 3.1.7
+        says: >-
+          The generic terms built from the part-nature alone solve coding when the
+          source is unknown "without using hierarchy terms".
+      - source: MTX 17.1 catalogue data
+        says: >-
+          All but one of the 4,438 non-hierarchy terms in the exposure tree carry a
+          part-nature, against 48 of 100 hierarchy terms. Processed eggs and
+          Unprocessed eggs carry none.
+    verdict: >-
+      A hierarchy term (detail level H) is chosen only when no other term is
+      accepted.
+    why: >-
+      EFSA's rule, and the catalogue backs it. The generic term built from the
+      part-nature is the intended answer when the detail is unknown.
+    families: [F9]
+    examples:
+      - { input: "Egg, whole, raw, frozen, pasteurized", base: "not A04NZ", note: "the encoder chose Processed eggs" }
+
+  - id: BT-11
+    topic: Condition words
+    status: settled
+    sources:
+      - source: RIVM, through Jorn
+        says: >-
+          Raw is an implicit facet descriptor of a raw primary commodity, so it is not
+          recorded on one.
+      - source: guidance 2015, Table 22 note
+        says: >-
+          The generic descriptors processed, preserved and semi-preserved do not refer
+          to a specific process and are not considered.
+    verdict: >-
+      Words such as dry, raw, fresh, ground, link and whole are ordinary attributes.
+      They are matched to facet descriptors like any other and do not choose the
+      base. Raw is not recorded when the base is a raw primary commodity. A word
+      counts as a treatment only where BT-02's "applied to" column covers the food
+      (dried kangaroo meat, not dry bulgur).
+    why: The probe read "dry" as drying for bulgur and "ground" as milling for a sausage.
+    families: [F5]
+
+  - id: BT-12
+    topic: Treatments as evidence of the form of the food
+    status: experiment
+    sources:
+      - source: guidance 2015, 3.1.2
+        says: EFSA says what defines the food. It does not say what a reader may infer.
+    verdict: >-
+      Open. Test three variants on the fixture: the whole description, the description
+      without the Table 22 treatments, and the description without them plus a separate
+      field naming the treatments applied.
+    why: >-
+      A shell egg is not sold frozen and pasteurised, a liquid egg is. Removing the
+      words removes that clue.
+    families: [F6]
+
+  - id: BT-13
+    topic: A change of physical state
+    status: settled
+    sources:
+      - source: guidance 2015, 5.9
+        says: >-
+          When a specific group exists for the changed state, choose it as the base
+          term, because the state is then implicit. Otherwise record the treatment,
+          and the new physical state too.
+    verdict: >-
+      Rung 2 applies. Show the classifier what each group entails, so a stirred liquid
+      egg and a shell egg are not confused.
+    why: Entailed properties are shown to the classifier since 12 Nov (commit 8e5d3eb).
+    families: [F6]
+
+  - id: BT-14
+    topic: Checks after coding
+    status: proposed
+    decision_by: engineering
+    ours: true
+    sources:
+      - source: guidance 2015, 5.14.4, Table 26
+        says: >-
+          A raw commodity base carrying seasoning, curing, ripening, salting, sugar,
+          candying, grain milling, starch production, drying, marinating, pickling,
+          fermentation, canning or smoking probably missed a derivative group.
+      - source: guidance 2015, 5.14.7, 5.14.8
+        says: >-
+          A raw commodity with generic processing, cleaning or milling may be a
+          derivative.
+    verdict: >-
+      Run both as checks on the result, not as part of choosing the base. A hit
+      re-asks the base question once and otherwise leaves a note.
+    why: EFSA suggests them as quality checks on a set of codes.
+    families: [F1, F8]
+
+  - id: BT-15
+    topic: Coatings, and foods in two classes that cut across each other
+    status: settled
+    sources:
+      - source: guidance 2015, 3.1.9, Table 10
+        says: >-
+          For raw commodities and derivatives with a minor ingredient, "when a specific
+          group implicitly including the minor ingredients is not available", code the
+          commodity or derivative and add the ingredient. Chocolate-coated nuts, seeds
+          and fruits are listed. Specific composite groups were kept "if they already
+          existed in the previous versions of the system".
+      - source: guidance 2015, 5.13
+        says: >-
+          "candied citrus peel, chocolate-coated": base A01PS candied fruits, source
+          commodity citrus fruit peel, minor ingredient chocolate, process coating.
+      - source: MTX 17.1 catalogue data
+        says: >-
+          Chocolate coated confectionery (A034R), Dragée, sugar coated (A035F) and
+          Chocolate coated dried fruit (A01QQ) are the only base candidates that carry
+          a coating. All three are valid from 2014-10-30, before the 2015 guidance. Of
+          the 204 base candidates that carry a Table 22 treatment, 195 date from 2014;
+          none added since carries a coating.
+      - source: maintenance 2015 to 2025
+        says: >-
+          No rule on coated foods or A034R. 2016-2018 allows an implicit ingredient on a
+          derivative only as a minor ingredient.
+      - source: ANSES FoodEx2 guidance 2025
+        says: >-
+          "Puffed rice coated with chocolate (confectionery)" is A034R#F04.A00DR: "For
+          confectionery made with puffed rice and coated in chocolate, select a term
+          from the confectionery category." National guidance, not EFSA.
+    verdict: >-
+      A coating is a treatment like any other: it does not change which classes the
+      food belongs to, and when the base does not imply it, it is recorded as a facet.
+      A coated food can belong to two terms neither of which contains the other, such
+      as a commodity term and a coating group. Then the base is the term for the kind
+      of product the food is primarily eaten as. A term that contains another accepted
+      term gives way to the narrower one.
+    why: >-
+      One rule for every pair of classes that cut across each other, coated or not,
+      judged from what the food is rather than from EFSA's examples. It contradicts no
+      scope note: A034R covers "any type of Chocolate coated confectionery". It departs
+      from EFSA's 5.13 example and from Table 10 for chocolate-coated nuts, and agrees
+      with ANSES 2025. Decided with Jorn, 2026-11-13.
+    families: [F7]
+    examples:
+      - { input: "candied citrus peel, chocolate-coated", base: A034R, note: "Eaten as a chocolate sweet. EFSA 5.13 codes A01PS#F04.A034G$F27.A01QE$F28.A07HP" }
+      - { input: "chocolate-coated almonds", base: A034R, note: "Eaten as a chocolate sweet. Table 10 codes the nut plus an ingredient" }
+      - { input: "White sauce, sweet, made with skimmed milk, homemade", base: A046F, note: "Béchamel by its scope note, but eaten as a dessert sauce" }
+
+  - id: BT-16
+    topic: Composite groups, and other groups that carry a treatment that only transforms
+    status: proposed
+    decision_by: jorn
+    ours: true
+    sources:
+      - source: maintenance 2015, 3.4
+        says: >-
+          The rule is about the move "from raw commodity to derivative/ingredient".
+          EFSA names three terms (BT-05) and does not rule on the others.
+      - source: guidance 2015, 5.4.3
+        says: >-
+          If a process changes the initial ingredients, the product is always reported
+          as a composite.
+      - source: MTX 17.1 catalogue data
+        says: >-
+          83 reportable raw or derivative terms carry some Table 22 process. Many are
+          covered by the exceptions (minced meat, groats, purée, cooked eggs) or by
+          Tables 4 and 5.
+    verdict: >-
+      A composite group (type s or c) is defined by its recipe, so a treatment can be
+      part of it (Cooked sausages, Risotto). A group of any type that carries a
+      treatment that only transforms the food is chosen only when the food itself is
+      that product by the group's scope note, never because it carries the treatment.
+    why: >-
+      Cooked sausages is scoped to sausages cooked during production, so it does not
+      cover a sausage pan-fried in a kitchen. US ground chorizo is fresh and not cured.
+    families: [F2, F7]
+    examples:
+      - { input: "Sausage, pork, chorizo, link or ground, cooked, pan-fried", base: A024G, note: "fresh, not cured; pan-fried in the kitchen (Jorn, 2026-11-12)" }
+
+  - id: BT-17
+    topic: Tie-break among hierarchy terms
+    status: proposed
+    decision_by: jorn
+    ours: true
+    sources:
+      - source: MTX 17.1 catalogue data
+        says: >-
+          All but one of the 4,438 non-hierarchy terms in the exposure tree carry a
+          part-nature, against 48 of 100 hierarchy terms. Processed eggs and
+          Unprocessed eggs carry none.
+    verdict: >-
+      When only hierarchy terms are accepted, prefer the one that carries the most
+      building facets (part-nature, source or source commodity, process). Liquid egg
+      products carries four, Eggs and egg products one, Processed eggs none.
+    why: >-
+      The catalogue's own signal for "designed for a class". EFSA gives no tie-break.
+    families: [F9]
+
+  - id: BT-18
+    topic: Carrying a treatment is not a score
+    status: proposed
+    decision_by: engineering
+    ours: true
+    sources:
+      - source: encode/select.ts
+        says: A broad group that carries any treatment gets +3, stated or not.
+    verdict: >-
+      Carrying a treatment counts only when the description states it and it creates
+      a new food for this food (BT-02, BT-07). It does not count for a treatment that
+      only transforms the food (BT-03), and class membership by scope note decides.
+    why: >-
+      The flat bonus favours Cooked sausages over Sausages because cooking is built
+      into one of them.
+    families: [F2, F7]
+
+# The families of cases the fixture covers, and the rules each tests.
+families:
+  - { id: F1, name: "A treatment creates a new food, so its group is the base", rules: [BT-01, BT-02, BT-04, BT-07, BT-14] }
+  - { id: F2, name: "A treatment creates no new food, so it is a facet only", rules: [BT-03, BT-05, BT-16, BT-18] }
+  - { id: F3, name: "A treatment counts only for some foods", rules: [BT-01, BT-02, BT-04] }
+  - { id: F4, name: "Several new-food treatments, ranked by Table 6", rules: [BT-01, BT-06] }
+  - { id: F5, name: "A word that looks like a treatment but is not", rules: [BT-02, BT-11] }
+  - { id: F6, name: "Treatments show what form the food is in", rules: [BT-12, BT-13] }
+  - { id: F7, name: "A legacy group carries a Table 22 treatment", rules: [BT-03, BT-05, BT-15, BT-16, BT-18] }
+  - { id: F8, name: "Treatments in no table", rules: [BT-07, BT-08, BT-09, BT-14] }
+  - { id: F9, name: "No specific term fits, so a generic or hierarchy term is the base", rules: [BT-10, BT-17] }

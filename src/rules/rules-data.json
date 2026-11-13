@@ -1,10 +1,11 @@
 {
   "_provenance": {
     "generated_by": "scripts/build-rules.ts",
-    "generated_at": "2026-10-16T17:34:48.288Z",
+    "generated_at": "2026-11-13T12:17:06.782Z",
     "sources": [
       "rules/cardinality.yaml",
       "rules/conflicts.yaml",
+      "rules/efsa-processes.yaml",
       "vendor/efsa-business-rules/BR_Data.csv (EFSA, EUPL 1.2)"
     ]
   },
@@ -883,6 +884,834 @@
       "A0C0C",
       "A07KK",
       "A07JT"
+    ]
+  },
+  "processTables": {
+    "newFood": [
+      {
+        "code": "A0CRH",
+        "table": 4,
+        "process": "Seasoning",
+        "appliedTo": "Meat, milk",
+        "leadsTo": "Sausages and other charcuterie products, cheese",
+        "validatorGroups": [],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07KD",
+        "table": 4,
+        "process": "Curing",
+        "appliedTo": "Meat, milk",
+        "leadsTo": "Sausages and other charcuterie products, cheese",
+        "validatorGroups": [
+          "A01TT",
+          "A04MQ",
+          "A0BXT",
+          "A0BY5",
+          "A0EYH"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0C6F",
+        "table": 4,
+        "process": "Ripening",
+        "appliedTo": "Meat, milk",
+        "leadsTo": "Sausages and other charcuterie products, cheese",
+        "validatorGroups": [
+          "A01TT",
+          "A04MQ",
+          "A0BXT",
+          "A0BXZ",
+          "A0BY5",
+          "A0EYH"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07JP",
+        "table": 4,
+        "process": "Preserving by salt",
+        "appliedTo": "Vegetables, meat, fish, seafood",
+        "leadsTo": "Salt preserves",
+        "validatorGroups": [
+          "A01TT",
+          "A04MQ",
+          "A04RK",
+          "A07XJ",
+          "A0BXT",
+          "A0BY3",
+          "A0BY5",
+          "A0EYH",
+          "A0EZQ",
+          "A0EZR"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07JQ",
+        "table": 4,
+        "process": "Preserving by sugars",
+        "appliedTo": "Fruit, chestnuts. Candying is included",
+        "leadsTo": "Sugar preserves, candied materials and similar",
+        "validatorGroups": [
+          "A014C",
+          "A01BJ",
+          "A04RK",
+          "A07XJ",
+          "A0BY3"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07KG",
+        "table": 4,
+        "process": "Drying (dehydration)",
+        "appliedTo": "Meat, fish, seafood, milk, egg, vegetables, legumes, fruit. Spices and infusion materials are considered default",
+        "leadsTo": "Dried food",
+        "validatorGroups": [
+          "A00HQ",
+          "A00ZS",
+          "A011Y",
+          "A012R",
+          "A014C",
+          "A01BJ",
+          "A01TT",
+          "A031E",
+          "A03JB",
+          "A03JS",
+          "A04LZ",
+          "A04MA",
+          "A04MB",
+          "A04MQ",
+          "A04RK",
+          "A07XJ",
+          "A0BXT",
+          "A0BXZ",
+          "A0BY3",
+          "A0BY5",
+          "A0BYA",
+          "A0ESS",
+          "A0EYH",
+          "A0EZJ",
+          "A0EZQ",
+          "A0EZR"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07JT",
+        "table": 4,
+        "process": "Marinating",
+        "appliedTo": "Meat, fish, seafood",
+        "leadsTo": "Marinated meat, fish or seafood",
+        "validatorGroups": [
+          "A01TT",
+          "A04MB",
+          "A04MQ",
+          "A04RK",
+          "A07XJ",
+          "A0BXT",
+          "A0BY3",
+          "A0BY5",
+          "A0EYH",
+          "A0EZQ",
+          "A0EZR"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07KC",
+        "table": 4,
+        "process": "Pickling",
+        "appliedTo": "Vegetables",
+        "leadsTo": "Pickled vegetables",
+        "validatorGroups": [
+          "A01TT",
+          "A04MQ",
+          "A04RK",
+          "A07XJ",
+          "A0BXT",
+          "A0BY3",
+          "A0BY5",
+          "A0EYH",
+          "A0EZQ",
+          "A0EZR"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0CQZ",
+        "table": 4,
+        "process": "Fermentation",
+        "appliedTo": "Milk, vegetables, meat",
+        "leadsTo": "Fermented milk products, fermented vegetables, sausages and other charcuterie products, cheese",
+        "validatorGroups": [
+          "A01TT",
+          "A03JB",
+          "A03JS",
+          "A04MQ",
+          "A04RK",
+          "A07XJ",
+          "A0BXT",
+          "A0BXZ",
+          "A0BY3",
+          "A0BY5",
+          "A0BYA",
+          "A0ESS",
+          "A0EYH",
+          "A0EZR"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0BYP",
+        "table": 4,
+        "process": "Canning/jarring",
+        "appliedTo": "Vegetable, fruit, meat, fish, seafood",
+        "leadsTo": "Preserves",
+        "validatorGroups": [
+          "A00HQ",
+          "A00ZS",
+          "A011Y",
+          "A012R",
+          "A01TT",
+          "A04MB",
+          "A04MQ",
+          "A04RK",
+          "A07XJ",
+          "A0BXT",
+          "A0BY3",
+          "A0BY5",
+          "A0EYH",
+          "A0EZQ",
+          "A0EZR"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07JV",
+        "table": 4,
+        "process": "Smoking",
+        "appliedTo": "Meat, fish, seafood",
+        "leadsTo": "Smoked meat, fish or seafood",
+        "validatorGroups": [
+          "A01TT",
+          "A04MQ",
+          "A0BXT",
+          "A0BY5",
+          "A0EYH",
+          "A0EZQ",
+          "A0EZR"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0C00",
+        "table": 5,
+        "process": "Winemaking",
+        "appliedTo": "Grape and other fruits",
+        "leadsTo": "Wine and similar",
+        "validatorGroups": [],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0C01",
+        "table": 5,
+        "process": "Beer production",
+        "appliedTo": "Malted cereals",
+        "leadsTo": "Beer",
+        "validatorGroups": [],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0C6E",
+        "table": 5,
+        "process": "Cheesemaking",
+        "appliedTo": "Milk",
+        "leadsTo": "Cheese",
+        "validatorGroups": [
+          "A0BXZ"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07MH",
+        "table": 5,
+        "process": "Churning",
+        "appliedTo": "Milk, cream",
+        "leadsTo": "Butter",
+        "validatorGroups": [
+          "A0BXZ"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0C02",
+        "table": 5,
+        "process": "Oil production",
+        "appliedTo": "Oil fruits and oilseeds",
+        "leadsTo": "Oils and fats",
+        "validatorGroups": [
+          "A015E"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0C03",
+        "table": 5,
+        "process": "Grain milling",
+        "appliedTo": "Cereal grains and similar",
+        "leadsTo": "Flours, groats, etc.",
+        "validatorGroups": [
+          "A000L"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0C0B",
+        "table": 5,
+        "process": "Grain milling—starch production",
+        "appliedTo": "Cereal grains and similar starch sources",
+        "leadsTo": "Starch",
+        "validatorGroups": [
+          "A000L"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0C04",
+        "table": 5,
+        "process": "Sugar production",
+        "appliedTo": "Sugar plants",
+        "leadsTo": "Sugar",
+        "validatorGroups": [
+          "A010R"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0C6N",
+        "table": 5,
+        "process": "Pulping/mashing",
+        "appliedTo": "Fruit, vegetables",
+        "leadsTo": "Fruit/vegetable purée",
+        "validatorGroups": [
+          "A00HQ",
+          "A014C",
+          "A01BJ",
+          "A04MB",
+          "A04RK",
+          "A07XJ",
+          "A0BY3",
+          "A0EZP",
+          "A0EZR"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07GG",
+        "table": 5,
+        "process": "Cooking in water",
+        "appliedTo": "Eggs",
+        "leadsTo": "Hardened egg products",
+        "validatorGroups": [
+          "A031E"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07GR",
+        "table": 5,
+        "process": "Frying",
+        "appliedTo": "Potatoes",
+        "leadsTo": "Fries, chips and other potato snacks",
+        "validatorGroups": [
+          "A031E"
+        ],
+        "alsoGroups": [
+          "A0DPP"
+        ],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07GX",
+        "table": 5,
+        "process": "Baking",
+        "appliedTo": "Cereal milling products and other ingredients",
+        "leadsTo": "Bakery products",
+        "validatorGroups": [
+          "A031E"
+        ],
+        "alsoGroups": [
+          "A0ETP"
+        ],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07GY",
+        "table": 5,
+        "process": "Roasting (baking with fat)",
+        "appliedTo": "Potatoes",
+        "leadsTo": "Roasted potatoes",
+        "validatorGroups": [
+          "A031E"
+        ],
+        "alsoGroups": [
+          "A0DPP"
+        ],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07HC",
+        "table": 5,
+        "process": "Toasting",
+        "appliedTo": "Coffee beans",
+        "leadsTo": "Toasted coffee",
+        "validatorGroups": [
+          "A03JB",
+          "A03JS",
+          "A0BYA",
+          "A0ESS"
+        ],
+        "alsoGroups": [
+          "A0D9J"
+        ],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07HJ",
+        "table": 5,
+        "process": "Caramelization/browning",
+        "appliedTo": "Sugar",
+        "leadsTo": "Caramel",
+        "validatorGroups": [
+          "A0BXZ"
+        ],
+        "alsoGroups": [
+          "A0BY6"
+        ],
+        "efsaCode": null,
+        "note": "Table 22 says caramelisation creates derivatives in sugar and milk; the validator data covers milk."
+      },
+      {
+        "code": "A0CRL",
+        "table": 5,
+        "process": "Mixing",
+        "appliedTo": "Creation of compound food",
+        "leadsTo": "Recipes (composite food)",
+        "validatorGroups": [],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07MA",
+        "table": 5,
+        "process": "Filling",
+        "appliedTo": "Filled branches of unfilled bases",
+        "leadsTo": "Filled pasta, filled bakery products",
+        "validatorGroups": [],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07LF",
+        "table": 5,
+        "process": "Extrusion",
+        "appliedTo": "Cereals, snack production",
+        "leadsTo": "Extruded snacks and breakfast cereals",
+        "validatorGroups": [
+          "A031E"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07LG",
+        "table": 5,
+        "process": "Flaking",
+        "appliedTo": "Cereals",
+        "leadsTo": "Cereal flakes",
+        "validatorGroups": [
+          "A000L",
+          "A00ZS"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07LH",
+        "table": 5,
+        "process": "Flattening/rolling",
+        "appliedTo": "Cereals",
+        "leadsTo": "Rolled cereals",
+        "validatorGroups": [
+          "A000L"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07LL",
+        "table": 5,
+        "process": "Puffing/expanding",
+        "appliedTo": "Cereals",
+        "leadsTo": "Puffed cereals",
+        "validatorGroups": [
+          "A000L"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0C0G",
+        "table": 5,
+        "process": "Gelling",
+        "appliedTo": "Milk, water",
+        "leadsTo": "Desserts, jellies",
+        "validatorGroups": [],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07MF",
+        "table": 5,
+        "process": "Distillation",
+        "appliedTo": "Fruits or sugary/starchy sources",
+        "leadsTo": "Alcohol and related products",
+        "validatorGroups": [],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A0EKQ",
+        "table": 5,
+        "process": "Separation (in liquid phase)",
+        "appliedTo": "Milk",
+        "leadsTo": "Cream",
+        "validatorGroups": [
+          "A0BXZ"
+        ],
+        "alsoGroups": [],
+        "efsaCode": "A0EJP",
+        "note": "EFSA's table prints A0EJP, which in MTX 17.1 is Live insects and arachnids (as part-nature)."
+      },
+      {
+        "code": "A07MK",
+        "table": 5,
+        "process": "Brewing/infusion",
+        "appliedTo": "Infusion materials, cacao, coffee etc.",
+        "leadsTo": "Hot drinks",
+        "validatorGroups": [
+          "A03JB",
+          "A03JS",
+          "A0BYA",
+          "A0ESS"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07LN",
+        "table": 5,
+        "process": "Juicing",
+        "appliedTo": "Fruit, vegetables",
+        "leadsTo": "Fruit and vegetable juices and nectars",
+        "validatorGroups": [
+          "A00HQ",
+          "A04MB",
+          "A04RK",
+          "A07XJ",
+          "A0EZP"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07MJ",
+        "table": 5,
+        "process": "Extraction",
+        "appliedTo": "Meat, fish, yeast, infusion materials",
+        "leadsTo": "Extracts",
+        "validatorGroups": [
+          "A03JB",
+          "A03JS",
+          "A0BYA",
+          "A0ESS",
+          "A0EZP"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07KF",
+        "table": 5,
+        "process": "Concentration/evaporation",
+        "appliedTo": "Milk, juices from vegetable and fruit",
+        "leadsTo": "Concentrates",
+        "validatorGroups": [
+          "A00HQ",
+          "A03JB",
+          "A03JS",
+          "A04MB",
+          "A04RK",
+          "A07XJ",
+          "A0BXZ",
+          "A0BYA",
+          "A0ESS",
+          "A0EZP"
+        ],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      },
+      {
+        "code": "A07ML",
+        "table": 5,
+        "process": "Crystallisation",
+        "appliedTo": "Natural sources of purified ingredients",
+        "leadsTo": "All 'purified ingredients' such as the protein- and carbohydrate-based ones, salt",
+        "validatorGroups": [],
+        "alsoGroups": [],
+        "efsaCode": null,
+        "note": null
+      }
+    ],
+    "facetOnly": [
+      {
+        "codes": [
+          "A07KS",
+          "A07KT",
+          "A07KV",
+          "A07KX",
+          "A07KY",
+          "A07KZ",
+          "A07LA",
+          "A0C6N"
+        ],
+        "descriptors": "Physical division/dimension reduction (and child descriptors) portioning, slicing, dicing and stripe-cutting, mincing/chopping/cutting, grating, grinding/milling/crushing, pulping/mashing",
+        "exceptions": "Some groups exist for minced meat. Milling associated with separation processes creates grain derivatives; however, specific grain milling descriptors are applicable instead. Mashing, associated with separating parts and eventual cooking, leads to purée groups existing in some groups of derivatives of plant origin"
+      },
+      {
+        "codes": [
+          "A07JB",
+          "A0BZG",
+          "A0BZL",
+          "A07JE",
+          "A07JF",
+          "A07JG",
+          "A07JH",
+          "A07JC",
+          "A07JD",
+          "A07JJ",
+          "A0CSQ"
+        ],
+        "descriptors": "Physical decontamination treatment, aspiration, desliming, cleaning, brushing, washing, centrifugal cleaning, high pressure treating (pascalisation), microfiltering, irradiation, surface treatment with sanitising agents",
+        "exceptions": null
+      },
+      {
+        "codes": [
+          "A07KN",
+          "A07KP",
+          "A07KQ",
+          "A07KR"
+        ],
+        "descriptors": "Lowering temperature, chilling, freezing, individually quick frozen (IQF) freezing (flash/blast freezing)",
+        "exceptions": null
+      },
+      {
+        "codes": [
+          "A07HR",
+          "A07HT",
+          "A07HV",
+          "A07HX",
+          "A07HY",
+          "A07HZ",
+          "A07JA"
+        ],
+        "descriptors": "Thermal treatment (heating for preservation), low pasteurisation (thermisation), pasteurisation, high pasteurisation (extending shelf life), UHT, statical sterilisation (in batch or package), hot-filling",
+        "exceptions": null
+      },
+      {
+        "codes": [
+          "A0BA1"
+        ],
+        "descriptors": "Cooking and similar thermal preparation processes (including all the child processes, with some exceptions)",
+        "exceptions": "Frying/roasting for potatoes creates new derivatives; cooking eggs creates new derivatives; caramelisation/browning creates derivatives, e.g. in sugar and milk"
+      },
+      {
+        "codes": [
+          "A0BYN"
+        ],
+        "descriptors": "Aseptic filling",
+        "exceptions": null
+      },
+      {
+        "codes": [
+          "A07JK"
+        ],
+        "descriptors": "Vacuum-packing",
+        "exceptions": null
+      },
+      {
+        "codes": [
+          "A07HK"
+        ],
+        "descriptors": "Breading",
+        "exceptions": null
+      },
+      {
+        "codes": [
+          "A07HL"
+        ],
+        "descriptors": "Battering",
+        "exceptions": null
+      },
+      {
+        "codes": [
+          "A07HM"
+        ],
+        "descriptors": "Glazing/icing",
+        "exceptions": null
+      },
+      {
+        "codes": [
+          "A07HN"
+        ],
+        "descriptors": "Sugar coating",
+        "exceptions": null
+      },
+      {
+        "codes": [
+          "A07HP"
+        ],
+        "descriptors": "Chocolate coating",
+        "exceptions": null
+      },
+      {
+        "codes": [
+          "A07HQ"
+        ],
+        "descriptors": "Nut coating",
+        "exceptions": null
+      }
+    ],
+    "priority": [
+      {
+        "group": "Purée/textured/structured",
+        "processes": [
+          "A0C6N",
+          "A07LM"
+        ]
+      },
+      {
+        "group": "Marinated/pickled/fermented",
+        "processes": [
+          "A07JT",
+          "A07KC",
+          "A0CQZ"
+        ]
+      },
+      {
+        "group": "In vinegar or brine",
+        "processes": [
+          "A0F2N",
+          "A07JM"
+        ]
+      },
+      {
+        "group": "In alcohol or spirits",
+        "processes": [
+          "A0CER"
+        ]
+      },
+      {
+        "group": "Salted",
+        "processes": [
+          "A07JP"
+        ]
+      },
+      {
+        "group": "Candied or sugar-preserved",
+        "processes": [
+          "A07JQ"
+        ]
+      },
+      {
+        "group": "Dried",
+        "processes": [
+          "A07KG"
+        ]
+      },
+      {
+        "group": "Canned/jarred",
+        "processes": [
+          "A0BYP"
+        ]
+      },
+      {
+        "group": "Smoked",
+        "processes": [
+          "A07JV"
+        ]
+      }
     ]
   }
 }

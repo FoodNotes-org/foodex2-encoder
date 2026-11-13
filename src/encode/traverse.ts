@@ -3,9 +3,10 @@
  *
  * The router picks one descriptionKind for the whole description. That kind is
  * reused for classify / select wording and for residuals. A foodstuff is
- * compared as the description given, unless a Table 22 process has no catalogue
- * group that already implies it — then the walk compares the food without that
- * process. A dish or a mix is compared as the description given.
+ * compared as the description given, with a treatment that does not create a
+ * new kind of food taken out, unless a catalogue group that already implies
+ * that treatment is this food. A dish or a mix is compared as the description
+ * given.
  *
  * Embeddings tip the walk toward opaque branches: a few high cosine hits contribute
  * their expo parents as extra seeds. A catalogue group that already implies a
@@ -37,6 +38,7 @@ import {
   LADDER_LABELS,
   classifySystemPrompt,
 } from "./classify-ladder.js";
+import { otherSiblingFields } from "./select-classify.js";
 import { entailedProperties, type EntailedProperty } from "./entailed-properties.js";
 import type {
   AuditEntry,
@@ -76,6 +78,9 @@ interface TraversalChildView {
   note?: string;
   /** Characteristics the class entails, when it has any. */
   properties?: EntailedProperty[];
+  /** For a remainder term: the term it sits under, and the other terms under that parent. */
+  parent?: string;
+  siblings?: string[];
 }
 
 interface RawCandidate {
@@ -117,11 +122,16 @@ function classifyTermEntry(child: TraversalChildView): Record<string, unknown> {
   if (child.properties !== undefined && child.properties.length > 0) {
     entry.properties = child.properties;
   }
+  if (child.parent !== undefined && child.siblings !== undefined) {
+    entry.parent = child.parent;
+    entry.siblings = child.siblings;
+  }
   return entry;
 }
 
 function buildClassifyUser(
   item: string,
+  treatments: readonly string[],
   children: TraversalChildView[],
   parentName: string,
   descriptionKind: DescriptionKind | null,
@@ -130,6 +140,7 @@ function buildClassifyUser(
   return JSON.stringify(
     {
       item,
+      ...(treatments.length > 0 ? { treatments } : {}),
       ...(country !== null ? { country } : {}),
       ...(descriptionKind !== null ? { descriptionKind } : {}),
       parent: parentName,
@@ -178,11 +189,14 @@ function traversalChildView(cat: Catalogue, code: string): TraversalChildView {
   const subgroups = listChildren(cat, code).map((c) => c.name);
   const note = term?.scopeNote?.trim();
   const properties = entailedProperties(cat, code);
+  const name = term?.name ?? code;
+  const remainder = otherSiblingFields(cat, code, name);
   const base = {
     code,
-    name: term?.name ?? code,
+    name,
     ...(note ? { note } : {}),
     ...(properties.length > 0 ? { properties } : {}),
+    ...(remainder !== undefined ? remainder : {}),
   };
   if (subgroups.length > 0) {
     return { ...base, contains: subgroups };
@@ -211,6 +225,7 @@ async function classifyAllChildren(
   model: string,
   system: string,
   compareAs: string,
+  treatments: readonly string[],
   parentName: string,
   descriptionKind: DescriptionKind | null,
   country: string | null,
@@ -228,7 +243,7 @@ async function classifyAllChildren(
       const classified = await chatJson({
         model,
         system,
-        user: buildClassifyUser(compareAs, batch, parentName, descriptionKind, country),
+        user: buildClassifyUser(compareAs, treatments, batch, parentName, descriptionKind, country),
         maxTokens: classifyMaxTokens(batch.length),
       });
       const part = parseClassifications(classified.content, batchAllowed, "match", LADDER_LABELS);
@@ -440,6 +455,8 @@ interface WalkOptions {
   system: string;
   /** Text passed to the classifier as "the item". */
   compareAs: string;
+  /** Words taken out of the item, each stating a treatment applied to it. */
+  treatments: readonly string[];
   /** From the route — shapes multi-item ladder wording; never re-asked here. */
   descriptionKind?: DescriptionKind | null;
   /** When set, only these catalogue term types may be collected as candidates. */
@@ -530,6 +547,7 @@ async function walkFromSeeds(
             model,
             system,
             options.compareAs,
+            options.treatments,
             node.parentName,
             descriptionKind,
             options.country,
@@ -710,12 +728,16 @@ export async function collectTraversalCandidates(
   });
 
   let compareAs = input;
+  let treatmentsApplied: string[] = [];
+  let statedTreatments: string[] = [];
   let baseTermTypes: ReadonlySet<string> | null = null;
   let processGroup: TraverseCollectResult["processGroup"] = null;
   let processSeeds: string[] = [];
   if (descriptionKind === "foodstuff") {
     const compared = await resolveBaseCompare(input, country, model);
     compareAs = compared.compareAs;
+    treatmentsApplied = compared.treatmentsApplied;
+    statedTreatments = compared.statedTreatments;
     baseTermTypes = compared.termTypes;
     processGroup = compared.processGroup;
     processSeeds = compared.seeds;
@@ -743,6 +765,7 @@ export async function collectTraversalCandidates(
       seeds: wholeSeeds,
       system: wholeSystem,
       compareAs,
+      treatments: treatmentsApplied,
       ...(descriptionKind !== null ? { descriptionKind } : {}),
       baseTermTypes,
       country,
@@ -756,11 +779,16 @@ export async function collectTraversalCandidates(
     addCandidate(state.collected, code, "broad");
   }
 
-  const candidates = toCandidateRefs(cat, state.collected);
+  const collectedRefs = toCandidateRefs(cat, state.collected);
+  const candidates = collectedRefs.filter((c) => cat.isReportable(c.code, DEFAULT_HIERARCHY));
+  const notReportable = collectedRefs
+    .filter((c) => !cat.isReportable(c.code, DEFAULT_HIERARCHY))
+    .map((c) => c.code);
   audit.push({
     step: "traversal_collect",
     detail: {
       candidateCount: candidates.length,
+      ...(notReportable.length > 0 ? { notReportable } : {}),
       partial: state.abort !== null,
       ...(state.abort !== null
         ? { abortKind: state.abort.kind, abortMessage: state.abort.message }
@@ -782,6 +810,8 @@ export async function collectTraversalCandidates(
     candidates,
     descriptionKind,
     compareAs,
+    treatmentsApplied,
+    statedTreatments,
     processGroup,
     walks: state.walks,
     steps: state.steps,
