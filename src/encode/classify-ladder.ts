@@ -46,6 +46,7 @@ export function classifySystemPrompt(options: {
   const givens = [
     item,
     "- `treatments`, if included: treatments applied to the food, removed from the description and listed here. Match the food the treatment was applied to. A treatment changes that match only when it changed which part of the food this is, or its physical form.",
+    "- `parts`, if included: words stating which parts the food includes or leaves out, removed from the description and listed here. They do not change the match.",
     descriptionKind,
     ...(readSubcategories ? ["- `parent`: the catalogue term these terms sit under."] : []),
     `- \`terms\`: the catalogue terms to judge. ${TERM_FIELDS_GIVEN} \`directSubcategories\`, if included, are the names of the terms that sit directly under that term. ${TERM_NOTE_GIVEN} \`properties\`, if included, are characteristics entailed by the class. Each has a \`kind\` and a \`name\`. A term whose \`name\` contains "other" or "not separately listed" also has \`parent\`, the term it sits under, and \`siblings\`, the other terms directly under that parent.`,

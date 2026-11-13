@@ -220,6 +220,7 @@ export async function encodeBaseTerm(
       descriptionKind: collected.descriptionKind,
       country,
       treatments: collected.treatmentsApplied,
+      parts: collected.partsApplied,
     });
     audit.push(...selection.audit);
 

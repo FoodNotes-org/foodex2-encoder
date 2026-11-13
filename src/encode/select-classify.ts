@@ -82,6 +82,7 @@ export async function assessSelectClassify(
     descriptionKind?: DescriptionKind | null;
     country?: string | null;
     treatments?: readonly string[];
+    parts?: readonly string[];
   } = {}
 ): Promise<AssessSelectClassifyResult> {
   const audit: AuditEntry[] = [];
@@ -93,9 +94,11 @@ export async function assessSelectClassify(
   const descriptionKind = options.descriptionKind ?? null;
   const country = options.country ?? null;
   const treatments = options.treatments ?? [];
+  const parts = options.parts ?? [];
   const payload = {
     item: food,
     ...(treatments.length > 0 ? { treatments } : {}),
+    ...(parts.length > 0 ? { parts } : {}),
     ...(country !== null ? { country } : {}),
     ...(descriptionKind !== null ? { descriptionKind } : {}),
     terms: pool.map((c) => classifyCandidatePayload(c)),

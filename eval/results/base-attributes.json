@@ -1,24 +1,29 @@
 {
   "_provenance": {
     "generated_by": "scripts/base-attributes-eval.ts",
-    "generated_at": "2026-11-13T14:03:37.290Z",
+    "generated_at": "2026-11-13T15:07:49.604Z",
     "model": "openai/gpt-6.1-sol",
     "mtx_version": "17.1",
-    "git_commit": "90eeb51",
+    "git_commit": "b39dba6",
     "uncommitted_src": [
       "src/encode/base-compare.ts",
-      "src/eval/base-attributes.ts"
+      "src/encode/base-term.ts",
+      "src/encode/classify-ladder.ts",
+      "src/encode/select-classify.ts",
+      "src/encode/select.ts",
+      "src/encode/traverse.ts",
+      "src/encode/types.ts"
     ],
     "runs": 3
   },
   "summary": {
     "overall": {
-      "basePass": 144,
+      "basePass": 149,
       "baseRuns": 150,
-      "stableCases": 47,
+      "stableCases": 49,
       "cases": 50,
-      "treatPass": 140,
-      "treatRuns": 140
+      "treatPass": 139,
+      "treatRuns": 139
     },
     "by_family": {
       "F1": {
@@ -26,8 +31,8 @@
         "baseRuns": 48,
         "stableCases": 16,
         "cases": 16,
-        "treatPass": 41,
-        "treatRuns": 41
+        "treatPass": 40,
+        "treatRuns": 40
       },
       "F2": {
         "basePass": 45,
@@ -38,9 +43,9 @@
         "treatRuns": 45
       },
       "F3": {
-        "basePass": 32,
+        "basePass": 36,
         "baseRuns": 36,
-        "stableCases": 10,
+        "stableCases": 12,
         "cases": 12,
         "treatPass": 36,
         "treatRuns": 36
@@ -54,9 +59,9 @@
         "treatRuns": 12
       },
       "F5": {
-        "basePass": 19,
+        "basePass": 21,
         "baseRuns": 21,
-        "stableCases": 6,
+        "stableCases": 7,
         "cases": 7,
         "treatPass": 21,
         "treatRuns": 21
@@ -70,7 +75,7 @@
         "treatRuns": 12
       },
       "F7": {
-        "basePass": 16,
+        "basePass": 17,
         "baseRuns": 18,
         "stableCases": 5,
         "cases": 6,
@@ -86,15 +91,15 @@
         "treatRuns": 9
       },
       "F9": {
-        "basePass": 13,
+        "basePass": 15,
         "baseRuns": 15,
-        "stableCases": 4,
+        "stableCases": 5,
         "cases": 5,
         "treatPass": 15,
         "treatRuns": 15
       }
     },
-    "total_cost_usd": 9.1428
+    "total_cost_usd": 9.4801
   },
   "cases": [
     {
@@ -129,8 +134,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 60490,
-          "cost_usd": 0.05281689999999999
+          "ms": 60520,
+          "cost_usd": 0.1014052
         },
         {
           "pick": "A04LL",
@@ -152,8 +157,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 57407,
-          "cost_usd": 0.045648100000000004
+          "ms": 64561,
+          "cost_usd": 0.039041799999999995
         },
         {
           "pick": "A04LL",
@@ -175,8 +180,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 59525,
-          "cost_usd": 0.06975409999999999
+          "ms": 60282,
+          "cost_usd": 0.0785671
         }
       ]
     },
@@ -212,8 +217,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 43774,
-          "cost_usd": 0.039563
+          "ms": 35077,
+          "cost_usd": 0.07987640000000001
         },
         {
           "pick": "A0EYS",
@@ -235,8 +240,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 38066,
-          "cost_usd": 0.036999399999999995
+          "ms": 37612,
+          "cost_usd": 0.022909999999999996
         },
         {
           "pick": "A0EYS",
@@ -258,8 +263,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 39917,
-          "cost_usd": 0.0353662
+          "ms": 40507,
+          "cost_usd": 0.0318025
         }
       ]
     },
@@ -291,7 +296,7 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 52,
+          "ms": 39,
           "cost_usd": 0
         },
         {
@@ -310,7 +315,7 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 50,
+          "ms": 37,
           "cost_usd": 0
         },
         {
@@ -329,7 +334,7 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 49,
+          "ms": 36,
           "cost_usd": 0
         }
       ]
@@ -366,8 +371,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 37412,
-          "cost_usd": 0.0763866
+          "ms": 40145,
+          "cost_usd": 0.0440898
         },
         {
           "pick": "A04MP",
@@ -389,8 +394,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 41348,
-          "cost_usd": 0.0355399
+          "ms": 40407,
+          "cost_usd": 0.0331846
         },
         {
           "pick": "A04MP",
@@ -412,8 +417,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 40191,
-          "cost_usd": 0.022181399999999997
+          "ms": 37346,
+          "cost_usd": 0.053541
         }
       ]
     },
@@ -446,8 +451,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 51989,
-          "cost_usd": 0.0400713
+          "ms": 41591,
+          "cost_usd": 0.0633894
         },
         {
           "pick": "A0BY1",
@@ -465,8 +470,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 42960,
-          "cost_usd": 0.024172500000000003
+          "ms": 40426,
+          "cost_usd": 0.048943
         },
         {
           "pick": "A0BY1",
@@ -484,8 +489,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 41025,
-          "cost_usd": 0.0749305
+          "ms": 50796,
+          "cost_usd": 0.03869739999999999
         }
       ]
     },
@@ -517,8 +522,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 40216,
-          "cost_usd": 0.10139749999999999
+          "ms": 48341,
+          "cost_usd": 0.079471
         },
         {
           "pick": "A003F",
@@ -536,8 +541,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 44807,
-          "cost_usd": 0.038992599999999995
+          "ms": 42129,
+          "cost_usd": 0.0681855
         },
         {
           "pick": "A003F",
@@ -555,8 +560,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 46253,
-          "cost_usd": 0.026671900000000002
+          "ms": 52412,
+          "cost_usd": 0.040205000000000005
         }
       ]
     },
@@ -588,8 +593,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 31299,
-          "cost_usd": 0.09131
+          "ms": 34173,
+          "cost_usd": 0.0584313
         },
         {
           "pick": "A04KT",
@@ -607,8 +612,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 32746,
-          "cost_usd": 0.022956
+          "ms": 31754,
+          "cost_usd": 0.0489253
         },
         {
           "pick": "A04KT",
@@ -626,8 +631,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 30090,
-          "cost_usd": 0.027492399999999993
+          "ms": 30107,
+          "cost_usd": 0.037933999999999996
         }
       ]
     },
@@ -664,8 +669,8 @@
           "facet_seen": [
             "A07LK"
           ],
-          "ms": 31245,
-          "cost_usd": 0.095083
+          "ms": 28250,
+          "cost_usd": 0.08092099999999999
         },
         {
           "pick": "A04KT",
@@ -687,8 +692,8 @@
           "facet_seen": [
             "A07LK"
           ],
-          "ms": 34119,
-          "cost_usd": 0.0217303
+          "ms": 39463,
+          "cost_usd": 0.0413648
         },
         {
           "pick": "A04KT",
@@ -710,8 +715,8 @@
           "facet_seen": [
             "A07LK"
           ],
-          "ms": 35386,
-          "cost_usd": 0.0210842
+          "ms": 36161,
+          "cost_usd": 0.0214764
         }
       ]
     },
@@ -747,8 +752,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 38396,
-          "cost_usd": 0.0682135
+          "ms": 36912,
+          "cost_usd": 0.066383
         },
         {
           "pick": "A01MH",
@@ -770,8 +775,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 41126,
-          "cost_usd": 0.023399700000000002
+          "ms": 45951,
+          "cost_usd": 0.019909
         },
         {
           "pick": "A01MH",
@@ -793,8 +798,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 41081,
-          "cost_usd": 0.018723899999999998
+          "ms": 31863,
+          "cost_usd": 0.024089
         }
       ]
     },
@@ -819,15 +824,15 @@
           "nature": [],
           "stated": [],
           "process_group": null,
-          "compare_as": "Meel rijst- volkoren",
+          "compare_as": "Meel rijst-",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 59491,
-          "cost_usd": 0.0432916
+          "ms": 38271,
+          "cost_usd": 0.08133000000000001
         },
         {
           "pick": "A003F",
@@ -838,15 +843,15 @@
           "nature": [],
           "stated": [],
           "process_group": null,
-          "compare_as": "Meel rijst- volkoren",
+          "compare_as": "Meel rijst-",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 51225,
-          "cost_usd": 0.08091769999999998
+          "ms": 44362,
+          "cost_usd": 0.0491097
         },
         {
           "pick": "A003F",
@@ -857,15 +862,15 @@
           "nature": [],
           "stated": [],
           "process_group": null,
-          "compare_as": "Meel rijst- volkoren",
+          "compare_as": "Meel rijst-",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 45945,
-          "cost_usd": 0.0665829
+          "ms": 44483,
+          "cost_usd": 0.021660799999999997
         }
       ]
     },
@@ -886,46 +891,19 @@
           "pick_name": "French fries from cut potato",
           "status": "ok",
           "reason": null,
-          "route": "foodstuff",
-          "nature": [
-            "A07GR"
-          ],
-          "stated": [
-            "A07GR"
-          ],
-          "process_group": "A0BYV",
-          "compare_as": "Potato chips, fried in commercial oil, from takeaway fish and chip shops",
+          "route": "dish",
+          "nature": [],
+          "stated": [],
+          "process_group": null,
+          "compare_as": null,
           "base_pass": true,
-          "treatments_pass": true,
+          "treatments_pass": null,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 47225,
-          "cost_usd": 0.0698145
-        },
-        {
-          "pick": "A0BYV",
-          "pick_name": "French fries from cut potato",
-          "status": "ok",
-          "reason": null,
-          "route": "foodstuff",
-          "nature": [
-            "A07GR"
-          ],
-          "stated": [
-            "A07GR"
-          ],
-          "process_group": "A0BYV",
-          "compare_as": "Potato chips, fried in commercial oil, from takeaway fish and chip shops",
-          "base_pass": true,
-          "treatments_pass": true,
-          "new_food_missing": [],
-          "wrongly_new_food": [],
-          "form_lost": [],
-          "facet_seen": [],
-          "ms": 45691,
-          "cost_usd": 0.024822900000000002
+          "ms": 46138,
+          "cost_usd": 0.059453000000000006
         },
         {
           "pick": "A0BYV",
@@ -943,8 +921,31 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 42815,
-          "cost_usd": 0.0548075
+          "ms": 44948,
+          "cost_usd": 0.029286200000000002
+        },
+        {
+          "pick": "A0BYV",
+          "pick_name": "French fries from cut potato",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [
+            "A07GR"
+          ],
+          "stated": [
+            "A07GR"
+          ],
+          "process_group": "A0BYV",
+          "compare_as": "Potato chips, fried in commercial oil, from takeaway fish and chip shops",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 60363,
+          "cost_usd": 0.0772465
         }
       ]
     },
@@ -985,8 +986,8 @@
           "facet_seen": [
             "A07HD"
           ],
-          "ms": 67318,
-          "cost_usd": 0.0608006
+          "ms": 67508,
+          "cost_usd": 0.052981299999999995
         },
         {
           "pick": "A01AZ",
@@ -1012,8 +1013,8 @@
           "facet_seen": [
             "A07HD"
           ],
-          "ms": 60158,
-          "cost_usd": 0.058373799999999997
+          "ms": 57437,
+          "cost_usd": 0.0251095
         },
         {
           "pick": "A01AZ",
@@ -1039,8 +1040,8 @@
           "facet_seen": [
             "A07HD"
           ],
-          "ms": 56484,
-          "cost_usd": 0.035103
+          "ms": 75619,
+          "cost_usd": 0.0309785
         }
       ]
     },
@@ -1069,15 +1070,15 @@
             "A0BYP"
           ],
           "process_group": null,
-          "compare_as": "canned peaches in fruit juice",
+          "compare_as": "canned peaches",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 44199,
-          "cost_usd": 0.125813
+          "ms": 41861,
+          "cost_usd": 0.08047810000000002
         },
         {
           "pick": "A01NY",
@@ -1092,15 +1093,15 @@
             "A0BYP"
           ],
           "process_group": null,
-          "compare_as": "canned peaches in fruit juice",
+          "compare_as": "canned peaches",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 56667,
-          "cost_usd": 0.038102500000000004
+          "ms": 33684,
+          "cost_usd": 0.023458499999999997
         },
         {
           "pick": "A01NY",
@@ -1115,15 +1116,15 @@
             "A0BYP"
           ],
           "process_group": null,
-          "compare_as": "canned peaches in fruit juice",
+          "compare_as": "canned peaches",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 51651,
-          "cost_usd": 0.031477
+          "ms": 30676,
+          "cost_usd": 0.0182341
         }
       ]
     },
@@ -1155,8 +1156,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 76808,
-          "cost_usd": 0.12624080000000001
+          "ms": 81344,
+          "cost_usd": 0.1934248
         },
         {
           "pick": "A0BZ5",
@@ -1174,8 +1175,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 73059,
-          "cost_usd": 0.1355466
+          "ms": 59228,
+          "cost_usd": 0.09890979999999999
         },
         {
           "pick": "A0BZ5",
@@ -1193,8 +1194,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 65731,
-          "cost_usd": 0.16385829999999998
+          "ms": 59619,
+          "cost_usd": 0.11513870000000001
         }
       ]
     },
@@ -1231,8 +1232,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 59514,
-          "cost_usd": 0.0505377
+          "ms": 60970,
+          "cost_usd": 0.12090250000000001
         },
         {
           "pick": "A0FBT",
@@ -1255,8 +1256,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 65247,
-          "cost_usd": 0.06712409999999999
+          "ms": 63530,
+          "cost_usd": 0.0485453
         },
         {
           "pick": "A0FBT",
@@ -1279,8 +1280,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 70694,
-          "cost_usd": 0.0269325
+          "ms": 74415,
+          "cost_usd": 0.0423878
         }
       ]
     },
@@ -1309,15 +1310,15 @@
             "A0BYP"
           ],
           "process_group": null,
-          "compare_as": "sardines in olive oil, canned",
+          "compare_as": "sardines, canned",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 46444,
-          "cost_usd": 0.0840815
+          "ms": 50665,
+          "cost_usd": 0.10354199999999998
         },
         {
           "pick": "A0FBZ",
@@ -1332,15 +1333,15 @@
             "A0BYP"
           ],
           "process_group": null,
-          "compare_as": "sardines in olive oil, canned",
+          "compare_as": "sardines, canned",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 44395,
-          "cost_usd": 0.0225315
+          "ms": 62155,
+          "cost_usd": 0.032720400000000004
         },
         {
           "pick": "A0FBZ",
@@ -1355,15 +1356,15 @@
             "A0BYP"
           ],
           "process_group": null,
-          "compare_as": "sardines in olive oil, canned",
+          "compare_as": "sardines, canned",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 41631,
-          "cost_usd": 0.0224215
+          "ms": 52678,
+          "cost_usd": 0.0332104
         }
       ]
     },
@@ -1399,8 +1400,8 @@
           "facet_seen": [
             "A07KQ"
           ],
-          "ms": 27443,
-          "cost_usd": 0.0542405
+          "ms": 25398,
+          "cost_usd": 0.05842599999999999
         },
         {
           "pick": "A0FCQ",
@@ -1422,8 +1423,8 @@
           "facet_seen": [
             "A07KQ"
           ],
-          "ms": 27777,
-          "cost_usd": 0.013765699999999999
+          "ms": 29715,
+          "cost_usd": 0.015350400000000002
         },
         {
           "pick": "A0FCQ",
@@ -1445,8 +1446,8 @@
           "facet_seen": [
             "A07KQ"
           ],
-          "ms": 28882,
-          "cost_usd": 0.0138357
+          "ms": 23913,
+          "cost_usd": 0.0146304
         }
       ]
     },
@@ -1482,8 +1483,8 @@
           "facet_seen": [
             "A07KQ"
           ],
-          "ms": 28934,
-          "cost_usd": 0.066748
+          "ms": 33874,
+          "cost_usd": 0.0710915
         },
         {
           "pick": "A02EG",
@@ -1505,8 +1506,8 @@
           "facet_seen": [
             "A07KQ"
           ],
-          "ms": 28581,
-          "cost_usd": 0.012788399999999998
+          "ms": 34326,
+          "cost_usd": 0.013331500000000001
         },
         {
           "pick": "A02EG",
@@ -1528,8 +1529,8 @@
           "facet_seen": [
             "A07KQ"
           ],
-          "ms": 32624,
-          "cost_usd": 0.013248399999999997
+          "ms": 31898,
+          "cost_usd": 0.013521499999999999
         }
       ]
     },
@@ -1565,8 +1566,8 @@
           "facet_seen": [
             "A07KQ"
           ],
-          "ms": 26671,
-          "cost_usd": 0.0262109
+          "ms": 51954,
+          "cost_usd": 0.0954437
         },
         {
           "pick": "A07Y0",
@@ -1588,8 +1589,8 @@
           "facet_seen": [
             "A07KQ"
           ],
-          "ms": 26326,
-          "cost_usd": 0.0365885
+          "ms": 32091,
+          "cost_usd": 0.041909600000000005
         },
         {
           "pick": "A07Y0",
@@ -1611,8 +1612,8 @@
           "facet_seen": [
             "A07KQ"
           ],
-          "ms": 25804,
-          "cost_usd": 0.0401565
+          "ms": 52508,
+          "cost_usd": 0.038188599999999996
         }
       ]
     },
@@ -1650,8 +1651,8 @@
           "facet_seen": [
             "A07KP"
           ],
-          "ms": 44342,
-          "cost_usd": 0.0459687
+          "ms": 45754,
+          "cost_usd": 0.061285499999999986
         },
         {
           "pick": "A03AM",
@@ -1674,8 +1675,8 @@
           "facet_seen": [
             "A07KP"
           ],
-          "ms": 43701,
-          "cost_usd": 0.1027223
+          "ms": 52966,
+          "cost_usd": 0.038520399999999996
         },
         {
           "pick": "A03AM",
@@ -1698,8 +1699,8 @@
           "facet_seen": [
             "A07KP"
           ],
-          "ms": 46826,
-          "cost_usd": 0.024169499999999997
+          "ms": 45318,
+          "cost_usd": 0.0729067
         }
       ]
     },
@@ -1736,8 +1737,8 @@
           "facet_seen": [
             "A07KP"
           ],
-          "ms": 37520,
-          "cost_usd": 0.21561899999999998
+          "ms": 41317,
+          "cost_usd": 0.21188
         },
         {
           "pick": "A03AL",
@@ -1759,8 +1760,8 @@
           "facet_seen": [
             "A07KP"
           ],
-          "ms": 36155,
-          "cost_usd": 0.0708823
+          "ms": 40974,
+          "cost_usd": 0.0525916
         },
         {
           "pick": "A03AL",
@@ -1782,8 +1783,8 @@
           "facet_seen": [
             "A07KP"
           ],
-          "ms": 34077,
-          "cost_usd": 0.060615800000000004
+          "ms": 45574,
+          "cost_usd": 0.0627732
         }
       ]
     },
@@ -1820,8 +1821,8 @@
           "facet_seen": [
             "A0BYP"
           ],
-          "ms": 44692,
-          "cost_usd": 0.11762439999999999
+          "ms": 63674,
+          "cost_usd": 0.05349009999999999
         },
         {
           "pick": "A03AM",
@@ -1843,8 +1844,8 @@
           "facet_seen": [
             "A0BYP"
           ],
-          "ms": 48156,
-          "cost_usd": 0.04439000000000001
+          "ms": 54772,
+          "cost_usd": 0.07818739999999999
         },
         {
           "pick": "A03AM",
@@ -1866,8 +1867,8 @@
           "facet_seen": [
             "A0BYP"
           ],
-          "ms": 47761,
-          "cost_usd": 0.0544178
+          "ms": 57209,
+          "cost_usd": 0.0938725
         }
       ]
     },
@@ -1904,8 +1905,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 53802,
-          "cost_usd": 0.0913664
+          "ms": 58335,
+          "cost_usd": 0.1324605
         },
         {
           "pick": "A02BX",
@@ -1927,8 +1928,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 45979,
-          "cost_usd": 0.05467639999999999
+          "ms": 65954,
+          "cost_usd": 0.0404785
         },
         {
           "pick": "A02BX",
@@ -1950,8 +1951,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 55513,
-          "cost_usd": 0.0389576
+          "ms": 67446,
+          "cost_usd": 0.0361953
         }
       ]
     },
@@ -1988,8 +1989,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 31730,
-          "cost_usd": 0.0177981
+          "ms": 46705,
+          "cost_usd": 0.018445999999999997
         },
         {
           "pick": "A00FV",
@@ -2011,8 +2012,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 30466,
-          "cost_usd": 0.018068100000000004
+          "ms": 44939,
+          "cost_usd": 0.078348
         },
         {
           "pick": "A00FV",
@@ -2034,8 +2035,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 29951,
-          "cost_usd": 0.07402249999999999
+          "ms": 46636,
+          "cost_usd": 0.018606
         }
       ]
     },
@@ -2072,8 +2073,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 24818,
-          "cost_usd": 0.17425849999999996
+          "ms": 32553,
+          "cost_usd": 0.15439490000000003
         },
         {
           "pick": "A00RY",
@@ -2095,8 +2096,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 31658,
-          "cost_usd": 0.0440321
+          "ms": 35943,
+          "cost_usd": 0.0688729
         },
         {
           "pick": "A00RY",
@@ -2118,8 +2119,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 26605,
-          "cost_usd": 0.0440921
+          "ms": 36881,
+          "cost_usd": 0.0443973
         }
       ]
     },
@@ -2159,8 +2160,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 46999,
-          "cost_usd": 0.125757
+          "ms": 43975,
+          "cost_usd": 0.0427857
         },
         {
           "pick": "A013C",
@@ -2185,8 +2186,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 40847,
-          "cost_usd": 0.0276942
+          "ms": 49592,
+          "cost_usd": 0.11456279999999999
         },
         {
           "pick": "A013C",
@@ -2211,8 +2212,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 42367,
-          "cost_usd": 0.026724199999999997
+          "ms": 52283,
+          "cost_usd": 0.026848
         }
       ]
     },
@@ -2239,7 +2240,7 @@
             "A07GZ"
           ],
           "process_group": null,
-          "compare_as": "Coley, flesh only",
+          "compare_as": "Coley",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
@@ -2248,8 +2249,8 @@
           "facet_seen": [
             "A07GZ"
           ],
-          "ms": 29619,
-          "cost_usd": 0.091055
+          "ms": 75185,
+          "cost_usd": 0.0632853
         },
         {
           "pick": "A02CF",
@@ -2262,7 +2263,7 @@
             "A07GZ"
           ],
           "process_group": null,
-          "compare_as": "Coley, flesh only",
+          "compare_as": "Coley",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
@@ -2271,8 +2272,8 @@
           "facet_seen": [
             "A07GZ"
           ],
-          "ms": 30295,
-          "cost_usd": 0.0205118
+          "ms": 79545,
+          "cost_usd": 0.0524683
         },
         {
           "pick": "A02CF",
@@ -2285,7 +2286,7 @@
             "A07GZ"
           ],
           "process_group": null,
-          "compare_as": "Coley, flesh only",
+          "compare_as": "Coley",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
@@ -2294,8 +2295,8 @@
           "facet_seen": [
             "A07GZ"
           ],
-          "ms": 28590,
-          "cost_usd": 0.020371800000000002
+          "ms": 69415,
+          "cost_usd": 0.09061549999999999
         }
       ]
     },
@@ -2333,8 +2334,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 42628,
-          "cost_usd": 0.0333029
+          "ms": 32440,
+          "cost_usd": 0.05595
         },
         {
           "pick": "A00ZT",
@@ -2356,8 +2357,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 36806,
-          "cost_usd": 0.0349484
+          "ms": 49642,
+          "cost_usd": 0.026624000000000002
         },
         {
           "pick": "A00ZT",
@@ -2379,8 +2380,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 40513,
-          "cost_usd": 0.0414637
+          "ms": 38173,
+          "cost_usd": 0.012014
         }
       ]
     },
@@ -2418,8 +2419,8 @@
           "facet_seen": [
             "A07LK"
           ],
-          "ms": 34829,
-          "cost_usd": 0.036269
+          "ms": 41810,
+          "cost_usd": 0.11574999999999999
         },
         {
           "pick": "A001D",
@@ -2441,8 +2442,8 @@
           "facet_seen": [
             "A07LK"
           ],
-          "ms": 29988,
-          "cost_usd": 0.0993642
+          "ms": 44217,
+          "cost_usd": 0.024165199999999998
         },
         {
           "pick": "A001D",
@@ -2464,8 +2465,8 @@
           "facet_seen": [
             "A07LK"
           ],
-          "ms": 37803,
-          "cost_usd": 0.0390001
+          "ms": 50762,
+          "cost_usd": 0.0397643
         }
       ]
     },
@@ -2502,8 +2503,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 87381,
-          "cost_usd": 0.23346829999999996
+          "ms": 103834,
+          "cost_usd": 0.35404800000000003
         },
         {
           "pick": "A01RG",
@@ -2525,8 +2526,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 80016,
-          "cost_usd": 0.21465720000000002
+          "ms": 104846,
+          "cost_usd": 0.09262639999999998
         },
         {
           "pick": "A01RG",
@@ -2548,8 +2549,8 @@
           "facet_seen": [
             "A07GL"
           ],
-          "ms": 101326,
-          "cost_usd": 0.1286079
+          "ms": 101140,
+          "cost_usd": 0.0927464
         }
       ]
     },
@@ -2585,8 +2586,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 28225,
-          "cost_usd": 0.0177855
+          "ms": 57063,
+          "cost_usd": 0.061948399999999994
         },
         {
           "pick": "A032B",
@@ -2608,8 +2609,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 39634,
-          "cost_usd": 0.0355263
+          "ms": 52553,
+          "cost_usd": 0.0476534
         },
         {
           "pick": "A032B",
@@ -2631,8 +2632,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 25956,
-          "cost_usd": 0.0518835
+          "ms": 38615,
+          "cost_usd": 0.023359699999999997
         }
       ]
     },
@@ -2650,8 +2651,8 @@
       ],
       "runs": [
         {
-          "pick": "A025T",
-          "pick_name": "Miscellaneous cooked sausages",
+          "pick": "A024G",
+          "pick_name": "Fresh raw sausages",
           "status": "ok",
           "reason": null,
           "route": "foodstuff",
@@ -2662,7 +2663,7 @@
           ],
           "process_group": null,
           "compare_as": "Sausage, pork, chorizo, cooked",
-          "base_pass": false,
+          "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
@@ -2670,8 +2671,32 @@
           "facet_seen": [
             "A07GS"
           ],
-          "ms": 58425,
-          "cost_usd": 0.047996000000000004
+          "ms": 61934,
+          "cost_usd": 0.12400500000000003
+        },
+        {
+          "pick": "A024G",
+          "pick_name": "Fresh raw sausages",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07LA",
+            "A07GS"
+          ],
+          "process_group": null,
+          "compare_as": "Sausage, pork, chorizo",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GS"
+          ],
+          "ms": 52062,
+          "cost_usd": 0.0616449
         },
         {
           "pick": "A024G",
@@ -2694,32 +2719,8 @@
           "facet_seen": [
             "A07GS"
           ],
-          "ms": 82216,
-          "cost_usd": 0.11960080000000001
-        },
-        {
-          "pick": "A025T",
-          "pick_name": "Miscellaneous cooked sausages",
-          "status": "ok",
-          "reason": null,
-          "route": "foodstuff",
-          "nature": [],
-          "stated": [
-            "A07LA",
-            "A07GS"
-          ],
-          "process_group": null,
-          "compare_as": "Sausage, pork, chorizo, cooked",
-          "base_pass": false,
-          "treatments_pass": true,
-          "new_food_missing": [],
-          "wrongly_new_food": [],
-          "form_lost": [],
-          "facet_seen": [
-            "A07GS"
-          ],
-          "ms": 70822,
-          "cost_usd": 0.054070299999999995
+          "ms": 73183,
+          "cost_usd": 0.0823183
         }
       ]
     },
@@ -2755,8 +2756,8 @@
           "facet_seen": [
             "A07GR"
           ],
-          "ms": 34887,
-          "cost_usd": 0.0649819
+          "ms": 43851,
+          "cost_usd": 0.08261750000000001
         },
         {
           "pick": "A00JR",
@@ -2778,8 +2779,8 @@
           "facet_seen": [
             "A07GR"
           ],
-          "ms": 35346,
-          "cost_usd": 0.018435499999999997
+          "ms": 47140,
+          "cost_usd": 0.0173687
         },
         {
           "pick": "A00JR",
@@ -2801,8 +2802,8 @@
           "facet_seen": [
             "A07GR"
           ],
-          "ms": 39405,
-          "cost_usd": 0.0187255
+          "ms": 60785,
+          "cost_usd": 0.0328672
         }
       ]
     },
@@ -2839,8 +2840,8 @@
           "facet_seen": [
             "A07GT"
           ],
-          "ms": 38372,
-          "cost_usd": 0.0556175
+          "ms": 40410,
+          "cost_usd": 0.08754950000000002
         },
         {
           "pick": "A01SP",
@@ -2863,8 +2864,8 @@
           "facet_seen": [
             "A07GT"
           ],
-          "ms": 43661,
-          "cost_usd": 0.05433969999999999
+          "ms": 42303,
+          "cost_usd": 0.0213163
         },
         {
           "pick": "A01SP",
@@ -2887,8 +2888,8 @@
           "facet_seen": [
             "A07GT"
           ],
-          "ms": 39525,
-          "cost_usd": 0.020007700000000003
+          "ms": 46168,
+          "cost_usd": 0.0214663
         }
       ]
     },
@@ -2926,8 +2927,8 @@
           "facet_seen": [
             "A07GM"
           ],
-          "ms": 44013,
-          "cost_usd": 0.19382999999999997
+          "ms": 55374,
+          "cost_usd": 0.1988705
         },
         {
           "pick": "A04AC",
@@ -2950,8 +2951,8 @@
           "facet_seen": [
             "A07GM"
           ],
-          "ms": 56210,
-          "cost_usd": 0.0543636
+          "ms": 57453,
+          "cost_usd": 0.06920399999999999
         },
         {
           "pick": "A04AC",
@@ -2974,8 +2975,8 @@
           "facet_seen": [
             "A07GM"
           ],
-          "ms": 56758,
-          "cost_usd": 0.0557236
+          "ms": 60296,
+          "cost_usd": 0.05511799999999999
         }
       ]
     },
@@ -2993,8 +2994,8 @@
       ],
       "runs": [
         {
-          "pick": "A01QR",
-          "pick_name": "Meat and meat products",
+          "pick": "A01SR",
+          "pick_name": "Duck fresh meat",
           "status": "ok",
           "reason": null,
           "route": "foodstuff",
@@ -3003,8 +3004,8 @@
             "A07GY"
           ],
           "process_group": null,
-          "compare_as": "Duck, meat, fat and skin",
-          "base_pass": false,
+          "compare_as": "Duck",
+          "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
@@ -3012,31 +3013,8 @@
           "facet_seen": [
             "A07GY"
           ],
-          "ms": 49169,
-          "cost_usd": 0.09053950000000001
-        },
-        {
-          "pick": "A01QR",
-          "pick_name": "Meat and meat products",
-          "status": "ok",
-          "reason": null,
-          "route": "foodstuff",
-          "nature": [],
-          "stated": [
-            "A07GY"
-          ],
-          "process_group": null,
-          "compare_as": "Duck, meat, fat and skin",
-          "base_pass": false,
-          "treatments_pass": true,
-          "new_food_missing": [],
-          "wrongly_new_food": [],
-          "form_lost": [],
-          "facet_seen": [
-            "A07GY"
-          ],
-          "ms": 60777,
-          "cost_usd": 0.028815099999999996
+          "ms": 58391,
+          "cost_usd": 0.024760199999999993
         },
         {
           "pick": "A01SR",
@@ -3049,7 +3027,7 @@
             "A07GY"
           ],
           "process_group": null,
-          "compare_as": "Duck, meat, fat and skin",
+          "compare_as": "Duck",
           "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
@@ -3058,8 +3036,31 @@
           "facet_seen": [
             "A07GY"
           ],
-          "ms": 51483,
-          "cost_usd": 0.026055099999999998
+          "ms": 48481,
+          "cost_usd": 0.023600199999999995
+        },
+        {
+          "pick": "A01SR",
+          "pick_name": "Duck fresh meat",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A07GY"
+          ],
+          "process_group": null,
+          "compare_as": "Duck",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [
+            "A07GY"
+          ],
+          "ms": 51820,
+          "cost_usd": 0.024890199999999998
         }
       ]
     },
@@ -3091,8 +3092,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 61067,
-          "cost_usd": 0.033697399999999995
+          "ms": 35056,
+          "cost_usd": 0.03726549999999999
         },
         {
           "pick": "A046F",
@@ -3110,8 +3111,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 43954,
-          "cost_usd": 0.071416
+          "ms": 33870,
+          "cost_usd": 0.015400500000000001
         },
         {
           "pick": "A046F",
@@ -3129,8 +3130,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 52679,
-          "cost_usd": 0.0313624
+          "ms": 51410,
+          "cost_usd": 0.052627
         }
       ]
     },
@@ -3168,8 +3169,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 56704,
-          "cost_usd": 0.1733594
+          "ms": 48859,
+          "cost_usd": 0.18419349999999998
         },
         {
           "pick": "A0FBY",
@@ -3193,8 +3194,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 54897,
-          "cost_usd": 0.0604299
+          "ms": 63988,
+          "cost_usd": 0.0550067
         },
         {
           "pick": "A0FBY",
@@ -3218,8 +3219,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 56939,
-          "cost_usd": 0.0620246
+          "ms": 63429,
+          "cost_usd": 0.054986700000000006
         }
       ]
     },
@@ -3257,8 +3258,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 59651,
-          "cost_usd": 0.10114
+          "ms": 59083,
+          "cost_usd": 0.104572
         },
         {
           "pick": "A0FBV",
@@ -3282,8 +3283,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 63077,
-          "cost_usd": 0.026693199999999997
+          "ms": 73425,
+          "cost_usd": 0.0306216
         },
         {
           "pick": "A0FBV",
@@ -3307,8 +3308,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 63302,
-          "cost_usd": 0.0274332
+          "ms": 59894,
+          "cost_usd": 0.0289116
         }
       ]
     },
@@ -3346,8 +3347,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 70637,
-          "cost_usd": 0.09855549999999998
+          "ms": 64244,
+          "cost_usd": 0.10049200000000001
         },
         {
           "pick": "A0FCB",
@@ -3371,8 +3372,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 70962,
-          "cost_usd": 0.0301703
+          "ms": 61914,
+          "cost_usd": 0.031117199999999998
         },
         {
           "pick": "A0FCB",
@@ -3396,8 +3397,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 90486,
-          "cost_usd": 0.0316003
+          "ms": 67308,
+          "cost_usd": 0.0308772
         }
       ]
     },
@@ -3435,8 +3436,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 107823,
-          "cost_usd": 0.20275800000000005
+          "ms": 91990,
+          "cost_usd": 0.20060200000000003
         },
         {
           "pick": "A034R",
@@ -3459,8 +3460,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 109327,
-          "cost_usd": 0.09839699999999998
+          "ms": 103143,
+          "cost_usd": 0.10047690000000001
         },
         {
           "pick": "A034R",
@@ -3483,8 +3484,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 117682,
-          "cost_usd": 0.096076
+          "ms": 102763,
+          "cost_usd": 0.0954854
         }
       ]
     },
@@ -3501,8 +3502,8 @@
       ],
       "runs": [
         {
-          "pick": "A034R",
-          "pick_name": "Chocolate coated confectionery",
+          "pick": "A014D",
+          "pick_name": "Almonds",
           "status": "ok",
           "reason": null,
           "route": "foodstuff",
@@ -3511,15 +3512,15 @@
             "A07HP"
           ],
           "process_group": "A034R",
-          "compare_as": "chocolate-coated almonds",
-          "base_pass": true,
+          "compare_as": "almonds",
+          "base_pass": false,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 88683,
-          "cost_usd": 0.21971650000000004
+          "ms": 47609,
+          "cost_usd": 0.17214249999999998
         },
         {
           "pick": "A034R",
@@ -3539,8 +3540,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 102645,
-          "cost_usd": 0.10979900000000002
+          "ms": 82865,
+          "cost_usd": 0.22004289999999999
         },
         {
           "pick": "A034R",
@@ -3560,8 +3561,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 107300,
-          "cost_usd": 0.07011450000000001
+          "ms": 82474,
+          "cost_usd": 0.08916169999999997
         }
       ]
     },
@@ -3596,8 +3597,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 76218,
-          "cost_usd": 0.131051
+          "ms": 47570,
+          "cost_usd": 0.13450299999999998
         },
         {
           "pick": "A004G",
@@ -3618,8 +3619,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 68021,
-          "cost_usd": 0.0390946
+          "ms": 50032,
+          "cost_usd": 0.029081399999999997
         },
         {
           "pick": "A004G",
@@ -3640,8 +3641,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 59928,
-          "cost_usd": 0.0259414
+          "ms": 51349,
+          "cost_usd": 0.0300414
         }
       ]
     },
@@ -3677,8 +3678,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 66423,
-          "cost_usd": 0.170456
+          "ms": 65008,
+          "cost_usd": 0.04698999999999999
         },
         {
           "pick": "A001Q",
@@ -3699,8 +3700,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 81821,
-          "cost_usd": 0.0385764
+          "ms": 58788,
+          "cost_usd": 0.17181960000000002
         },
         {
           "pick": "A001Q",
@@ -3721,8 +3722,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 74191,
-          "cost_usd": 0.0378964
+          "ms": 61381,
+          "cost_usd": 0.0403316
         }
       ]
     },
@@ -3756,8 +3757,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 78516,
-          "cost_usd": 0.057194499999999995
+          "ms": 45797,
+          "cost_usd": 0.124624
         },
         {
           "pick": "A001J",
@@ -3777,8 +3778,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 67646,
-          "cost_usd": 0.036398
+          "ms": 46270,
+          "cost_usd": 0.028276
         },
         {
           "pick": "A001J",
@@ -3798,8 +3799,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 60206,
-          "cost_usd": 0.09230769999999999
+          "ms": 49796,
+          "cost_usd": 0.038282199999999995
         }
       ]
     },
@@ -3812,7 +3813,8 @@
       ],
       "open": false,
       "expected_base": [
-        "A001L"
+        "A001L",
+        "A0D9P"
       ],
       "runs": [
         {
@@ -3828,40 +3830,18 @@
           ],
           "process_group": null,
           "compare_as": "Sorghum grain, white, unenriched, dry",
-          "base_pass": false,
+          "base_pass": true,
           "treatments_pass": true,
           "new_food_missing": [],
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 44857,
-          "cost_usd": 0.08961650000000002
+          "ms": 36058,
+          "cost_usd": 0.09385700000000001
         },
         {
           "pick": "A0D9P",
           "pick_name": "Durra grain",
-          "status": "ok",
-          "reason": null,
-          "route": "foodstuff",
-          "nature": [],
-          "stated": [
-            "A0BZV",
-            "A07HS"
-          ],
-          "process_group": null,
-          "compare_as": "Sorghum grain, white, unenriched, dry",
-          "base_pass": false,
-          "treatments_pass": true,
-          "new_food_missing": [],
-          "wrongly_new_food": [],
-          "form_lost": [],
-          "facet_seen": [],
-          "ms": 54455,
-          "cost_usd": 0.022731300000000003
-        },
-        {
-          "pick": "A001L",
-          "pick_name": "Sorghum grain",
           "status": "ok",
           "reason": null,
           "route": "foodstuff",
@@ -3878,8 +3858,30 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 45956,
-          "cost_usd": 0.021121300000000003
+          "ms": 38902,
+          "cost_usd": 0.0229034
+        },
+        {
+          "pick": "A0D9P",
+          "pick_name": "Durra grain",
+          "status": "ok",
+          "reason": null,
+          "route": "foodstuff",
+          "nature": [],
+          "stated": [
+            "A0BZV",
+            "A07HS"
+          ],
+          "process_group": null,
+          "compare_as": "Sorghum grain, white, unenriched, dry",
+          "base_pass": true,
+          "treatments_pass": true,
+          "new_food_missing": [],
+          "wrongly_new_food": [],
+          "form_lost": [],
+          "facet_seen": [],
+          "ms": 46354,
+          "cost_usd": 0.0239934
         }
       ]
     },
@@ -3913,8 +3915,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 83308,
-          "cost_usd": 0.1289525
+          "ms": 48357,
+          "cost_usd": 0.14486200000000002
         },
         {
           "pick": "A03AM",
@@ -3934,8 +3936,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 79611,
-          "cost_usd": 0.05421789999999999
+          "ms": 51743,
+          "cost_usd": 0.041719799999999994
         },
         {
           "pick": "A03AM",
@@ -3955,8 +3957,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 79449,
-          "cost_usd": 0.059529399999999996
+          "ms": 51058,
+          "cost_usd": 0.0551822
         }
       ]
     },
@@ -3998,8 +4000,8 @@
             "A07KQ",
             "A07HV"
           ],
-          "ms": 62720,
-          "cost_usd": 0.0759635
+          "ms": 45682,
+          "cost_usd": 0.07976650000000002
         },
         {
           "pick": "A031R",
@@ -4024,8 +4026,8 @@
             "A07KQ",
             "A07HV"
           ],
-          "ms": 59586,
-          "cost_usd": 0.029533500000000004
+          "ms": 36015,
+          "cost_usd": 0.028270700000000003
         },
         {
           "pick": "A031R",
@@ -4050,8 +4052,8 @@
             "A07KQ",
             "A07HV"
           ],
-          "ms": 55077,
-          "cost_usd": 0.0292764
+          "ms": 42235,
+          "cost_usd": 0.027270500000000003
         }
       ]
     },
@@ -4083,8 +4085,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 26351,
-          "cost_usd": 0.052813
+          "ms": 30241,
+          "cost_usd": 0.0577515
         },
         {
           "pick": "A031G",
@@ -4102,8 +4104,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 25235,
-          "cost_usd": 0.025971599999999997
+          "ms": 27605,
+          "cost_usd": 0.0206875
         },
         {
           "pick": "A031G",
@@ -4121,8 +4123,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 29200,
-          "cost_usd": 0.019167800000000002
+          "ms": 24012,
+          "cost_usd": 0.0196175
         }
       ]
     },
@@ -4157,8 +4159,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 50982,
-          "cost_usd": 0.0538463
+          "ms": 36902,
+          "cost_usd": 0.06736149999999999
         },
         {
           "pick": "A0F6E",
@@ -4178,8 +4180,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 38957,
-          "cost_usd": 0.030570299999999998
+          "ms": 49507,
+          "cost_usd": 0.0232199
         },
         {
           "pick": "A0F6E",
@@ -4199,8 +4201,8 @@
           "wrongly_new_food": [],
           "form_lost": [],
           "facet_seen": [],
-          "ms": 38443,
-          "cost_usd": 0.0234131
+          "ms": 34614,
+          "cost_usd": 0.0204699
         }
       ]
     }

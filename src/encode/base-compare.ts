@@ -6,8 +6,10 @@
  * stated process is taken out of the description the base is matched against
  * and passed on as a treatment, unless a catalogue group that already implies
  * it is this food. The model names the words that state each process, and code
- * cuts them out. The original description is what the facets are read from. A
- * dish or a mix is not handled here.
+ * cuts them out. Separately, the parts the description says the food includes
+ * or leaves out (with skin, drained) are named from the catalogue part list,
+ * cut out the same way, and passed on as parts. The original description is
+ * what the facets are read from. A dish or a mix is not handled here.
  */
 
 import { Catalogue, DEFAULT_HIERARCHY, isInExposureTree } from "../catalogue.js";
@@ -17,6 +19,7 @@ import { chatJson } from "../llm.js";
 import { NEW_FOOD_TREATMENTS } from "../rules/processes.js";
 
 const PROCESS_HIERARCHY = "process";
+const PART_HIERARCHY = "partcon";
 
 /**
  * A process with more groups than this is the broad parent (cooking, chilling).
@@ -44,6 +47,7 @@ interface ImpliedGroup {
 }
 
 let cachedProcessCodes: Set<string> | null = null;
+let cachedPartCodes: Set<string> | null = null;
 let cachedImplied: Map<string, ImpliedGroup[]> | null = null;
 
 /**
@@ -81,6 +85,26 @@ export function processCodes(cat: Catalogue): ReadonlySet<string> {
       .map(([code]) => code)
   );
   return cachedProcessCodes;
+}
+
+/**
+ * Every part term the catalogue still uses, without its headings. A part the
+ * food is only (Only skin, Only peel) names the food itself, so it is left out.
+ */
+export function partCodes(cat: Catalogue): ReadonlySet<string> {
+  if (cachedPartCodes !== null) return cachedPartCodes;
+  cachedPartCodes = new Set(
+    Object.entries(cat.data.terms)
+      .filter(
+        ([code, term]) =>
+          term.status !== "DEPRECATED" &&
+          cat.belongsTo(code, PART_HIERARCHY) &&
+          !isHierarchyTerm(term) &&
+          !(term.name ?? "").startsWith("Only ")
+      )
+      .map(([code]) => code)
+  );
+  return cachedPartCodes;
 }
 
 function impliedIndex(cat: Catalogue): Map<string, ImpliedGroup[]> {
@@ -129,10 +153,11 @@ export function termImpliesProcesses(
 
 export function parseStatedProcesses(
   content: unknown,
-  allowed: ReadonlySet<string>
+  allowed: ReadonlySet<string>,
+  key: "processes" | "parts" = "processes"
 ): StatedProcess[] | null {
   if (content === null || typeof content !== "object") return null;
-  const processes = (content as { processes?: unknown }).processes;
+  const processes = (content as Record<string, unknown>)[key];
   if (!Array.isArray(processes)) return null;
   const out: StatedProcess[] = [];
   const seen = new Set<string>();
@@ -199,6 +224,23 @@ Reply with JSON only:
 An empty list means the description states none of these processes.`;
 }
 
+function systemStatedParts(withCountry: boolean): string {
+  return `You are an expert in food classification.
+
+Task: name which of these parts, if any, the description says the food includes or leaves out, and the words that state each.
+
+Given:
+- \`description\`: the food description.
+- \`parts\`: each has a \`code\` and a \`name\`.
+${countryParagraph(withCountry, "description")}
+For each part, \`phrase\` is the whole run of words from the description that states it. Parts stated together share one phrase. A phrase never includes the words that name the food.
+
+Reply with JSON only:
+{"parts":[{"code":"<code>","phrase":"<text>"}]}
+
+An empty list means the description states none of these parts.`;
+}
+
 function systemProcessGroup(withCountry: boolean): string {
   return `You are an expert in food classification.
 
@@ -227,18 +269,10 @@ export interface BaseCompare {
   treatmentsApplied: string[];
   /** Every treatment found stated: new-food ones first, then the others. */
   statedTreatments: string[];
-}
-
-function unchanged(description: string, detail: Record<string, unknown>): BaseCompare {
-  return {
-    compareAs: description,
-    termTypes: null,
-    processGroup: null,
-    seeds: [],
-    detail: { ...detail, compareAs: description, processGroup: null },
-    treatmentsApplied: [],
-    statedTreatments: [],
-  };
+  /** Words taken out of the description, each stating parts the food includes or leaves out. */
+  partsApplied: string[];
+  /** Every part found stated. */
+  statedParts: string[];
 }
 
 function listedProcesses(
@@ -330,6 +364,22 @@ export function processesToSetAside(
   return stated.filter((process) => !keep.has(process.code));
 }
 
+/** Part phrases to cut, once each. A phrase that overlaps words stating a kept process stays. */
+export function partPhrasesToRemove(
+  parts: readonly StatedProcess[],
+  keptPhrases: readonly string[]
+): string[] {
+  const kept = keptPhrases.map((phrase) => phrase.toLowerCase());
+  const out: string[] = [];
+  for (const part of parts) {
+    if (part.phrase === null || out.includes(part.phrase)) continue;
+    const phrase = part.phrase.toLowerCase();
+    if (kept.some((k) => k.includes(phrase) || phrase.includes(k))) continue;
+    out.push(part.phrase);
+  }
+  return out;
+}
+
 /**
  * The description with each phrase cut out where it occurs, and the phrases
  * that were. A phrase not found as written is left. Empty comma parts are
@@ -365,25 +415,85 @@ export async function resolveBaseCompare(
   const withCountry = country !== null && country !== "";
   const countryField = withCountry ? { country } : {};
 
-  const statedCall = await chatJson({
-    model,
-    system: systemStatedProcesses(withCountry),
-    user: JSON.stringify(
-      { description, ...countryField, processes: listedProcesses(cat, processCodes(cat)) },
-      null,
-      2
-    ),
-  });
+  const [statedCall, partsCall] = await Promise.all([
+    chatJson({
+      model,
+      system: systemStatedProcesses(withCountry),
+      user: JSON.stringify(
+        { description, ...countryField, processes: listedProcesses(cat, processCodes(cat)) },
+        null,
+        2
+      ),
+    }),
+    chatJson({
+      model,
+      system: systemStatedParts(withCountry),
+      user: JSON.stringify(
+        { description, ...countryField, parts: listedProcesses(cat, partCodes(cat)) },
+        null,
+        2
+      ),
+    }),
+  ]);
   const stated = parseStatedProcesses(statedCall.content, processCodes(cat)) ?? [];
-  if (stated.length === 0) {
-    return unchanged(description, {
+  const parts = parseStatedProcesses(partsCall.content, partCodes(cat), "parts") ?? [];
+  const treatments =
+    stated.length > 0
+      ? await resolveTreatments(cat, description, country, withCountry, model, stated)
+      : null;
+
+  const asidePhrases = (treatments?.aside ?? [])
+    .map((process) => process.phrase)
+    .filter((phrase): phrase is string => phrase !== null);
+  const { text: afterTreatments, removed } = removePhrases(description, asidePhrases);
+  const asideCodes = new Set((treatments?.aside ?? []).map((process) => process.code));
+  const keptPhrases = stated
+    .filter((process) => !asideCodes.has(process.code))
+    .map((process) => process.phrase)
+    .filter((phrase): phrase is string => phrase !== null);
+  const partPhrases = partPhrasesToRemove(parts, keptPhrases);
+  const { text: compareAs, removed: partsRemoved } = removePhrases(afterTreatments, partPhrases);
+  const processGroup = treatments?.processGroup ?? null;
+
+  return {
+    compareAs,
+    termTypes: null,
+    processGroup,
+    seeds: processGroup === null ? [] : [processGroup.code],
+    detail: {
       model: statedCall.model,
       parsed: statedCall.content !== null,
-      nature: [],
-      processes: [],
-    });
-  }
+      partsModel: partsCall.model,
+      processes: stated,
+      parts,
+      ...(treatments?.detail ?? { nature: [] }),
+      removed,
+      partsRemoved,
+      processGroup: processGroup?.code ?? null,
+      compareAs,
+    },
+    treatmentsApplied: removed,
+    statedTreatments: treatments?.stated ?? [],
+    partsApplied: partsRemoved,
+    statedParts: parts.map((part) => part.code),
+  };
+}
 
+/** New-food judgement and group choice for the stated processes. */
+async function resolveTreatments(
+  cat: Catalogue,
+  description: string,
+  country: string | null,
+  withCountry: boolean,
+  model: string,
+  stated: readonly StatedProcess[]
+): Promise<{
+  aside: StatedProcess[];
+  processGroup: ProcessGroup | null;
+  stated: string[];
+  detail: Record<string, unknown>;
+}> {
+  const countryField = withCountry ? { country } : {};
   const candidates = newFoodCandidates(cat, stated);
   let nature: StatedProcess[] = [];
   let natureModel: string | null = null;
@@ -432,21 +542,14 @@ export async function resolveBaseCompare(
   }
 
   const aside = processesToSetAside(others, processGroup?.processes ?? []);
-  const { text: compareAs, removed } = removePhrases(
-    description,
-    aside.map((process) => process.phrase).filter((phrase): phrase is string => phrase !== null)
-  );
 
   return {
-    compareAs,
-    termTypes: null,
+    aside,
     processGroup,
-    seeds: processGroup === null ? [] : [processGroup.code],
+    stated: [...nature, ...others].map((process) => process.code),
     detail: {
-      model: statedCall.model,
       ...(natureModel !== null ? { natureModel } : {}),
       ...(groupModel !== null ? { groupModel } : {}),
-      processes: stated,
       newFoodCandidates: candidates.map((candidate) => candidate.code),
       nature: nature.map((process) => process.code),
       natureJudged: natureParts.judged,
@@ -456,11 +559,6 @@ export async function resolveBaseCompare(
       skipped: otherParts.skipped,
       groups: otherParts.groups.map((group) => group.code),
       aside: aside.map((process) => process.code),
-      removed,
-      processGroup: processGroup?.code ?? null,
-      compareAs,
     },
-    treatmentsApplied: removed,
-    statedTreatments: [...nature, ...others].map((process) => process.code),
   };
 }

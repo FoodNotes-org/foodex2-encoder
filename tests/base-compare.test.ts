@@ -8,6 +8,8 @@ import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
 import {
   newFoodCandidates,
+  partCodes,
+  partPhrasesToRemove,
   parseProcessGroup,
   parseStatedProcesses,
   processesToSetAside,
@@ -131,6 +133,48 @@ describe("parseStatedProcesses", () => {
     );
     assert.deepEqual(parseStatedProcesses({ processes: [] }, allowed), []);
     assert.equal(parseStatedProcesses(null, allowed), null);
+  });
+
+  it("reads parts under their own key and drops a process there", () => {
+    assert.deepEqual(
+      parseStatedProcesses(
+        { parts: [{ code: "A07QQ", phrase: "fat and skin" }, { code: "A07HP", phrase: "coated" }] },
+        partCodes(cat),
+        "parts"
+      ),
+      [{ code: "A07QQ", phrase: "fat and skin" }]
+    );
+  });
+});
+
+describe("partPhrasesToRemove", () => {
+  it("cuts a shared phrase once", () => {
+    const parts: StatedProcess[] = [
+      { code: "A07QQ", phrase: "meat, fat and skin" },
+      { code: "A0F4T", phrase: "meat, fat and skin" },
+    ];
+    assert.deepEqual(partPhrasesToRemove(parts, []), ["meat, fat and skin"]);
+  });
+
+  it("keeps words that state a process the description keeps", () => {
+    const parts: StatedProcess[] = [{ code: "A0F1R", phrase: "chocolate-coated" }];
+    assert.deepEqual(partPhrasesToRemove(parts, ["chocolate-coated"]), []);
+  });
+});
+
+describe("part list", () => {
+  const parts = partCodes(cat);
+
+  it("includes parts the food comes with or without: with skin, visible fat, drained", () => {
+    for (const code of ["A07QQ", "A0F4T", "A0F2X", "A07QM"]) {
+      assert.equal(parts.has(code), true, code);
+    }
+  });
+
+  it("leaves out headings and the parts a food is only", () => {
+    for (const code of ["A0F1Q", "A0F1P", "A0F7Q", "A0F7P", "A0F1K", "A0F2V"]) {
+      assert.equal(parts.has(code), false, code);
+    }
   });
 });
 

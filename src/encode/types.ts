@@ -189,6 +189,10 @@ export interface TraverseCollectResult {
   treatmentsApplied: string[];
   /** Every treatment the description was found to state. */
   statedTreatments: string[];
+  /** Words taken out of the description, each stating parts the food includes or leaves out. */
+  partsApplied: string[];
+  /** Every part the description was found to state. */
+  statedParts: string[];
   /**
    * Catalogue term that already implies a Table 22 process and was judged to be
    * this food. Null when the description is not a foodstuff, or no such term fits.

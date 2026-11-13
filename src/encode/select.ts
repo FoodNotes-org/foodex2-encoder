@@ -100,6 +100,8 @@ export interface SelectOptions {
   country?: string | null;
   /** Words taken out of the input, each stating a treatment applied to it. */
   treatments?: readonly string[];
+  /** Words taken out of the input, each stating parts it includes or leaves out. */
+  parts?: readonly string[];
 }
 
 export interface SelectResult {

@@ -132,6 +132,7 @@ function classifyTermEntry(child: TraversalChildView): Record<string, unknown> {
 function buildClassifyUser(
   item: string,
   treatments: readonly string[],
+  parts: readonly string[],
   children: TraversalChildView[],
   parentName: string,
   descriptionKind: DescriptionKind | null,
@@ -141,6 +142,7 @@ function buildClassifyUser(
     {
       item,
       ...(treatments.length > 0 ? { treatments } : {}),
+      ...(parts.length > 0 ? { parts } : {}),
       ...(country !== null ? { country } : {}),
       ...(descriptionKind !== null ? { descriptionKind } : {}),
       parent: parentName,
@@ -226,6 +228,7 @@ async function classifyAllChildren(
   system: string,
   compareAs: string,
   treatments: readonly string[],
+  parts: readonly string[],
   parentName: string,
   descriptionKind: DescriptionKind | null,
   country: string | null,
@@ -237,13 +240,13 @@ async function classifyAllChildren(
     batches.push(children.slice(i, i + CLASSIFY_BATCH_SIZE));
   }
 
-  const parts = await Promise.all(
+  const batchResults = await Promise.all(
     batches.map(async (batch) => {
       const batchAllowed = new Set(batch.map((c) => c.code));
       const classified = await chatJson({
         model,
         system,
-        user: buildClassifyUser(compareAs, treatments, batch, parentName, descriptionKind, country),
+        user: buildClassifyUser(compareAs, treatments, parts, batch, parentName, descriptionKind, country),
         maxTokens: classifyMaxTokens(batch.length),
       });
       const part = parseClassifications(classified.content, batchAllowed, "match", LADDER_LABELS);
@@ -255,13 +258,13 @@ async function classifyAllChildren(
   );
 
   const out = new Map<string, LadderLabel>();
-  for (const { part } of parts) {
+  for (const { part } of batchResults) {
     for (const [code, match] of part) out.set(code, match);
   }
   for (const code of allowed) {
     if (!out.has(code)) out.set(code, "none");
   }
-  return { classifications: out, model: parts[0]?.model ?? model };
+  return { classifications: out, model: batchResults[0]?.model ?? model };
 }
 
 export function parseRoute(
@@ -457,6 +460,8 @@ interface WalkOptions {
   compareAs: string;
   /** Words taken out of the item, each stating a treatment applied to it. */
   treatments: readonly string[];
+  /** Words taken out of the item, each stating parts it includes or leaves out. */
+  parts: readonly string[];
   /** From the route — shapes multi-item ladder wording; never re-asked here. */
   descriptionKind?: DescriptionKind | null;
   /** When set, only these catalogue term types may be collected as candidates. */
@@ -548,6 +553,7 @@ async function walkFromSeeds(
             system,
             options.compareAs,
             options.treatments,
+            options.parts,
             node.parentName,
             descriptionKind,
             options.country,
@@ -730,6 +736,8 @@ export async function collectTraversalCandidates(
   let compareAs = input;
   let treatmentsApplied: string[] = [];
   let statedTreatments: string[] = [];
+  let partsApplied: string[] = [];
+  let statedParts: string[] = [];
   let baseTermTypes: ReadonlySet<string> | null = null;
   let processGroup: TraverseCollectResult["processGroup"] = null;
   let processSeeds: string[] = [];
@@ -738,6 +746,8 @@ export async function collectTraversalCandidates(
     compareAs = compared.compareAs;
     treatmentsApplied = compared.treatmentsApplied;
     statedTreatments = compared.statedTreatments;
+    partsApplied = compared.partsApplied;
+    statedParts = compared.statedParts;
     baseTermTypes = compared.termTypes;
     processGroup = compared.processGroup;
     processSeeds = compared.seeds;
@@ -766,6 +776,7 @@ export async function collectTraversalCandidates(
       system: wholeSystem,
       compareAs,
       treatments: treatmentsApplied,
+      parts: partsApplied,
       ...(descriptionKind !== null ? { descriptionKind } : {}),
       baseTermTypes,
       country,
@@ -812,6 +823,8 @@ export async function collectTraversalCandidates(
     compareAs,
     treatmentsApplied,
     statedTreatments,
+    partsApplied,
+    statedParts,
     processGroup,
     walks: state.walks,
     steps: state.steps,
