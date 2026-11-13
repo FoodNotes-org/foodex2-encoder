@@ -238,6 +238,7 @@ export async function chatJson(options: ChatJsonOptions): Promise<ChatJsonResult
   let maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
   let rateLimitAttempt = 0;
   let creditsRetried = false;
+  let invalidRetried = false;
 
   for (;;) {
     const response = await postChatCompletion({
@@ -289,23 +290,23 @@ export async function chatJson(options: ChatJsonOptions): Promise<ChatJsonResult
     const usage = parseUsage(payload.usage);
     recordUsage(usage);
     const rawText = payload.choices?.[0]?.message?.content?.trim() ?? "";
-    if (rawText === "") {
-      throw new LlmError(
-        "model_response_invalid",
-        `${endpoint} returned an empty message`,
-        response.status
-      );
-    }
-
     let content: unknown;
-    try {
-      content = JSON.parse(rawText);
-    } catch {
-      throw new LlmError(
-        "model_response_invalid",
-        `${endpoint} returned non-JSON: ${rawText.slice(0, 300)}`,
-        response.status
-      );
+    let invalid: string | null = null;
+    if (rawText === "") {
+      invalid = `${endpoint} returned an empty message`;
+    } else {
+      try {
+        content = JSON.parse(rawText);
+      } catch {
+        invalid = `${endpoint} returned non-JSON: ${rawText.slice(0, 300)}`;
+      }
+    }
+    if (invalid !== null) {
+      if (!invalidRetried) {
+        invalidRetried = true;
+        continue;
+      }
+      throw new LlmError("model_response_invalid", invalid, response.status);
     }
 
     return { model, content, rawText, usage };

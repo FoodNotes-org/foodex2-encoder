@@ -5,7 +5,47 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { diffUsage, isProviderInfraReason, LlmError, parseUsage } from "../src/llm.js";
+import { chatJson, diffUsage, isProviderInfraReason, LlmError, parseUsage } from "../src/llm.js";
+
+async function withReplies<T>(replies: string[], fn: () => Promise<T>): Promise<{ result?: T; error?: unknown; calls: number }> {
+  const realFetch = globalThis.fetch;
+  const savedModel = process.env.FOODEX2_MODEL;
+  const savedBase = process.env.FOODEX2_LLM_BASE_URL;
+  process.env.FOODEX2_MODEL = "test-model";
+  process.env.FOODEX2_LLM_BASE_URL = "http://llm.test";
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    const content = replies[Math.min(calls, replies.length - 1)];
+    calls += 1;
+    return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    return { result: await fn(), calls };
+  } catch (error) {
+    return { error, calls };
+  } finally {
+    globalThis.fetch = realFetch;
+    if (savedModel === undefined) delete process.env.FOODEX2_MODEL;
+    else process.env.FOODEX2_MODEL = savedModel;
+    if (savedBase === undefined) delete process.env.FOODEX2_LLM_BASE_URL;
+    else process.env.FOODEX2_LLM_BASE_URL = savedBase;
+  }
+}
+
+describe("invalid model replies", () => {
+  it("asks again once after an empty or non-JSON reply", async () => {
+    const run = await withReplies(["not json", '{"ok":true}'], () => chatJson({ system: "s", user: "u" }));
+    assert.equal(run.calls, 2);
+    assert.deepEqual(run.result?.content, { ok: true });
+  });
+
+  it("gives up after the second invalid reply", async () => {
+    const run = await withReplies(["", "still not json"], () => chatJson({ system: "s", user: "u" }));
+    assert.equal(run.calls, 2);
+    assert.ok(run.error instanceof LlmError);
+    assert.equal((run.error as LlmError).kind, "model_response_invalid");
+  });
+});
 
 describe("LlmError / infra reasons", () => {
   it("flags credits, rate limit, unavailable as infra", () => {
