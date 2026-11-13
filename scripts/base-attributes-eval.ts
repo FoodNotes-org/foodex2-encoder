@@ -3,10 +3,14 @@
  * encodes, several runs per case, scored on the treatment judgements and the
  * base picked.
  *
- *   npm run base-eval [-- --runs 3 --concurrency 12 --only id,id]
+ *   npm run base-eval [-- --runs 3 --concurrency 12 --only id,id --full]
+ *
+ * --full runs the whole encode, facets included, and also scores the process
+ * and part facets of each code against the case's `facets`.
  *
  * Needs a configured model (see README Setup).
- * On a complete run of every case, writes eval/results/base-attributes.json.
+ * On a complete run of every case, writes eval/results/base-attributes.json,
+ * or base-attributes-full.json for --full.
  */
 
 import { execSync } from "node:child_process";
@@ -32,6 +36,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CASES_PATH = join(ROOT, "eval", "base-attributes.yaml");
 const RULES_PATH = join(ROOT, "rules", "base-term.yaml");
 const RESULTS_PATH = join(ROOT, "eval", "results", "base-attributes.json");
+const FULL_RESULTS_PATH = join(ROOT, "eval", "results", "base-attributes-full.json");
 const RULE = "-".repeat(100);
 
 interface RunResult extends BaseAttributeFacts, BaseAttributeCheck {
@@ -89,12 +94,17 @@ function validate(cat: Catalogue, cases: BaseAttributeCase[]): void {
   if (problems.length > 0) throw new Error(`Fixture problems:\n  ${problems.join("\n  ")}`);
 }
 
-async function runOnce(cat: Catalogue, c: BaseAttributeCase, run: number): Promise<RunResult> {
+async function runOnce(
+  cat: Catalogue,
+  c: BaseAttributeCase,
+  run: number,
+  full: boolean
+): Promise<RunResult> {
   const started = performance.now();
   const { result, usage } = await withUsageScope(() =>
-    encodeBaseTerm(c.input, { baseOnly: true, country: c.country })
+    encodeBaseTerm(c.input, { baseOnly: !full, country: c.country })
   );
-  const facts = factsFromEncode(result);
+  const facts = factsFromEncode(result, full);
   return {
     run,
     ms: Math.round(performance.now() - started),
@@ -114,13 +124,13 @@ function tally(values: string[]): string {
     .join(" ");
 }
 
-function ratio(runs: RunResult[], key: "basePass" | "treatmentsPass"): string {
+function ratio(runs: RunResult[], key: "basePass" | "treatmentsPass" | "facetsPass"): string {
   const judged = runs.filter((r) => r[key] !== null);
   if (judged.length === 0) return "n/a";
   return `${judged.filter((r) => r[key] === true).length}/${judged.length}`;
 }
 
-function printCase(c: BaseAttributeCase, runs: RunResult[]): void {
+function printCase(c: BaseAttributeCase, runs: RunResult[], full: boolean): void {
   const mark = c.open ? "OPEN" : runs.every((r) => r.basePass) ? "PASS" : "FAIL";
   console.log(
     [
@@ -128,12 +138,22 @@ function printCase(c: BaseAttributeCase, runs: RunResult[]): void {
       mark.padEnd(6),
       `base ${ratio(runs, "basePass")}`.padEnd(11),
       `treat ${ratio(runs, "treatmentsPass")}`.padEnd(12),
+      ...(full ? [`facets ${ratio(runs, "facetsPass")}`.padEnd(13)] : []),
       `picks ${tally(runs.map((r) => r.pick ?? r.reason ?? r.status))}`,
     ].join("")
   );
-  const quiet = !c.open && runs.every((r) => r.basePass && r.treatmentsPass !== false);
+  const quiet =
+    !c.open && runs.every((r) => r.basePass && r.treatmentsPass !== false && r.facetsPass !== false);
   if (quiet) return;
   console.log(`    input: ${c.input} (${c.country}); expected ${c.base.join("|")}`);
+  if (full && c.facets !== null) {
+    console.log(`    facets expected: ${c.facets.join(", ") || "none"}`);
+    const facetsMissing = tally(runs.flatMap((r) => r.facetsMissing));
+    const facetsExtra = tally(runs.flatMap((r) => r.facetsExtra));
+    if (facetsMissing) console.log(`    facets missing: ${facetsMissing}`);
+    if (facetsExtra) console.log(`    facets extra: ${facetsExtra}`);
+    console.log(`    codes: ${tally(runs.map((r) => r.code ?? r.reason ?? r.status))}`);
+  }
   const missing = tally(runs.flatMap((r) => r.newFoodMissing));
   const wrong = tally(runs.flatMap((r) => r.wronglyNewFood));
   const lost = tally(runs.flatMap((r) => r.formLost));
@@ -154,12 +174,18 @@ interface Score {
   cases: number;
   treatPass: number;
   treatRuns: number;
+  facetPass: number;
+  facetRuns: number;
+  /** Expected process and part facets missing, and unexpected ones present, summed over runs. */
+  facetsMissing: number;
+  facetsExtra: number;
 }
 
 function score(entries: Array<[BaseAttributeCase, RunResult[]]>): Score {
   const scored = entries.filter(([c]) => !c.open);
   const runs = scored.flatMap(([, rs]) => rs);
   const treated = runs.filter((r) => r.treatmentsPass !== null);
+  const faceted = runs.filter((r) => r.facetsPass !== null);
   return {
     basePass: runs.filter((r) => r.basePass).length,
     baseRuns: runs.length,
@@ -167,13 +193,21 @@ function score(entries: Array<[BaseAttributeCase, RunResult[]]>): Score {
     cases: scored.length,
     treatPass: treated.filter((r) => r.treatmentsPass === true).length,
     treatRuns: treated.length,
+    facetPass: faceted.filter((r) => r.facetsPass === true).length,
+    facetRuns: faceted.length,
+    facetsMissing: faceted.reduce((n, r) => n + r.facetsMissing.length, 0),
+    facetsExtra: faceted.reduce((n, r) => n + r.facetsExtra.length, 0),
   };
 }
 
 function formatScore(s: Score): string {
+  const facets =
+    s.facetRuns > 0
+      ? `; facets ${s.facetPass}/${s.facetRuns} runs (${s.facetsMissing} missing, ${s.facetsExtra} extra)`
+      : "";
   return (
     `base ${s.basePass}/${s.baseRuns} runs, ${s.stableCases}/${s.cases} cases every run;` +
-    ` treatments ${s.treatPass}/${s.treatRuns} runs`
+    ` treatments ${s.treatPass}/${s.treatRuns} runs${facets}`
   );
 }
 
@@ -183,6 +217,8 @@ async function main(): Promise<void> {
   const runs = positiveInt(argv, "--runs", 3);
   const concurrency = positiveInt(argv, "--concurrency", 12);
   const only = arg(argv, "--only")?.split(",").map((s) => s.trim());
+  const full = argv.includes("--full");
+  const resultsPath = full ? FULL_RESULTS_PATH : RESULTS_PATH;
 
   const cat = Catalogue.load();
   const all = loadBaseAttributeCases(CASES_PATH);
@@ -191,7 +227,7 @@ async function main(): Promise<void> {
   if (cases.length === 0) throw new Error("No cases selected");
   const model = defaultModel();
   console.log(
-    `Base attribute eval (${cases.length} cases × ${runs} runs, MTX v${cat.version}, model ${model})\n`
+    `Base attribute eval${full ? ", full encode" : ""} (${cases.length} cases × ${runs} runs, MTX v${cat.version}, model ${model})\n`
   );
 
   const jobs = cases.flatMap((c) => Array.from({ length: runs }, (_, run) => ({ c, run })));
@@ -202,7 +238,7 @@ async function main(): Promise<void> {
   async function worker(): Promise<void> {
     while (!stoppedForInfra && next < jobs.length) {
       const { c, run } = jobs[next++]!;
-      const r = await runOnce(cat, c, run);
+      const r = await runOnce(cat, c, run, full);
       results.get(c.id)!.push(r);
       done += 1;
       console.log(`[${done}/${jobs.length}] ${c.id}#${run + 1} → ${r.pick ?? r.reason} (${r.ms} ms)`);
@@ -219,7 +255,7 @@ async function main(): Promise<void> {
     RunResult[],
   ]);
   console.log("");
-  for (const [c, rs] of entries) printCase(c, rs);
+  for (const [c, rs] of entries) printCase(c, rs, full);
   console.log(RULE);
   const overall = score(entries);
   console.log(`Overall: ${formatScore(overall)}`);
@@ -253,6 +289,7 @@ async function main(): Promise<void> {
       git_commit: git.commit,
       uncommitted_src: git.dirty,
       runs,
+      full,
     },
     summary: { overall, by_family: byFamily, total_cost_usd: priced.length > 0 ? Number(cost.toFixed(4)) : null },
     cases: entries.map(([c, rs]) => ({
@@ -262,6 +299,7 @@ async function main(): Promise<void> {
       families: c.families,
       open: c.open,
       expected_base: c.base,
+      ...(full ? { expected_facets: c.facets } : {}),
       runs: rs.map((r) => ({
         pick: r.pick,
         pick_name: r.pickName,
@@ -278,14 +316,23 @@ async function main(): Promise<void> {
         wrongly_new_food: r.wronglyNewFood,
         form_lost: r.formLost,
         facet_seen: r.facetSeen,
+        ...(full
+          ? {
+              code: r.code,
+              facets: r.facets,
+              facets_pass: r.facetsPass,
+              facets_missing: r.facetsMissing,
+              facets_extra: r.facetsExtra,
+            }
+          : {}),
         ms: r.ms,
         cost_usd: r.costUsd,
       })),
     })),
   };
-  mkdirSync(dirname(RESULTS_PATH), { recursive: true });
-  writeFileSync(RESULTS_PATH, `${JSON.stringify(payload, null, 2)}\n`);
-  console.log(`Wrote ${RESULTS_PATH}`);
+  mkdirSync(dirname(resultsPath), { recursive: true });
+  writeFileSync(resultsPath, `${JSON.stringify(payload, null, 2)}\n`);
+  console.log(`Wrote ${resultsPath}`);
 }
 
 main().catch((err: unknown) => {

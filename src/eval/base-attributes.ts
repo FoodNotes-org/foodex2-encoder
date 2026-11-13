@@ -4,7 +4,8 @@
  * words that show form, and land on the expected base?
  *
  * Facts come from the encode audit (route, base_compare, process_group), so a
- * run is one base-only encode.
+ * run is one base-only encode. A full encode also scores the process and part
+ * facets of the code against the case's `facets`.
  */
 
 import type { Catalogue } from "../catalogue.js";
@@ -12,6 +13,9 @@ import type { AuditEntry, EncodeResult } from "../encode/types.js";
 import { bool, codeList, list, loadCaseRecords, requiredText, text } from "./cases.js";
 
 const PROCESS_HIERARCHY = "process";
+
+/** The facets a full encode is scored on, each with the hierarchy that orders its terms. */
+const SCORED_FACETS: Readonly<Record<string, string>> = { F28: PROCESS_HIERARCHY, F20: "partcon" };
 
 export interface BaseAttributeCase {
   id: string;
@@ -27,8 +31,23 @@ export interface BaseAttributeCase {
   facetOnly: string[];
   misread: string[];
   form: string[];
+  /** Process and part facets (`F28.CODE`, `F20.CODE`) the full code must carry; null when the case sets none. */
+  facets: string[] | null;
   open: boolean;
   note?: string;
+}
+
+function expectedFacets(rec: Parameters<typeof codeList>[0]): string[] | null {
+  const raw = codeList(rec, "facets");
+  if (raw === undefined) return null;
+  if (raw.length === 1 && raw[0] === "NONE") return [];
+  for (const facet of raw) {
+    const header = facet.split(".")[0] ?? "";
+    if (!(header in SCORED_FACETS) || facet.split(".").length !== 2) {
+      throw new Error(`case ${String(rec.id)}: facets entry ${facet} must be F28.CODE or F20.CODE`);
+    }
+  }
+  return raw;
 }
 
 export function loadBaseAttributeCases(path: string): BaseAttributeCase[] {
@@ -50,6 +69,7 @@ export function loadBaseAttributeCases(path: string): BaseAttributeCase[] {
       facetOnly: codeList(rec, "facet_only") ?? [],
       misread: codeList(rec, "misread") ?? [],
       form: (list(rec, "form") ?? []).map((word) => word.toLowerCase()),
+      facets: expectedFacets(rec),
       open: bool(rec, "open") ?? false,
       note: text(rec, "note"),
     };
@@ -64,6 +84,7 @@ export function caseCodes(c: BaseAttributeCase): string[] {
     ...c.newFood.flatMap((entry) => entry.split("|")),
     ...c.facetOnly,
     ...c.misread,
+    ...(c.facets ?? []).map((facet) => facet.split(".")[1]!),
   ];
 }
 
@@ -83,6 +104,10 @@ export interface BaseAttributeFacts {
   compareAs: string | null;
   /** Words taken out of the description and passed to the classifier as treatments applied. */
   removed: string[];
+  /** Process and part facets of the full code as `Fxx.CODE`; null for a base-only encode. */
+  facets: string[] | null;
+  /** The full code; null for a base-only encode or a rejection. */
+  code: string | null;
 }
 
 function auditDetail(audit: readonly AuditEntry[], step: string): Record<string, unknown> | null {
@@ -103,12 +128,20 @@ function codesOf(value: unknown): string[] {
     .filter((code): code is string => code !== null);
 }
 
-export function factsFromEncode(result: EncodeResult): BaseAttributeFacts {
+export function factsFromEncode(result: EncodeResult, full = false): BaseAttributeFacts {
   const audit = result.audit ?? [];
   const route = auditDetail(audit, "route");
   const compare = auditDetail(audit, "base_compare");
   const ok = result.status === "ok";
+  const facets =
+    full && ok
+      ? (result.facets ?? [])
+          .filter((facet) => facet.header in SCORED_FACETS)
+          .map((facet) => `${facet.header}.${facet.code}`)
+      : null;
   return {
+    facets,
+    code: full && ok ? (result.code ?? null) : null,
     status: result.status,
     reason: !ok && "reason" in result ? result.reason : null,
     pick: ok ? (result.baseTerm?.code ?? null) : null,
@@ -152,6 +185,37 @@ export interface BaseAttributeCheck {
   formLost: string[];
   /** facet_only treatments recognised by any treatment step. */
   facetSeen: string[];
+  /** Expected process and part facets the code lacks. */
+  facetsMissing: string[];
+  /** Process and part facets in the code that no expected facet accounts for. */
+  facetsExtra: string[];
+  /** Null when the run was base-only or the case sets no `facets`. */
+  facetsPass: boolean | null;
+}
+
+/** Same facet, and the got term is the expected one or a narrower one. */
+function facetAtOrUnder(cat: Catalogue, expected: string, got: string): boolean {
+  const [eh, ec] = expected.split(".");
+  const [gh, gc] = got.split(".");
+  if (eh !== gh || ec === undefined || gc === undefined) return false;
+  return gc === ec || cat.isAncestor(ec, gc, SCORED_FACETS[eh!]!);
+}
+
+export function checkFacets(
+  cat: Catalogue,
+  expected: readonly string[] | null,
+  got: readonly string[] | null
+): Pick<BaseAttributeCheck, "facetsMissing" | "facetsExtra" | "facetsPass"> {
+  if (expected === null || got === null) {
+    return { facetsMissing: [], facetsExtra: [], facetsPass: null };
+  }
+  const facetsMissing = expected.filter((e) => !got.some((g) => facetAtOrUnder(cat, e, g)));
+  const facetsExtra = got.filter((g) => !expected.some((e) => facetAtOrUnder(cat, e, g)));
+  return {
+    facetsMissing,
+    facetsExtra,
+    facetsPass: facetsMissing.length === 0 && facetsExtra.length === 0,
+  };
 }
 
 export function checkRun(
@@ -182,5 +246,13 @@ export function checkRun(
     ? newFoodMissing.length === 0 && wronglyNewFood.length === 0 && formLost.length === 0
     : null;
 
-  return { basePass, treatmentsPass, newFoodMissing, wronglyNewFood, formLost, facetSeen };
+  return {
+    basePass,
+    treatmentsPass,
+    newFoodMissing,
+    wronglyNewFood,
+    formLost,
+    facetSeen,
+    ...checkFacets(cat, c.facets, facts.facets),
+  };
 }

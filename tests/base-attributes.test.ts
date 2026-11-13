@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
 import {
+  checkFacets,
   checkRun,
   loadBaseAttributeCases,
   type BaseAttributeCase,
@@ -25,6 +26,7 @@ function kase(over: Partial<BaseAttributeCase>): BaseAttributeCase {
     facetOnly: [],
     misread: [],
     form: [],
+    facets: null,
     open: false,
     ...over,
   };
@@ -43,6 +45,8 @@ function facts(over: Partial<BaseAttributeFacts>): BaseAttributeFacts {
     processGroup: null,
     compareAs: null,
     removed: [],
+    facets: null,
+    code: null,
     ...over,
   };
 }
@@ -50,6 +54,32 @@ function facts(over: Partial<BaseAttributeFacts>): BaseAttributeFacts {
 test("fixture loads", () => {
   const cases = loadBaseAttributeCases(join(import.meta.dirname, "..", "eval", "base-attributes.yaml"));
   assert.ok(cases.length > 40);
+  assert.ok(cases.every((c) => c.facets !== null));
+  assert.deepEqual(cases.find((c) => c.id === "cofid-duck-roasted")?.facets, [
+    "F28.A07GY",
+    "F20.A07QQ",
+    "F20.A0F4T",
+  ]);
+  assert.deepEqual(cases.find((c) => c.id === "new-smoked-salmon")?.facets, []);
+});
+
+test("facets: a narrower process satisfies the expected one, an unrelated one is extra", () => {
+  const check = checkFacets(cat, ["F28.A07GG"], ["F28.A07GL", "F20.A0F1S"]);
+  assert.deepEqual(check.facetsMissing, []);
+  assert.deepEqual(check.facetsExtra, ["F20.A0F1S"]);
+  assert.equal(check.facetsPass, false);
+});
+
+test("facets: a broader process does not satisfy a narrower expected one", () => {
+  const check = checkFacets(cat, ["F28.A07GL"], ["F28.A07GG"]);
+  assert.deepEqual(check.facetsMissing, ["F28.A07GL"]);
+  assert.deepEqual(check.facetsExtra, ["F28.A07GG"]);
+});
+
+test("facets: not scored for a base-only run or a case without facets", () => {
+  assert.equal(checkFacets(cat, ["F28.A07GL"], null).facetsPass, null);
+  assert.equal(checkFacets(cat, null, ["F28.A07GL"]).facetsPass, null);
+  assert.equal(checkFacets(cat, [], []).facetsPass, true);
 });
 
 test("a broader treatment judged new food counts against a facet-only boiling", () => {
