@@ -27,6 +27,7 @@ function kase(over: Partial<BaseAttributeCase>): BaseAttributeCase {
     misread: [],
     form: [],
     facets: null,
+    facetsAllowed: [],
     open: false,
     ...over,
   };
@@ -74,6 +75,11 @@ test("facets: a broader process does not satisfy a narrower expected one", () =>
   const check = checkFacets(cat, ["F28.A07GL"], ["F28.A07GG"]);
   assert.deepEqual(check.facetsMissing, ["F28.A07GL"]);
   assert.deepEqual(check.facetsExtra, ["F28.A07GG"]);
+});
+
+test("facets: an allowed facet is neither extra nor required", () => {
+  assert.equal(checkFacets(cat, ["F28.A07GS"], ["F28.A07GS", "F28.A07LA"], ["F28.A07LA"]).facetsPass, true);
+  assert.equal(checkFacets(cat, ["F28.A07GS"], ["F28.A07GS"], ["F28.A07LA"]).facetsPass, true);
 });
 
 test("facets: not scored for a base-only run or a case without facets", () => {

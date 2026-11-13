@@ -131,6 +131,10 @@ function ratio(runs: RunResult[], key: "basePass" | "treatmentsPass" | "facetsPa
 }
 
 function printCase(c: BaseAttributeCase, runs: RunResult[], full: boolean): void {
+  if (runs.length === 0) {
+    console.log(`${c.id.padEnd(36)}NOT RUN`);
+    return;
+  }
   const mark = c.open ? "OPEN" : runs.every((r) => r.basePass) ? "PASS" : "FAIL";
   console.log(
     [
@@ -182,7 +186,7 @@ interface Score {
 }
 
 function score(entries: Array<[BaseAttributeCase, RunResult[]]>): Score {
-  const scored = entries.filter(([c]) => !c.open);
+  const scored = entries.filter(([c, rs]) => !c.open && rs.length > 0);
   const runs = scored.flatMap(([, rs]) => rs);
   const treated = runs.filter((r) => r.treatmentsPass !== null);
   const faceted = runs.filter((r) => r.facetsPass !== null);

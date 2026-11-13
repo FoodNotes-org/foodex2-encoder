@@ -26,6 +26,7 @@
 #                beyond those the base term implies; none = expect no others.
 #                Scored only by a full encode. "Raw" is not expected on a raw
 #                commodity, nor on a product that was heat-treated
+#   facets_allowed  process and part facets the code may carry, not required
 #   open         true = expected base is undecided; reported, not scored
 #   note         rationale
 
@@ -318,7 +319,8 @@ cases:
     new_food: A07KG
     facet_only: A07GL
     facets: F28.A07GL
-    note: Black gram (dry seeds) implies drying; boiling stays a facet.
+    facets_allowed: F20.A07QY
+    note: Black gram (dry seeds) implies drying; boiling stays a facet. Its scope note leaves the part consumed unspecified, and whole urad is the unsplit bean with its skin, so With husks may be coded for "whole" (2026-11-13).
 
   - id: cofid-coley-grilled
     input: Coley, flesh only, grilled
@@ -329,6 +331,8 @@ cases:
     base: A02CF
     facet_only: A07GZ
     facets: F28.A07GZ, F20.A07QR, F20.A07QM
+    facets_allowed: F20.A07QP
+    note: Flesh only also leaves out the entrails, so W/o entrails is true but not required (2026-11-13).
 
   - id: new-potatoes-boiled
     input: potatoes, boiled
@@ -387,7 +391,8 @@ cases:
     forbid_base: A025J
     facet_only: A07GS
     facets: F28.A07GS
-    note: US ground chorizo is fresh and not cured, and is cooked before eating. Pan-frying is a kitchen treatment, not cooking during production (Jorn, 2026-11-12).
+    facets_allowed: F28.A07LA
+    note: US ground chorizo is fresh and not cured, and is cooked before eating. Pan-frying is a kitchen treatment, not cooking during production (Jorn, 2026-11-12). "Ground" may be coded as Grinding beside the implied Mincing, or left to the base (Jorn, 2026-11-13).
 
   - id: cofid-courgette-fried
     input: Courgette, fried in corn oil

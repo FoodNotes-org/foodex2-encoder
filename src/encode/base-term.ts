@@ -11,6 +11,7 @@ import { searchTerms } from "../search/lexical.js";
 import { isProviderInfraReason, LlmError } from "../llm.js";
 import { formatFoodEx2Code } from "./foodex2-code.js";
 import { evaluateLexicalAccept } from "./lexical-accept.js";
+import type { NamedFacets } from "./base-compare.js";
 import { assignResiduals } from "./residuals.js";
 import { scoreTraversalCandidates } from "./select.js";
 import { collectTraversalCandidates } from "./traverse.js";
@@ -52,7 +53,8 @@ async function withFacets(
   base: Omit<EncodeOk, "facets" | "freeText" | "code">,
   options: EncodeBaseTermOptions,
   country: string | null,
-  minorFoods?: string[]
+  minorFoods?: string[],
+  named?: NamedFacets | null
 ): Promise<EncodeResult> {
   if (options.baseOnly) {
     return {
@@ -72,6 +74,7 @@ async function withFacets(
       country,
       ...(minorFoods !== undefined && minorFoods.length > 0 ? { minorFoods } : {}),
       ...(options.facetSlots === false ? { facetSlots: false } : {}),
+      ...(named !== undefined && named !== null ? { named } : {}),
     });
     base.audit.push(...assigned.audit);
     if (assigned.status === "rejected") {
@@ -244,7 +247,7 @@ export async function encodeBaseTerm(
       walks: collected.walks,
       steps: collected.steps,
     });
-    return withFacets(input, base, options, country, selection.minorFoods);
+    return withFacets(input, base, options, country, selection.minorFoods, collected.named);
   } catch (err: unknown) {
     return rejectFromError(err, audit);
   }

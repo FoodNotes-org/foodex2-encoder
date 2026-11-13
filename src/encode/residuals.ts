@@ -65,6 +65,7 @@ import {
   parseNumericContent,
   type NumericContentClaim,
 } from "./numeric-facets.js";
+import type { NamedFacets } from "./base-compare.js";
 import type {
   AuditEntry,
   BaseTermRef,
@@ -87,6 +88,7 @@ const F04 = "F04";
 const F26 = "F26";
 const F27 = "F27";
 const F28 = "F28";
+const F20 = "F20";
 /** Process facet "Raw, no heat treatment". Redundant on a raw primary commodity. */
 const RAW_NO_HEAT = "A07HS";
 const F21 = "F21";
@@ -615,6 +617,12 @@ export interface AssignResidualsOptions {
    * False keeps the legacy residual path. Default true on this branch.
    */
   facetSlots?: boolean;
+  /**
+   * A foodstuff's stated processes (F28) and parts (F20), already named from
+   * the full lists. They are placed as given; attributes do not search those
+   * facets again.
+   */
+  named?: NamedFacets;
 }
 
 export interface AssignResidualsOk {
@@ -671,6 +679,8 @@ interface PlaceContext {
   minorFoods: readonly string[];
   /** Facet keys kept beside a more precise source. Inclusion may not drop them. */
   protectedFacets: Set<string>;
+  /** Stated processes and parts named before placement; null when not given. */
+  named: NamedFacets | null;
 }
 
 function walkFood(ctx: PlaceContext): FacetWalkFood {
@@ -2673,6 +2683,17 @@ export function dropIncludedDescriptors(
   return { facets: kept, dropped };
 }
 
+/**
+ * A part (F20) may state what a process (F28) or a quality (F10) already says.
+ * When a part is recorded, each of these may be left out.
+ */
+export function partOverlapKeys(facets: readonly FacetDescriptorRef[]): string[] {
+  if (!facets.some((facet) => facet.header === F20)) return [];
+  return facets
+    .filter((facet) => facet.header === F20 || facet.header === F28 || facet.header === F10)
+    .map((facet) => recordedKey(facet));
+}
+
 async function askIncludedFacets(
   ctx: PlaceContext,
   facets: FacetDescriptorRef[]
@@ -2683,6 +2704,9 @@ async function askIncludedFacets(
     for (const process of pair.processes) {
       if (!ctx.protectedFacets.has(process.code)) varying.add(process.code);
     }
+  }
+  for (const key of partOverlapKeys(facets)) {
+    if (!ctx.protectedFacets.has(key)) varying.add(key);
   }
   if (varying.size === 0) return null;
   const labelled = facets
@@ -3733,7 +3757,10 @@ async function collectSlotCandidates(
   const walkAccept = (header: string, code: string): boolean =>
     acceptClosedDescriptor(ctx.cat, header, code, ctx.implied) === "keep";
 
-  const picked = await pickFacets(ctx.cat, phrase, facetDimensions(ctx.cat), [], {
+  const dimensions = facetDimensions(ctx.cat).filter(
+    (dimension) => ctx.named === null || (dimension.header !== F28 && dimension.header !== F20)
+  );
+  const picked = await pickFacets(ctx.cat, phrase, dimensions, [], {
     model: ctx.model,
     accept: walkAccept,
     food,
@@ -3789,6 +3816,49 @@ async function collectSlotCandidates(
   return { candidates, attempts };
 }
 
+function namedPhrases(ctx: PlaceContext): string[] {
+  if (ctx.named === null) return [];
+  return [...ctx.named.processes, ...ctx.named.parts]
+    .map((item) => item.phrase)
+    .filter((phrase): phrase is string => phrase !== null && phrase.trim() !== "");
+}
+
+/** An attribute no facet records. Words that share a named process or part are not repeated as free text. */
+function unplacedAttribute(ctx: PlaceContext, phrase: string): void {
+  const overlaps = namedPhrases(ctx).some(
+    (named) => wordsWithin(named, phrase) || wordsWithin(phrase, named)
+  );
+  if (!overlaps) pushFreeText(ctx.freeText, "attribute", phrase);
+}
+
+/**
+ * Places the processes and parts named before placement. A descriptor the
+ * base term already carries, or one broader than it, is not added.
+ */
+function placeNamedFacets(ctx: PlaceContext, audit: AuditEntry[]): void {
+  if (ctx.named === null) return;
+  const placed: FacetDescriptorRef[] = [];
+  const skipped: Array<{ header: string; code: string; reason: string }> = [];
+  const items = [
+    ...ctx.named.processes.map((item) => ({ header: F28, code: item.code })),
+    ...ctx.named.parts.map((item) => ({ header: F20, code: item.code })),
+  ];
+  for (const { header, code } of items) {
+    const verdict = acceptClosedDescriptor(ctx.cat, header, code, ctx.implied);
+    if (verdict !== "keep") {
+      skipped.push({ header, code, reason: verdict });
+      continue;
+    }
+    const facet = { header, code, name: ctx.cat.term(code)?.name ?? code };
+    if (addFacet(ctx, facet)) placed.push(facet);
+    else skipped.push({ header, code, reason: "not_added" });
+  }
+  audit.push({
+    step: "residuals_named",
+    detail: { named: ctx.named, placed, ...(skipped.length > 0 ? { skipped } : {}) },
+  });
+}
+
 async function placeAttributeSlot(
   ctx: PlaceContext,
   phrase: string,
@@ -3800,7 +3870,7 @@ async function placeAttributeSlot(
   const { candidates, attempts } = prepared ?? (await collectSlotCandidates(ctx, phrase));
   const listed = candidates.map((f) => ({ header: f.header, code: f.code, name: f.name }));
   if (candidates.length === 0) {
-    pushFreeText(ctx.freeText, "attribute", phrase);
+    unplacedAttribute(ctx, phrase);
     return { phrase, placed: "freeText", candidates: listed, attempts };
   }
   const onlyHeader = candidates[0]!.header;
@@ -3818,7 +3888,7 @@ async function placeAttributeSlot(
     model = picked.model;
     chosen = limitFacetSelection(picked.codes, candidates);
     if (chosen.length === 0) {
-      pushFreeText(ctx.freeText, "attribute", phrase);
+      unplacedAttribute(ctx, phrase);
       return { phrase, placed: "none", pick: picked.codes, candidates: listed, attempts, model };
     }
   } else {
@@ -3833,7 +3903,7 @@ async function placeAttributeSlot(
         : chosen.filter((facet) => facet.header !== F04);
   }
   if (chosen.length === 0) {
-    pushFreeText(ctx.freeText, "attribute", phrase);
+    unplacedAttribute(ctx, phrase);
     return { phrase, placed: "none", candidates: listed, attempts, ...(model !== undefined ? { model } : {}) };
   }
   const settled = await settlePhraseChoice(
@@ -3844,7 +3914,7 @@ async function placeAttributeSlot(
     choice !== null && choice.facets.length >= 2 ? F04 : null
   );
   if (settled.length === 0) {
-    pushFreeText(ctx.freeText, "attribute", phrase);
+    unplacedAttribute(ctx, phrase);
     return { phrase, placed: "none", candidates: listed, attempts, ...(model !== undefined ? { model } : {}) };
   }
   const reportable = settled.filter((facet) => !rawNoHeatOnRawCommodity(ctx.baseTermType, facet));
@@ -4277,6 +4347,7 @@ async function assignResidualSlots(
     },
   });
 
+  placeNamedFacets(ctx, audit);
   await placeDerivativeCommodity(ctx, audit);
 
   const drafts = [];
@@ -4398,6 +4469,7 @@ export async function assignResiduals(
     originCovered: [],
     minorFoods: options.minorFoods ?? [],
     protectedFacets: new Set(),
+    named: options.named ?? null,
   };
 
   if (options.facetSlots !== false) {

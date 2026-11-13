@@ -32,7 +32,7 @@ import { countryContextLine } from "../country.js";
 import { chatJson, defaultModel, LlmError } from "../llm.js";
 import { vectorIndexAvailable, vectorSearchBase } from "../search/vector.js";
 import { parseClassifications } from "./answers.js";
-import { resolveBaseCompare } from "./base-compare.js";
+import { resolveBaseCompare, type NamedFacets } from "./base-compare.js";
 import { renderEmbeddingQuery, type EmbeddingQuery } from "./embed-query.js";
 import {
   LADDER_LABELS,
@@ -738,6 +738,7 @@ export async function collectTraversalCandidates(
   let statedTreatments: string[] = [];
   let partsApplied: string[] = [];
   let statedParts: string[] = [];
+  let named: NamedFacets | null = null;
   let baseTermTypes: ReadonlySet<string> | null = null;
   let processGroup: TraverseCollectResult["processGroup"] = null;
   let processSeeds: string[] = [];
@@ -748,6 +749,7 @@ export async function collectTraversalCandidates(
     statedTreatments = compared.statedTreatments;
     partsApplied = compared.partsApplied;
     statedParts = compared.statedParts;
+    named = compared.named;
     baseTermTypes = compared.termTypes;
     processGroup = compared.processGroup;
     processSeeds = compared.seeds;
@@ -825,6 +827,7 @@ export async function collectTraversalCandidates(
     statedTreatments,
     partsApplied,
     statedParts,
+    named,
     processGroup,
     walks: state.walks,
     steps: state.steps,

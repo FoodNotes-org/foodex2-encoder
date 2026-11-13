@@ -212,9 +212,10 @@ Task: name which of these processes, if any, the description states, and the wor
 
 Given:
 - \`description\`: the food description.
-- \`processes\`: each has a \`code\` and a \`name\`. A process and the processes under it are both listed.
+- \`processes\`: each has a \`code\` and a \`name\`, and a \`note\` when the catalogue defines it. A process and the processes under it are both listed.
 ${countryParagraph(withCountry, "description")}
 Return the most specific process the description states.
+When no listed process is the one the words state, leave those words out rather than name a broader process.
 
 For each process, \`phrase\` is the words from the description that state it, with any detail that qualifies it. A phrase never includes the words that name the food.
 
@@ -233,6 +234,8 @@ Given:
 - \`description\`: the food description.
 - \`parts\`: each has a \`code\` and a \`name\`.
 ${countryParagraph(withCountry, "description")}
+Words that say what the food is packed in do not say whether that medium is eaten.
+
 For each part, \`phrase\` is the whole run of words from the description that states it. Parts stated together share one phrase. A phrase never includes the words that name the food.
 
 Reply with JSON only:
@@ -273,15 +276,28 @@ export interface BaseCompare {
   partsApplied: string[];
   /** Every part found stated. */
   statedParts: string[];
+  /** The stated processes and parts with their words, for the facets. */
+  named: NamedFacets;
+}
+
+/** Processes and parts a foodstuff's description states, named once from the full catalogue lists. */
+export interface NamedFacets {
+  processes: StatedProcess[];
+  parts: StatedProcess[];
 }
 
 function listedProcesses(
   cat: Catalogue,
-  codes: Iterable<string>
-): Array<{ code: string; name: string }> {
+  codes: Iterable<string>,
+  withNotes = false
+): Array<{ code: string; name: string; note?: string }> {
   return [...codes]
     .filter((code) => cat.term(code) !== undefined)
-    .map((code) => ({ code, name: cat.term(code)?.name ?? code }))
+    .map((code) => {
+      const term = cat.term(code);
+      const note = withNotes ? term?.scopeNote?.trim() : undefined;
+      return { code, name: term?.name ?? code, ...(note ? { note } : {}) };
+    })
     .sort((a, b) => a.code.localeCompare(b.code));
 }
 
@@ -420,7 +436,7 @@ export async function resolveBaseCompare(
       model,
       system: systemStatedProcesses(withCountry),
       user: JSON.stringify(
-        { description, ...countryField, processes: listedProcesses(cat, processCodes(cat)) },
+        { description, ...countryField, processes: listedProcesses(cat, processCodes(cat), true) },
         null,
         2
       ),
@@ -476,6 +492,7 @@ export async function resolveBaseCompare(
     statedTreatments: treatments?.stated ?? [],
     partsApplied: partsRemoved,
     statedParts: parts.map((part) => part.code),
+    named: { processes: stated, parts },
   };
 }
 

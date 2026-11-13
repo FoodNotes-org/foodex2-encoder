@@ -14,6 +14,7 @@ import {
   buildClosedPickPool,
   cleanupFacets,
   derivativeFacetCombos,
+  partOverlapKeys,
   derivativeProcessPairs,
   dropIncludedDescriptors,
   facetCleanupDescriptors,
@@ -420,6 +421,24 @@ describe("parseFortification", () => {
   });
 });
 
+describe("partOverlapKeys", () => {
+  const facet = (header: string, code: string): FacetDescriptorRef => ({ header, code, name: code });
+
+  it("offers parts with the processes and qualities beside them", () => {
+    const keys = partOverlapKeys([
+      facet("F20", "A0F1L"),
+      facet("F28", "A0BZV"),
+      facet("F10", "A0F6D"),
+      facet("F01", "A0V2K"),
+    ]);
+    assert.deepEqual(keys, ["F20.A0F1L", "F28.A0BZV", "F10.A0F6D"]);
+  });
+
+  it("offers nothing without a part", () => {
+    assert.deepEqual(partOverlapKeys([facet("F28", "A0BZV"), facet("F10", "A06HR")]), []);
+  });
+});
+
 describe("wordsWithin", () => {
   it("matches a food named inside a role phrase", () => {
     assert.equal(wordsWithin("brine", "in brine"), true);
@@ -432,7 +451,6 @@ describe("wordsWithin", () => {
     assert.equal(wordsWithin("water buffalo milk", "buffalo"), false);
     assert.equal(wordsWithin("buffalo", "water buffalo milk"), true);
   });
-
   it("ignores function words and empty input", () => {
     assert.equal(wordsWithin("in", "in brine"), false);
     assert.equal(wordsWithin("", "in brine"), false);

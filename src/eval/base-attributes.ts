@@ -33,18 +33,23 @@ export interface BaseAttributeCase {
   form: string[];
   /** Process and part facets (`F28.CODE`, `F20.CODE`) the full code must carry; null when the case sets none. */
   facets: string[] | null;
+  /** Process and part facets the full code may carry without being required. */
+  facetsAllowed: string[];
   open: boolean;
   note?: string;
 }
 
-function expectedFacets(rec: Parameters<typeof codeList>[0]): string[] | null {
-  const raw = codeList(rec, "facets");
+function expectedFacets(
+  rec: Parameters<typeof codeList>[0],
+  field: "facets" | "facets_allowed" = "facets"
+): string[] | null {
+  const raw = codeList(rec, field);
   if (raw === undefined) return null;
   if (raw.length === 1 && raw[0] === "NONE") return [];
   for (const facet of raw) {
     const header = facet.split(".")[0] ?? "";
     if (!(header in SCORED_FACETS) || facet.split(".").length !== 2) {
-      throw new Error(`case ${String(rec.id)}: facets entry ${facet} must be F28.CODE or F20.CODE`);
+      throw new Error(`case ${String(rec.id)}: ${field} entry ${facet} must be F28.CODE or F20.CODE`);
     }
   }
   return raw;
@@ -70,6 +75,7 @@ export function loadBaseAttributeCases(path: string): BaseAttributeCase[] {
       misread: codeList(rec, "misread") ?? [],
       form: (list(rec, "form") ?? []).map((word) => word.toLowerCase()),
       facets: expectedFacets(rec),
+      facetsAllowed: expectedFacets(rec, "facets_allowed") ?? [],
       open: bool(rec, "open") ?? false,
       note: text(rec, "note"),
     };
@@ -84,7 +90,7 @@ export function caseCodes(c: BaseAttributeCase): string[] {
     ...c.newFood.flatMap((entry) => entry.split("|")),
     ...c.facetOnly,
     ...c.misread,
-    ...(c.facets ?? []).map((facet) => facet.split(".")[1]!),
+    ...[...(c.facets ?? []), ...c.facetsAllowed].map((facet) => facet.split(".")[1]!),
   ];
 }
 
@@ -204,13 +210,16 @@ function facetAtOrUnder(cat: Catalogue, expected: string, got: string): boolean 
 export function checkFacets(
   cat: Catalogue,
   expected: readonly string[] | null,
-  got: readonly string[] | null
+  got: readonly string[] | null,
+  allowed: readonly string[] = []
 ): Pick<BaseAttributeCheck, "facetsMissing" | "facetsExtra" | "facetsPass"> {
   if (expected === null || got === null) {
     return { facetsMissing: [], facetsExtra: [], facetsPass: null };
   }
   const facetsMissing = expected.filter((e) => !got.some((g) => facetAtOrUnder(cat, e, g)));
-  const facetsExtra = got.filter((g) => !expected.some((e) => facetAtOrUnder(cat, e, g)));
+  const facetsExtra = got.filter(
+    (g) => ![...expected, ...allowed].some((e) => facetAtOrUnder(cat, e, g))
+  );
   return {
     facetsMissing,
     facetsExtra,
@@ -253,6 +262,6 @@ export function checkRun(
     wronglyNewFood,
     formLost,
     facetSeen,
-    ...checkFacets(cat, c.facets, facts.facets),
+    ...checkFacets(cat, c.facets, facts.facets, c.facetsAllowed),
   };
 }

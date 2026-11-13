@@ -6,6 +6,8 @@
  * chat clients see — code, base term, facets, free text, fit, method.
  */
 
+import type { NamedFacets } from "./base-compare.js";
+
 export type EncodeMethod = "lexical" | "traversal";
 
 export interface BaseTermRef {
@@ -193,6 +195,8 @@ export interface TraverseCollectResult {
   partsApplied: string[];
   /** Every part the description was found to state. */
   statedParts: string[];
+  /** A foodstuff's stated processes and parts with their words; null when not a foodstuff. */
+  named: NamedFacets | null;
   /**
    * Catalogue term that already implies a Table 22 process and was judged to be
    * this food. Null when the description is not a foodstuff, or no such term fits.
