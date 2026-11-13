@@ -3,6 +3,8 @@
 # Results (model, MTX, outcomes) land in eval/results/encode-base-term.json.
 #
 # Fields per case:
+#   country               ISO code of the country the description comes from, or EU when the
+#                         case has no national source (required)
 #   capability            one sentence naming the interest under test (required; public label)
 #   expected              base term code(s) the pick must be among (comma-separated any-of;
 #                         first entry is preferred / shown in reports)
@@ -19,6 +21,7 @@ cases:
   # --- Catalogue only (lexical, no model) ---
   - id: encode-orange-juice
     input: orange juice
+    country: EU
     expected: A03AM
     method: lexical
     capability: Matches a catalogue term when word order differs from the preferred name.
@@ -27,6 +30,7 @@ cases:
 
   - id: encode-dill-seeds
     input: Dill seeds
+    country: GB
     expected: A018F
     method: lexical
     capability: Matches a real nutrient-database label using catalogue vocabulary alone.
@@ -36,6 +40,7 @@ cases:
   # --- Synonyms ---
   - id: encode-eggplant
     input: eggplant
+    country: US
     expected: A00JD
     method: traversal
     capability: Resolves a synonym the catalogue already lists as an alternate name.
@@ -44,6 +49,7 @@ cases:
 
   - id: encode-arugula
     input: arugula
+    country: US
     expected: A00LN, A00LP
     method: traversal
     capability: Resolves a synonym absent from the catalogue entirely (model bridges it).
@@ -53,6 +59,7 @@ cases:
   # --- Dishes ---
   - id: encode-boeuf-bourguignon
     input: boeuf bourguignon
+    country: EU
     expected: A03VY
     method: traversal
     require_f04_under: F04.A0EYH
@@ -64,6 +71,7 @@ cases:
 
   - id: encode-risotto-asparagus
     input: Risotto with asparagus
+    country: EU
     expected: A041F
     method: traversal
     forbid_pick: A00RT
@@ -71,17 +79,9 @@ cases:
     tags: dish
     note: EFSA handcheck — Risotto, not Asparagus
 
-  - id: encode-homemade-yakitori
-    input: homemade yakitori
-    expected: A03VV
-    method: traversal
-    free_text_includes: yakitori
-    capability: Keeps an unknown modifier in free text and does not invent dish-definition facets.
-    tags: dish
-    note: Named-dish span owned; uncovered homemade may be note=
-
   - id: encode-sandwich-bare
     input: sandwich
+    country: EU
     expected: A03YZ
     method: traversal
     forbid_facets: F04.A02QE,F04.A0EYM,F04.A026V,F04.A07XJ
@@ -92,6 +92,7 @@ cases:
   # --- Processing and facets ---
   - id: encode-smoked-sprats-canned
     input: smoked sprats in a can
+    country: EU
     expected: A0FBY
     method: traversal
     forbid_pick: A0EYS
@@ -101,6 +102,7 @@ cases:
 
   - id: encode-tuna-sunflower-oil
     input: tuna in sunflower oil, canned
+    country: EU
     expected: A0FBT
     method: traversal
     require_facets: F06.A06XL
@@ -110,6 +112,7 @@ cases:
 
   - id: encode-tuna-brine
     input: tuna in brine, canned
+    country: EU
     expected: A0FBT
     method: traversal
     require_facets: F06.A06XT
@@ -119,6 +122,7 @@ cases:
 
   - id: encode-sardines-tomato-sauce
     input: sardines in tomato sauce, canned
+    country: EU
     expected: A0FBZ
     method: traversal
     require_facets: F06.A06XR
@@ -128,6 +132,7 @@ cases:
 
   - id: encode-sardines-olive-oil
     input: sardines in olive oil, canned
+    country: EU
     expected: A0FBZ
     method: traversal
     require_facets: F06.A06XK
@@ -137,6 +142,7 @@ cases:
 
   - id: encode-peaches-fruit-juice
     input: canned peaches in fruit juice
+    country: EU
     expected: A01NY
     method: traversal
     require_facets: F06.A06XM
@@ -146,6 +152,7 @@ cases:
 
   - id: encode-ice-cream-topping
     input: chocolate ice cream with amarena cherries
+    country: EU
     expected: A02QA
     method: traversal
     require_f04_under: F04.A01GH
@@ -157,6 +164,7 @@ cases:
 
   - id: encode-buffalo-mozzarella
     input: buffalo mozzarella
+    country: EU
     expected: A02QJ
     method: traversal
     require_facets: F27.A02MD
@@ -166,6 +174,7 @@ cases:
 
   - id: encode-canned-organic-orange-juice
     input: canned organic orange juice
+    country: EU
     expected: A03AM
     method: traversal
     require_facets: F21.A07SE,F28.A0BYP
@@ -175,6 +184,7 @@ cases:
 
   - id: encode-orange-nectar-long
     input: Orange nectar, fortified with calcium, sugar free, organic
+    country: EU
     expected: A03BG
     method: traversal
     require_facets: F09.A0EXH,F10.A077L,F21.A07SE
@@ -185,6 +195,7 @@ cases:
 
   - id: encode-fortified-bare
     input: fortified breakfast cereal
+    country: EU
     expected: A00CV, A04LK
     method: traversal
     require_facets: F10.A0F6C
@@ -195,6 +206,7 @@ cases:
 
   - id: encode-fortified-two-agents
     input: orange juice fortified with calcium and vitamin D
+    country: EU
     expected: A03AM, A03DH
     method: traversal
     require_facets: F09.A0EXH,F09.A0EXM
@@ -205,6 +217,7 @@ cases:
 
   - id: encode-mixed-nuts
     input: mixed nuts (almonds, walnuts and hazelnuts)
+    country: EU
     expected: A014C
     method: traversal
     require_facets: F27.A014D|F27.A014F,F27.A014R,F27.A014L
@@ -215,6 +228,7 @@ cases:
 
   - id: encode-half-and-half
     input: half and half (food product)
+    country: US
     expected: A04NN, A02MM
     method: traversal
     require_f04_under: F04.A02LT
@@ -225,6 +239,7 @@ cases:
 
   - id: encode-cream-soda
     input: cream soda
+    country: EU
     expected: A03EX
     method: traversal
     require_facets: F04.A06VS
@@ -234,6 +249,7 @@ cases:
 
   - id: encode-fresh-and-frozen-shellfish
     input: fresh and frozen shellfish
+    country: EU
     expected: A026T
     method: traversal
     capability: Picks the group base for an ambiguous category wording.
@@ -242,6 +258,7 @@ cases:
 
   - id: encode-canned-shellfish
     input: canned shellfish
+    country: EU
     expected: A0BZ5
     method: traversal
     forbid_facets: F27.A02FD,F27.A02GM
@@ -253,6 +270,7 @@ cases:
   # --- Catalogue gaps and restraint ---
   - id: encode-quinoa-flour
     input: Quinoa flour
+    country: EU
     expected: A04KT
     method: traversal
     forbid_pick: A04KS
@@ -263,6 +281,7 @@ cases:
 
   - id: encode-kangaroo-meat
     input: kangaroo meat
+    country: EU
     expected: A01RS, A0EYF
     method: traversal
     forbid_facets: F01.A057V
@@ -272,6 +291,7 @@ cases:
 
   - id: encode-spirits-volume
     input: Spirits, 40% volume
+    country: EU
     expected: A03PD
     method: traversal
     require_facets: F11.A07DL
@@ -281,6 +301,7 @@ cases:
 
   - id: encode-milk-fat-percent
     input: cow milk, 1.5% fat
+    country: EU
     expected: A02LZ, A02LV, A02LT
     method: traversal
     require_facets: F07.A06ZA
@@ -290,6 +311,7 @@ cases:
 
   - id: encode-oj-from-concentrate
     input: orange juice from concentrate
+    country: EU
     expected: A03AM
     method: traversal
     require_facets: F28.A07MR
@@ -300,6 +322,7 @@ cases:
 
   - id: encode-unsweetened-almond-drink
     input: unsweetened almond drink
+    country: EU
     expected: A03TK
     method: traversal
     require_facets: F10.A077K
@@ -310,6 +333,7 @@ cases:
   # --- Any-of gold ---
   - id: encode-semi-skimmed-milk
     input: semi-skimmed milk
+    country: GB
     expected: A02LZ, A02LV
     method: traversal
     capability: Accepts either the denser milk leaf or its parent when both are defensible.

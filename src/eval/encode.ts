@@ -12,6 +12,8 @@ const INGRED_HIERARCHY = "ingred";
 export interface EncodeEvalCase {
   id: string;
   input: string;
+  /** ISO 3166-1 alpha-2 code of the country the description comes from, or EU. */
+  country: string;
   /** Acceptable base-term codes (any-of); first entry is preferred. */
   expected: string[];
   capability: string;
@@ -32,6 +34,7 @@ export interface EncodeEvalCase {
 export interface EncodeCaseResult {
   id: string;
   input: string;
+  country: string;
   /** Preferred (first) expected code for display. */
   expected: string;
   /** Full any-of set used for scoring. */
@@ -73,7 +76,9 @@ export function formatExpected(codes: string[]): string {
 
 export async function evaluateEncodeCase(c: EncodeEvalCase): Promise<EncodeCaseResult> {
   const started = performance.now();
-  const { result, usage } = await withUsageScope(() => encodeBaseTerm(c.input));
+  const { result, usage } = await withUsageScope(() =>
+    encodeBaseTerm(c.input, { country: c.country })
+  );
   const elapsedMs = Math.round(performance.now() - started);
   const pick = result.status === "ok" ? (result.baseTerm?.code ?? null) : null;
   const pickName = result.status === "ok" ? (result.baseTerm?.name ?? null) : null;
@@ -145,6 +150,7 @@ export async function evaluateEncodeCase(c: EncodeEvalCase): Promise<EncodeCaseR
   return {
     id: c.id,
     input: c.input,
+    country: c.country,
     expected: expectedSet[0] ?? "",
     expectedSet,
     capability: c.capability,

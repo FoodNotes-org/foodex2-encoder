@@ -34,6 +34,7 @@ function loadCases(path: string): EncodeEvalCase[] {
     return {
       id: requiredText(rec, "id"),
       input: requiredText(rec, "input"),
+      country: requiredText(rec, "country"),
       expected,
       capability: requiredText(rec, "capability"),
       method: oneOf(rec, "method", ["lexical", "traversal"]),
@@ -95,11 +96,11 @@ function printTable(results: EncodeCaseResult[]): void {
       ].join("")
     );
     if (r.infra) {
-      console.log(`    input: ${r.input}`);
+      console.log(`    input: ${r.input} (${r.country})`);
       if (r.reason) console.log(`    reason: ${r.reason}`);
       if (r.note) console.log(`    note: ${r.note}`);
     } else if (!r.pass) {
-      console.log(`    input: ${r.input}`);
+      console.log(`    input: ${r.input} (${r.country})`);
       console.log(`    capability: ${r.capability}`);
       if (r.pickName) console.log(`    pick:  ${r.pick} ${r.pickName}`);
       if (r.reason) console.log(`    reason: ${r.reason}`);
@@ -244,6 +245,7 @@ function writeResultsArtifact(
       id: r.id,
       capability: r.capability,
       input: r.input,
+      country: r.country,
       expected: r.expectedSet,
       pick: r.pick,
       pick_name: r.pickName,
