@@ -7,25 +7,28 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
 import {
-  natureProcessCodes,
+  newFoodCandidates,
   parseProcessGroup,
   parseStatedProcesses,
   processesToSetAside,
   removePhrases,
-  table22ProcessCodes,
+  processCodes,
   termsImplyingProcess,
   type StatedProcess,
 } from "../src/encode/base-compare.js";
 
 const cat = Catalogue.load();
-const allowed = table22ProcessCodes(cat);
+const allowed = processCodes(cat);
 
-describe("table 22 processes", () => {
-  it("includes chocolate coating and stir-frying, and not drying or grain milling", () => {
-    assert.equal(allowed.has("A07HP"), true);
-    assert.equal(allowed.has("A07GT"), true);
-    assert.equal(allowed.has("A07KG"), false);
-    assert.equal(allowed.has("A0C03"), false);
+describe("process list", () => {
+  it("includes every kind of process: coating, polishing, grain milling, puffing", () => {
+    for (const code of ["A07HP", "A0BZV", "A0C03", "A07LL", "A07MR"]) {
+      assert.equal(allowed.has(code), true, code);
+    }
+  });
+
+  it("holds only process terms", () => {
+    assert.equal(allowed.has("A001Q"), false);
   });
 
   it("finds the groups that already imply chocolate coating", () => {
@@ -36,27 +39,30 @@ describe("table 22 processes", () => {
   it("finds no group that already implies stir-frying", () => {
     assert.deepEqual(termsImplyingProcess(cat, "A07GT"), []);
   });
-});
-
-describe("nature-changing processes", () => {
-  const nature = natureProcessCodes(cat);
-
-  it("includes puffing and drying, and not a table 22 process", () => {
-    assert.equal(nature.has("A07LL"), true);
-    assert.equal(nature.has("A07KG"), true);
-    assert.equal(nature.has("A07HP"), false);
-    assert.equal(allowed.has("A07LL"), false);
-  });
-
-  it("lists separation in liquid phase under today's code", () => {
-    assert.equal(nature.has("A0EKQ"), true);
-    assert.equal(nature.has("A0EJP"), false);
-  });
 
   it("finds Popped cereals among the groups that already imply puffing", () => {
     const groups = termsImplyingProcess(cat, "A07LL");
     assert.ok(groups.some((group) => group.code === "A04LL"));
     assert.ok(groups.length > 0 && groups.length <= 15);
+  });
+});
+
+describe("newFoodCandidates", () => {
+  const stated = (code: string): StatedProcess => ({ code, phrase: null });
+
+  it("passes on a Tables 4 and 5 process with that row's foods and outcomes", () => {
+    const [puffing] = newFoodCandidates(cat, [stated("A07LL")]);
+    assert.equal(puffing?.code, "A07LL");
+    assert.equal(puffing?.applied_to, "Cereals");
+  });
+
+  it("passes on a process that sits under a Tables 4 and 5 process", () => {
+    const codes = newFoodCandidates(cat, [stated("A0C0A")]).map((c) => c.code);
+    assert.deepEqual(codes, ["A0C0A"]);
+  });
+
+  it("leaves out polishing, coating and reconstitution", () => {
+    assert.deepEqual(newFoodCandidates(cat, [stated("A0BZV"), stated("A07HP"), stated("A07MR")]), []);
   });
 });
 
@@ -118,9 +124,9 @@ describe("parseStatedProcesses", () => {
     );
   });
 
-  it("drops a process that is not in the table and an empty list is none", () => {
+  it("drops a code that is not a process and an empty list is none", () => {
     assert.deepEqual(
-      parseStatedProcesses({ processes: [{ code: "A07KG", phrase: "dried" }] }, allowed),
+      parseStatedProcesses({ processes: [{ code: "A001Q", phrase: "farro" }] }, allowed),
       []
     );
     assert.deepEqual(parseStatedProcesses({ processes: [] }, allowed), []);

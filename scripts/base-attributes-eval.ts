@@ -142,8 +142,6 @@ function printCase(c: BaseAttributeCase, runs: RunResult[]): void {
   if (lost) console.log(`    form words dropped: ${lost}`);
   console.log(`    nature: ${tally(runs.map((r) => r.nature.join("+") || "—"))}`);
   console.log(`    group: ${tally(runs.map((r) => r.processGroup ?? "—"))}`);
-  const overrides = runs.filter((r) => r.override !== null).map((r) => `${r.override![0]}→${r.override![1]}`);
-  if (overrides.length > 0) console.log(`    group override: ${tally(overrides)}`);
   const rewrites = runs.map((r) => r.compareAs).filter((s): s is string => s !== null && s !== c.input);
   if (rewrites.length > 0) console.log(`    compared as: ${tally(rewrites.map((s) => JSON.stringify(s)))}`);
   if (c.note) console.log(`    note: ${c.note}`);
@@ -273,7 +271,6 @@ async function main(): Promise<void> {
         nature: r.nature,
         stated: r.stated,
         process_group: r.processGroup,
-        override: r.override,
         compare_as: r.compareAs,
         base_pass: r.basePass,
         treatments_pass: r.treatmentsPass,

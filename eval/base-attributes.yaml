@@ -73,8 +73,11 @@ cases:
     families: F1, F9
     rules: BT-02
     base: A0BY1
-    new_food: A0C03
-    note: No maize groats term exists. Groats is roughly crushed cereal and maize is the source. Maize semolina is a different product (Jorn, 2026-11-12).
+    note: >-
+      No maize groats term exists. Groats is roughly crushed cereal and maize is the source.
+      Maize semolina is a different product (Jorn, 2026-11-12). The word groats names the
+      product, not a stated process; Groats itself carries grinding, not grain milling, so no
+      new-food process is expected (Jorn, 2026-11-13).
 
   - id: efsa-glutinous-rice-flour
     input: flour obtained from glutinous rice
@@ -495,8 +498,12 @@ cases:
     source: usda-fdc-foundation
     families: F5
     rules: BT-11
-    base: A001L
+    base: A001L, A0D9P
     misread: A07KG, A0C03
+    note: >-
+      Durra grain's scope note is Sorghum bicolor subsp. bicolor, known as milo, which covers
+      cultivated grain sorghum; Sorghum grain lists Durra and Milo among its names too. The
+      scope notes overlap, so both are accepted (Jorn, 2026-11-13).
 
   - id: eval-oj-from-concentrate
     input: orange juice from concentrate

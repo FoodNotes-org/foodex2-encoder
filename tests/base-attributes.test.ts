@@ -43,7 +43,6 @@ function facts(over: Partial<BaseAttributeFacts>): BaseAttributeFacts {
     processGroup: null,
     compareAs: null,
     removed: [],
-    override: null,
     ...over,
   };
 }

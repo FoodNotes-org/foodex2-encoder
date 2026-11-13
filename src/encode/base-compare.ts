@@ -1,14 +1,13 @@
 /**
- * For a foodstuff, a process that produces a different kind of food from the
- * foods it applies to (guidance Tables 4 and 5, rules/efsa-processes.yaml) is
- * checked first. A group that already implies it can be the
- * base, and that process stays in the description. A process normally applied
- * straight to a raw commodity (guidance Table 22) is then taken out of the
- * description the base is matched against, unless a catalogue group that
- * already implies it is this food: the model names the words that state it,
- * and code cuts them out. The original description is what the facets
- * are read from. A Table 22 process that only restates a process already found
- * is not taken. A dish or a mix is not handled here.
+ * For a foodstuff: name the processes the description states, from the whole
+ * catalogue process list. A stated process that is in guidance Tables 4 and 5
+ * (rules/efsa-processes.yaml) is then judged on whether, for this food, it makes
+ * a different kind of food; that process stays in the description. Every other
+ * stated process is taken out of the description the base is matched against
+ * and passed on as a treatment, unless a catalogue group that already implies
+ * it is this food. The model names the words that state each process, and code
+ * cuts them out. The original description is what the facets are read from. A
+ * dish or a mix is not handled here.
  */
 
 import { Catalogue, DEFAULT_HIERARCHY, isInExposureTree } from "../catalogue.js";
@@ -17,7 +16,6 @@ import { countryParagraph } from "../country.js";
 import { chatJson } from "../llm.js";
 import { NEW_FOOD_TREATMENTS } from "../rules/processes.js";
 
-/** Process hierarchy, where Table 22 child descriptors sit. */
 const PROCESS_HIERARCHY = "process";
 
 /**
@@ -25,52 +23,6 @@ const PROCESS_HIERARCHY = "process";
  * The specific process the description states is the one to judge.
  */
 const MAX_IMPLIED_GROUPS = 15;
-
-/**
- * Codes named in guidance Table 22. Descendants in the process hierarchy are
- * included: the table covers those processes and their child descriptors.
- */
-const TABLE22_ROOTS = [
-  "A07KS",
-  "A07KT",
-  "A07KV",
-  "A07KX",
-  "A07KY",
-  "A07KZ",
-  "A07LA",
-  "A0C6N",
-  "A07JB",
-  "A0BZG",
-  "A0BZL",
-  "A07JE",
-  "A07JF",
-  "A07JG",
-  "A07JH",
-  "A07JC",
-  "A07JD",
-  "A07JJ",
-  "A0CSQ",
-  "A07KN",
-  "A07KP",
-  "A07KQ",
-  "A07KR",
-  "A07HR",
-  "A07HT",
-  "A07HV",
-  "A07HX",
-  "A07HY",
-  "A07HZ",
-  "A07JA",
-  "A0BA1",
-  "A0BYN",
-  "A07JK",
-  "A07HK",
-  "A07HL",
-  "A07HM",
-  "A07HN",
-  "A07HP",
-  "A07HQ",
-] as const;
 
 export interface StatedProcess {
   code: string;
@@ -92,43 +44,43 @@ interface ImpliedGroup {
 }
 
 let cachedProcessCodes: Set<string> | null = null;
-let cachedNatureCodes: Set<string> | null = null;
 let cachedImplied: Map<string, ImpliedGroup[]> | null = null;
 
-/** Processes named in Tables 4 and 5 that this catalogue still contains. */
-export function natureProcessCodes(cat: Catalogue): ReadonlySet<string> {
-  if (cachedNatureCodes !== null) return cachedNatureCodes;
-  cachedNatureCodes = new Set(
-    NEW_FOOD_TREATMENTS.map((row) => row.code).filter((code) => cat.term(code) !== undefined)
-  );
-  return cachedNatureCodes;
-}
-
-/** Tables 4 and 5 rows as the model sees them: EFSA's foods and outcomes for each. */
-function listedNatureTreatments(
-  cat: Catalogue
+/**
+ * Stated processes that are, or sit under, a Tables 4 and 5 process, each with
+ * that row's foods and outcomes. Only these can make a new food.
+ */
+export function newFoodCandidates(
+  cat: Catalogue,
+  stated: readonly StatedProcess[]
 ): Array<{ code: string; name: string; applied_to: string; leads_to: string }> {
-  const codes = natureProcessCodes(cat);
-  return NEW_FOOD_TREATMENTS.filter((row) => codes.has(row.code)).map((row) => ({
-    code: row.code,
-    name: cat.term(row.code)?.name ?? row.code,
-    applied_to: row.appliedTo,
-    leads_to: row.leadsTo,
-  }));
+  const out: Array<{ code: string; name: string; applied_to: string; leads_to: string }> = [];
+  for (const process of stated) {
+    const row = NEW_FOOD_TREATMENTS.find(
+      (r) =>
+        cat.term(r.code) !== undefined &&
+        (r.code === process.code || cat.isAncestor(r.code, process.code, PROCESS_HIERARCHY))
+    );
+    if (row === undefined) continue;
+    out.push({
+      code: process.code,
+      name: cat.term(process.code)?.name ?? process.code,
+      applied_to: row.appliedTo,
+      leads_to: row.leadsTo,
+    });
+  }
+  return out;
 }
 
-export function table22ProcessCodes(cat: Catalogue): ReadonlySet<string> {
+/** Every process term the catalogue still uses. */
+export function processCodes(cat: Catalogue): ReadonlySet<string> {
   if (cachedProcessCodes !== null) return cachedProcessCodes;
-  const codes = new Set<string>();
-  const stack: string[] = [...TABLE22_ROOTS];
-  while (stack.length > 0) {
-    const code = stack.pop() as string;
-    if (codes.has(code) || cat.term(code) === undefined) continue;
-    codes.add(code);
-    for (const child of cat.children(code, PROCESS_HIERARCHY)) stack.push(child);
-  }
-  cachedProcessCodes = codes;
-  return codes;
+  cachedProcessCodes = new Set(
+    Object.entries(cat.data.terms)
+      .filter(([code, term]) => term.status !== "DEPRECATED" && cat.belongsTo(code, PROCESS_HIERARCHY))
+      .map(([code]) => code)
+  );
+  return cachedProcessCodes;
 }
 
 function impliedIndex(cat: Catalogue): Map<string, ImpliedGroup[]> {
@@ -211,21 +163,21 @@ export function parseProcessGroup(
   return { code };
 }
 
-function systemNatureProcesses(withCountry: boolean): string {
+function systemNewFood(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-Task: name which of these treatments, if any, the description states and, for this food, make a different kind of food.
+Task: decide which of these treatments, applied to this food, make a different kind of food.
 
 Given:
 - \`description\`: the food description.
-- \`treatments\`: each has a \`code\`, a \`name\`, \`applied_to\` (the foods it makes a different kind of food from) and \`leads_to\` (the kinds of food it makes).
+- \`treatments\`: treatments the description states. Each has a \`code\`, a \`name\`, \`applied_to\` (the foods it makes a different kind of food from) and \`leads_to\` (the kinds of food it makes).
 ${countryParagraph(withCountry, "description")}
 A treatment counts only when the food it was applied to is one of its \`applied_to\` foods.
 
 Reply with JSON only:
 {"processes":[{"code":"<code>"}]}
 
-An empty list means no stated treatment makes this food a different kind of food.`;
+An empty list means none of these treatments makes this food a different kind of food.`;
 }
 
 function systemStatedProcesses(withCountry: boolean): string {
@@ -236,9 +188,8 @@ Task: name which of these processes, if any, the description states, and the wor
 Given:
 - \`description\`: the food description.
 - \`processes\`: each has a \`code\` and a \`name\`. A process and the processes under it are both listed.
-- \`already\`: processes already found. Each has a \`code\` and a \`name\`.
 ${countryParagraph(withCountry, "description")}
-Return the most specific process the description states. A process that only restates a process in \`already\` is not stated.
+Return the most specific process the description states.
 
 For each process, \`phrase\` is the words from the description that state it, with any detail that qualifies it. A phrase never includes the words that name the food.
 
@@ -272,9 +223,9 @@ export interface BaseCompare {
   processGroup: ProcessGroup | null;
   seeds: string[];
   detail: Record<string, unknown>;
-  /** Words taken out of the description, each stating a Table 22 treatment. */
+  /** Words taken out of the description, each stating a treatment that does not make a new food. */
   treatmentsApplied: string[];
-  /** Every treatment found stated: new-food ones first, then Table 22 ones. */
+  /** Every treatment found stated: new-food ones first, then the others. */
   statedTreatments: string[];
 }
 
@@ -370,7 +321,7 @@ async function chooseProcessGroup(
   };
 }
 
-/** Table 22 treatments to take out of the description. A treatment the chosen group already covers stays. */
+/** Treatments to take out of the description. A treatment the chosen group already covers stays. */
 export function processesToSetAside(
   stated: readonly StatedProcess[],
   covered: readonly string[]
@@ -414,16 +365,45 @@ export async function resolveBaseCompare(
   const withCountry = country !== null && country !== "";
   const countryField = withCountry ? { country } : {};
 
-  const natureCall = await chatJson({
+  const statedCall = await chatJson({
     model,
-    system: systemNatureProcesses(withCountry),
+    system: systemStatedProcesses(withCountry),
     user: JSON.stringify(
-      { description, ...countryField, treatments: listedNatureTreatments(cat) },
+      { description, ...countryField, processes: listedProcesses(cat, processCodes(cat)) },
       null,
       2
     ),
   });
-  const nature = parseStatedProcesses(natureCall.content, natureProcessCodes(cat)) ?? [];
+  const stated = parseStatedProcesses(statedCall.content, processCodes(cat)) ?? [];
+  if (stated.length === 0) {
+    return unchanged(description, {
+      model: statedCall.model,
+      parsed: statedCall.content !== null,
+      nature: [],
+      processes: [],
+    });
+  }
+
+  const candidates = newFoodCandidates(cat, stated);
+  let nature: StatedProcess[] = [];
+  let natureModel: string | null = null;
+  if (candidates.length > 0) {
+    const natureCall = await chatJson({
+      model,
+      system: systemNewFood(withCountry),
+      user: JSON.stringify({ description, ...countryField, treatments: candidates }, null, 2),
+    });
+    natureModel = natureCall.model;
+    const chosen = new Set(
+      (parseStatedProcesses(natureCall.content, new Set(candidates.map((c) => c.code))) ?? []).map(
+        (process) => process.code
+      )
+    );
+    nature = stated.filter((process) => chosen.has(process.code));
+  }
+  const natureCodes = new Set(nature.map((process) => process.code));
+  const others = stated.filter((process) => !natureCodes.has(process.code));
+
   const natureParts = groupsForProcesses(cat, nature);
   const natureChoice = await chooseProcessGroup(
     cat,
@@ -434,61 +414,28 @@ export async function resolveBaseCompare(
     nature,
     natureParts.groups
   );
-
-  const already = listedProcesses(
-    cat,
-    nature.map((process) => process.code)
-  );
-  const statedCall = await chatJson({
-    model,
-    system: systemStatedProcesses(withCountry),
-    user: JSON.stringify(
-      {
-        description,
-        ...countryField,
-        processes: listedProcesses(cat, table22ProcessCodes(cat)),
-        already,
-      },
-      null,
-      2
-    ),
-  });
-  const stated = parseStatedProcesses(statedCall.content, table22ProcessCodes(cat)) ?? [];
-  const natureCodes = new Set(nature.map((process) => process.code));
-  const table22Only = stated.filter((process) => !natureCodes.has(process.code));
-  const table22Parts = groupsForProcesses(cat, table22Only);
-
+  const otherParts = groupsForProcesses(cat, others);
   let processGroup = natureChoice.processGroup;
   let groupModel = natureChoice.model;
   if (processGroup === null) {
-    const table22Choice = await chooseProcessGroup(
+    const otherChoice = await chooseProcessGroup(
       cat,
       description,
       country,
       withCountry,
       model,
-      table22Only,
-      table22Parts.groups
+      others,
+      otherParts.groups
     );
-    processGroup = table22Choice.processGroup;
-    groupModel = table22Choice.model ?? groupModel;
+    processGroup = otherChoice.processGroup;
+    groupModel = otherChoice.model ?? groupModel;
   }
 
-  const aside = processesToSetAside(table22Only, processGroup?.processes ?? []);
+  const aside = processesToSetAside(others, processGroup?.processes ?? []);
   const { text: compareAs, removed } = removePhrases(
     description,
     aside.map((process) => process.phrase).filter((phrase): phrase is string => phrase !== null)
   );
-
-  if (nature.length === 0 && stated.length === 0) {
-    return unchanged(description, {
-      model: natureCall.model,
-      table22Model: statedCall.model,
-      parsed: natureCall.content !== null && statedCall.content !== null,
-      nature: [],
-      processes: [],
-    });
-  }
 
   return {
     compareAs,
@@ -496,23 +443,24 @@ export async function resolveBaseCompare(
     processGroup,
     seeds: processGroup === null ? [] : [processGroup.code],
     detail: {
-      model: natureCall.model,
-      table22Model: statedCall.model,
+      model: statedCall.model,
+      ...(natureModel !== null ? { natureModel } : {}),
       ...(groupModel !== null ? { groupModel } : {}),
+      processes: stated,
+      newFoodCandidates: candidates.map((candidate) => candidate.code),
       nature: nature.map((process) => process.code),
       natureJudged: natureParts.judged,
       natureSkipped: natureParts.skipped,
       natureGroups: natureParts.groups.map((group) => group.code),
-      processes: stated,
-      judged: table22Parts.judged,
-      skipped: table22Parts.skipped,
-      groups: table22Parts.groups.map((group) => group.code),
+      judged: otherParts.judged,
+      skipped: otherParts.skipped,
+      groups: otherParts.groups.map((group) => group.code),
       aside: aside.map((process) => process.code),
       removed,
       processGroup: processGroup?.code ?? null,
       compareAs,
     },
     treatmentsApplied: removed,
-    statedTreatments: [...nature, ...table22Only].map((process) => process.code),
+    statedTreatments: [...nature, ...others].map((process) => process.code),
   };
 }

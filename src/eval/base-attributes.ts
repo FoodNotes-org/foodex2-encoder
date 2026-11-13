@@ -77,14 +77,12 @@ export interface BaseAttributeFacts {
   route: string | null;
   /** Treatments judged to make a new food. */
   nature: string[];
-  /** Table 22 treatments recognised as stated. */
+  /** Every treatment recognised as stated. */
   stated: string[];
   processGroup: string | null;
   compareAs: string | null;
   /** Words taken out of the description and passed to the classifier as treatments applied. */
   removed: string[];
-  /** Pick replaced by the process group: [from, to]. */
-  override: [string | null, string] | null;
 }
 
 function auditDetail(audit: readonly AuditEntry[], step: string): Record<string, unknown> | null {
@@ -109,7 +107,6 @@ export function factsFromEncode(result: EncodeResult): BaseAttributeFacts {
   const audit = result.audit ?? [];
   const route = auditDetail(audit, "route");
   const compare = auditDetail(audit, "base_compare");
-  const override = auditDetail(audit, "process_group");
   const ok = result.status === "ok";
   return {
     status: result.status,
@@ -125,10 +122,6 @@ export function factsFromEncode(result: EncodeResult): BaseAttributeFacts {
     removed: Array.isArray(compare?.removed)
       ? compare.removed.filter((w): w is string => typeof w === "string")
       : [],
-    override:
-      override !== null && typeof override.to === "string"
-        ? [typeof override.from === "string" ? override.from : null, override.to]
-        : null,
   };
 }
 
@@ -140,10 +133,19 @@ function related(cat: Catalogue, a: string, b: string): boolean {
   return atOrUnder(cat, a, b) || atOrUnder(cat, b, a);
 }
 
+/** Processes the term itself already implies. */
+function processesCarried(cat: Catalogue, code: string): string[] {
+  return cat
+    .impliedFacets(code)
+    .filter((facet) => facet.startsWith("F28."))
+    .map((facet) => facet.slice("F28.".length));
+}
+
 export interface BaseAttributeCheck {
   basePass: boolean;
   /** Null when no treatment step ran: identical wording, or routed as other than a foodstuff. */
   treatmentsPass: boolean | null;
+  /** new_food treatments neither judged to make a new food nor carried by the pick. */
   newFoodMissing: string[];
   /** facet_only or misread treatments that were judged to make a new food. */
   wronglyNewFood: string[];
@@ -160,8 +162,12 @@ export function checkRun(
   const basePass =
     facts.pick !== null && c.base.includes(facts.pick) && !c.forbidBase.includes(facts.pick);
 
+  const carried = facts.pick === null ? [] : processesCarried(cat, facts.pick);
   const newFoodMissing = c.newFood.filter(
-    (entry) => !entry.split("|").some((alt) => facts.nature.some((got) => atOrUnder(cat, alt, got)))
+    (entry) =>
+      !entry
+        .split("|")
+        .some((alt) => [...facts.nature, ...carried].some((got) => atOrUnder(cat, alt, got)))
   );
   const wronglyNewFood = [...c.facetOnly, ...c.misread].filter((code) =>
     facts.nature.some((got) => related(cat, code, got))
