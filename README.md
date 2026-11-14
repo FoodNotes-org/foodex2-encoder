@@ -1,8 +1,10 @@
 # foodex2-encoder
 
-Library and stdio MCP server that turns an English food description into an
-EFSA FoodEx2 code (MTX catalogue): base term, facet descriptors, and labelled
-free text for what the code cannot express.
+Library and stdio MCP server that turns a food description into an EFSA
+FoodEx2 code (MTX catalogue): base term, facet descriptors, and labelled free
+text for what the code cannot express. The description may be in any language;
+an optional country says how to read it, since food names can mean different
+foods in different countries.
 
 This repository is the core. A hosted version is available at https://foodex2-encoder.foodnotes.org/ .
 
@@ -10,14 +12,16 @@ This repository is the core. A hosted version is available at https://foodex2-en
 
 Check every code before you use it. In particular:
 
-- **English input only**, including foreign food names commonly used in English.
-- **Group names the catalogue splits are kept as free text.** When a description
-  uses a name that the catalogue only has as several separate terms, that part
-  goes to free text instead of the code. For example, *canned shellfish* is coded
-  as *Canned seafood* with `source-commodity=shellfish` in free text, rather than
-  *Canned seafood* made from crustaceans and molluscs. The code is not wrong, but
-  it is broader than the description: *Canned seafood* also covers other marine
-  animals, such as sea urchins.
+- **Tested with a limited set of descriptions** in English, German, French,
+  Italian, Spanish and Dutch. Other languages should work too, but results vary
+  more for uncommon food names.
+- **A category's members can end up broader than stated.** When a category
+  names several foods it may consist of, the code records the nearest group
+  that covers them all, and the words go to free text. *Canned crabs and
+  lobsters* is coded as *Canned seafood* from *Crustaceans*, with the crabs
+  and lobsters kept in free text. When no group covers them, as for
+  *canned shellfish* (crustaceans and molluscs), only the free text keeps them.
+  The code is not wrong, but it is broader than the description.
 
 ## What you need
 
@@ -66,11 +70,13 @@ classify / select / residual steps; your chat client’s subscription is separat
 ```bash
 npm run cli -- encode "orange juice"
 npm run cli -- encode "fried rice with chicken"
+npm run cli -- encode "Kabeljauw gekookt" --country NL
 npm run cli -- traverse "eggplant"    # walk only (debug)
 ```
 
+`--country` takes an ISO 3166-1 code such as `NL`, or `EU`, the default.
 Lexical hits return in about a second. Descriptions that need a catalogue walk
-typically take 15–25 seconds.
+typically take 60–120 seconds.
 
 ## Try it (MCP stdio)
 
@@ -94,7 +100,7 @@ Point a client at that process. Cursor example (`mcp.json`):
 }
 ```
 
-Tool: `encode`. It returns the code, base term, facets, free text, fit,
+Tool: `encode`, with the description and an optional `country`. It returns the code, base term, facets, free text, fit,
 method, and a short `explanation`. Catalogue lookups, decoding, validation
 and EFSA guidance are in the free
 [FoodEx2 Atlas MCP](https://foodex2-atlas.foodnotes.org/mcp-service/).
@@ -104,17 +110,29 @@ and EFSA guidance are in the free
 ```bash
 npm test                 # unit tests (no model)
 npm run lexical-eval     # lexical base-term cases (no model)
-npm run encode-eval      # end-to-end gold set (needs a model key)
+npm run encode-eval      # end-to-end capability cases (needs a model key)
+npm run base-eval        # base-term decisions for foodstuffs (needs a model key)
+npm run reference-eval   # full codes against the FoodEx2 reference set (needs a model key)
 ```
 
-`eval/encode-base-term.yaml` is a small, focused regression set: one realistic
-case per capability (catalogue synonym, model synonym, named dish, restraint,
-and so on). Gold rules can require or forbid facets and free-text fragments;
-`expected` may list several acceptable base codes (any-of).
+- `eval/encode-base-term.yaml` is a small regression set: one realistic case
+  per capability (catalogue synonym, named dish, category, restraint, and so
+  on). Cases can require or forbid facets and free-text fragments; `expected`
+  may list several acceptable base codes (any-of).
+- `eval/base-attributes.yaml` tests the base-term decision for a foodstuff:
+  which stated treatments make a new food, and which stay facets. The rules it
+  refers to are in `rules/base-term.yaml`.
+- `npm run reference-eval` encodes every coded food in the
+  [FoodEx2 reference set](https://github.com/FoodNotes-org/foodex2-reference-set)
+  (the `vendor/foodex2-reference-set` submodule, pinned to a release tag) and
+  scores the base term and the full code, every facet included. It also scores
+  against the source's own published code where there is one. Many of the
+  set's codes are drafts, some of them first drafted with this encoder, so read
+  its numbers as a regression check, not as a benchmark.
 
-`npm run encode-eval` records the model and MTX version, and on a complete run
-writes `eval/results/encode-base-term.json` for publishing or sharing with the
-public core repo. Always cite the model named in that file’s `_provenance`.
+Each eval records the model and MTX version in its results file under
+`eval/results/` on a complete run. Always cite the model named in that file’s
+`_provenance`.
 
 ## Layout
 
@@ -124,8 +142,9 @@ src/search/     lexical + embedding retrieval
 src/server.ts   stdio MCP
 src/tools.ts    tool handlers (shared surface for a future Worker wrapper)
 data/           generated catalogue + embeddings (local)
-eval/           gold cases + results artifact
-vendor/         EFSA catalogues (submodule)
+src/eval/       eval runners and the reference-set loader
+eval/           eval cases + results artifacts
+vendor/         EFSA catalogues and the FoodEx2 reference set (submodules)
 ```
 
 ## Licence
@@ -136,6 +155,11 @@ That grant covers this software. EFSA catalogue files under `vendor/efsa-catalog
 (and generated `data/` derived from them) remain subject to EFSA’s terms.
 
 ### Attribution (eval inputs)
+
+The FoodEx2 reference set under `vendor/foodex2-reference-set/` has its own
+licence: its food descriptions stay under each source's terms, and the codes
+added there are CC BY 4.0. See its `LICENSE.md`.
+
 
 Some food names used as evaluation cases under `eval/` were drawn from national
 food composition databases. We use food names only (not nutrient values). Those
