@@ -14,7 +14,8 @@
     "base-eval": "tsx scripts/base-attributes-eval.ts",
     "draft-reference": "tsx scripts/draft-reference-set.ts",
     "test": "tsx --test tests/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "reference-eval": "tsx scripts/reference-eval.ts"
   },
   "repository": {
     "type": "git",
