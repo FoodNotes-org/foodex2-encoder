@@ -2887,6 +2887,44 @@ Reply with JSON only:
 }
 
 /**
+ * On a category, several sources for one phrase are a choice: each food in the
+ * group comes from one of them. They are replaced by the nearest group above
+ * them all in that facet's hierarchy, unless the base term already carries it,
+ * and the words go to free text, since a shared group loses their detail.
+ */
+async function settleCategorySources(
+  ctx: PlaceContext,
+  phrase: string,
+  facets: FacetDescriptorRef[],
+  attempts: Record<string, unknown>[]
+): Promise<FacetDescriptorRef[]> {
+  if (ctx.descriptionKind !== "category") return facets;
+  const out: FacetDescriptorRef[] = [];
+  for (const header of [...new Set(facets.map((facet) => facet.header))]) {
+    const group = facets.filter((facet) => facet.header === header);
+    if (group.length < 2 || (header !== F27 && header !== F01)) {
+      out.push(...group);
+      continue;
+    }
+    const nearest = sharedGroups(ctx.cat, header, group.map((facet) => facet.code))[0] ?? null;
+    const kept =
+      nearest !== null &&
+      acceptClosedDescriptor(ctx.cat, nearest.header, nearest.code, ctx.implied) === "keep";
+    attempts.push({
+      via: "category_sources",
+      phrase,
+      header,
+      named: group.map((facet) => facet.code),
+      nearest: nearest?.code ?? null,
+      kept,
+    });
+    if (kept) out.push(nearest);
+    pushFreeText(ctx.freeText, "member", phrase);
+  }
+  return out;
+}
+
+/**
  * Several terms of one facet: each is recorded, or the phrase is a choice and
  * they are replaced by one shared group (or by nothing).
  */
@@ -2900,6 +2938,7 @@ async function settlePhraseChoice(
 ): Promise<FacetDescriptorRef[]> {
   const withCountry = ctx.country !== null && ctx.country !== "";
   const out: FacetDescriptorRef[] = [];
+  facets = await settleCategorySources(ctx, phrase, facets, attempts);
   const headers: string[] = [];
   for (const facet of facets) {
     if (!headers.includes(facet.header)) headers.push(facet.header);
@@ -3975,6 +4014,30 @@ export function sourceReplacesCommodity(
 }
 
 /**
+ * True when the plant or animal `sourceCode` says more than the commodities
+ * already imply: it lies below the organism one of them implies, or none of
+ * them implies an organism. Crustaceans implies Crustaceans (as animal), so
+ * that animal adds nothing and the commodity stands.
+ */
+export function sourceNarrowsCommodities(
+  cat: Catalogue,
+  commodityCodes: readonly string[],
+  sourceCode: string
+): boolean {
+  const hierarchy = cat.facetCategory(F01)?.hierarchyCode;
+  const organisms = commodityCodes.flatMap((code) =>
+    cat
+      .impliedFacets(code)
+      .filter((key) => key.startsWith(`${F01}.`))
+      .map((key) => key.slice(F01.length + 1))
+  );
+  if (organisms.length === 0 || hierarchy === undefined) return true;
+  return organisms.some(
+    (organism) => organism !== sourceCode && cat.isAncestor(organism, sourceCode, hierarchy)
+  );
+}
+
+/**
  * Plants and animals already named by the source commodities a base denotes.
  * A derivative that implies Grapefruits already implies Grapefruit (as plant),
  * one step further on, even though the juice's own implicit list stops at the fruit.
@@ -4100,9 +4163,10 @@ async function placeDerivativeCommodity(ctx: PlaceContext, audit: AuditEntry[]):
   });
   const commodity = parseRawCommodity(asked.content);
   const recorded: FacetDescriptorRef[] = [];
+  const attempts: Record<string, unknown>[] = [];
   if (commodity !== null) {
     const resolved = await resolveF27Phrase(ctx, commodity);
-    for (const facet of resolved.facets) {
+    for (const facet of await settleCategorySources(ctx, commodity, resolved.facets, attempts)) {
       if (addFacet(ctx, facet)) recorded.push(facet);
     }
     if (recorded.length > 0) ctx.originCovered.push(commodity);
@@ -4129,7 +4193,7 @@ async function placeDerivativeCommodity(ctx: PlaceContext, audit: AuditEntry[]):
     source = parseNaturalSource(named.content);
     if (source !== null) {
       const resolved = await resolveSourcePhrase(ctx, source);
-      for (const facet of resolved.facets) {
+      for (const facet of await settleCategorySources(ctx, source, resolved.facets, attempts)) {
         if (redundantCommoditySource(ctx, facet)) {
           redundantSource.push(facet);
           continue;
@@ -4139,10 +4203,18 @@ async function placeDerivativeCommodity(ctx: PlaceContext, audit: AuditEntry[]):
     }
   }
 
-  const replaced = sourceReplacesCommodity(
-    recorded.map((facet) => facetDetail(ctx, facet)),
-    sourceRecorded.map((facet) => facetDetail(ctx, facet))
-  );
+  const replaced =
+    sourceReplacesCommodity(
+      recorded.map((facet) => facetDetail(ctx, facet)),
+      sourceRecorded.map((facet) => facetDetail(ctx, facet))
+    ) &&
+    sourceRecorded.some((facet) =>
+      sourceNarrowsCommodities(
+        ctx.cat,
+        recorded.map((commodity) => commodity.code),
+        facet.code
+      )
+    );
   if (replaced) {
     for (const facet of recorded) removeFacet(ctx, facet);
   } else if (recorded.length > 0) {
@@ -4150,6 +4222,16 @@ async function placeDerivativeCommodity(ctx: PlaceContext, audit: AuditEntry[]):
     sourceRecorded.length = 0;
   }
   if (source !== null && sourceRecorded.length > 0) ctx.originCovered.push(source);
+  if (
+    ctx.descriptionKind === "category" &&
+    commodity !== null &&
+    recorded.length === 0 &&
+    sourceRecorded.length === 0 &&
+    wordsWithin(commodity, ctx.input) &&
+    !wordsWithin(commodity, ctx.baseName)
+  ) {
+    pushFreeText(ctx.freeText, "member", commodity);
+  }
 
   let narrowed: FacetDescriptorRef | null = null;
   let narrowedDetail: Record<string, unknown> | null = null;
@@ -4180,6 +4262,7 @@ async function placeDerivativeCommodity(ctx: PlaceContext, audit: AuditEntry[]):
       ...(narrowedDetail !== null ? { narrowedDetail } : {}),
       replaced,
       covered: [...ctx.originCovered],
+      ...(attempts.length > 0 ? { attempts } : {}),
     },
   });
 }

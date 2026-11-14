@@ -265,7 +265,29 @@ cases:
     free_text_includes: shellfish
     capability: Keeps wording that says which foods a category includes in free text, not as facets.
     tags: facets
-    note: Canned seafood; each can holds crustaceans or molluscs, not both, so F27 Crustaceans + F27 Molluscs would read as a mix. Shellfish goes to free text
+    note: Canned seafood; each can holds crustaceans or molluscs, not both, so F27 Crustaceans + F27 Molluscs would read as a mix. No source-commodities term covers both, so shellfish goes to free text
+
+  - id: encode-canned-crustaceans
+    input: canned crustaceans
+    country: EU
+    expected: A0BZ5
+    method: traversal
+    require_facets: F27.A02FD
+    capability: Records the one source a category names when the catalogue has a term for it.
+    tags: facets
+    note: Canned seafood + F27 Crustaceans. An exact match is kept at any detail level; Crustaceans is a generic term
+
+  - id: encode-canned-crabs-lobsters
+    input: canned crabs and lobsters
+    country: EU
+    expected: A0BZ5
+    method: traversal
+    require_facets: F27.A02FD
+    forbid_facets: F27.A02FL,F27.A02FP,F27.A0F9Z
+    free_text_includes: lobster
+    capability: Records the nearest group covering the sources a category names, and keeps their words in free text.
+    tags: facets
+    note: Each can holds crabs or lobsters, so F27 Crabs + F27 Lobsters would read as a mix. No term covers exactly both; the nearest upper group is Crustaceans (EFSA guidance §5.6), and the words go to free text for the lost detail
 
   # --- Catalogue gaps and restraint ---
   - id: encode-quinoa-flour

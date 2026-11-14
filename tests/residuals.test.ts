@@ -53,6 +53,7 @@ import {
   parseRawCommodity,
   parseNaturalSource,
   originCoversPhrase,
+  sourceNarrowsCommodities,
   sourceReplacesCommodity,
   sourceRestatesCommodity,
   systemRawCommodity,
@@ -483,6 +484,16 @@ describe("derivative commodity question", () => {
     assert.equal(sourceReplacesCommodity(["P"], ["H"]), false);
     assert.equal(sourceReplacesCommodity(["P"], []), false);
     assert.equal(sourceReplacesCommodity([], ["E"]), false);
+  });
+
+  it("lets a source replace a commodity only when it says more than the commodity implies", () => {
+    // Crustaceans implies Crustaceans (as animal): the same animal, or Arthropods above it, adds nothing.
+    assert.equal(sourceNarrowsCommodities(cat, ["A02FD"], "A0BXN"), false);
+    assert.equal(sourceNarrowsCommodities(cat, ["A02FD"], "A0CKA"), false);
+    // Lobsters (generic) (as animal) lies below it.
+    assert.equal(sourceNarrowsCommodities(cat, ["A02FD"], "A053Z"), true);
+    // A commodity that implies no organism leaves the source to say it.
+    assert.equal(sourceNarrowsCommodities(cat, [], "A0BXN"), true);
   });
 
   it("treats the plant a derivative's commodity already names as redundant", () => {
