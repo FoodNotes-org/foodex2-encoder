@@ -8,7 +8,7 @@
 import { Catalogue } from "../catalogue.js";
 import { DEFAULT_COUNTRY_CODE, resolveCountry } from "../country.js";
 import { searchTerms } from "../search/lexical.js";
-import { isProviderInfraReason, LlmError } from "../llm.js";
+import { LlmError } from "../llm.js";
 import { formatFoodEx2Code } from "./foodex2-code.js";
 import { evaluateLexicalAccept } from "./lexical-accept.js";
 import type { NamedFacets } from "./base-compare.js";
@@ -92,7 +92,7 @@ async function withFacets(
       code: assigned.code,
     };
   } catch (err: unknown) {
-    if (err instanceof LlmError && isProviderInfraReason(err.kind)) {
+    if (err instanceof LlmError) {
       return rejectFromError(err, base.audit);
     }
     const message = err instanceof Error ? err.message : String(err);

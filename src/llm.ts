@@ -170,12 +170,16 @@ export function defaultModel(): string {
   return llmConfig().model;
 }
 
-function classifyHttpError(status: number, body: string): LlmErrorKind {
+/** A spending limit on the key (OpenRouter answers 403 "Key limit exceeded") counts as credits. */
+export function classifyHttpError(status: number, body: string): LlmErrorKind {
   if (status === 402) return "provider_credits";
   if (status === 429) return "provider_rate_limit";
   if (status >= 500) return "provider_unavailable";
   const lower = body.toLowerCase();
-  if (lower.includes("credit") || lower.includes("afford")) return "provider_credits";
+  if (lower.includes("credit") || lower.includes("afford") || lower.includes("key limit")) {
+    return "provider_credits";
+  }
+  if (status === 403 && lower.includes("limit")) return "provider_credits";
   if (lower.includes("rate")) return "provider_rate_limit";
   return "provider_error";
 }

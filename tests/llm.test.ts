@@ -5,7 +5,14 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { chatJson, diffUsage, isProviderInfraReason, LlmError, parseUsage } from "../src/llm.js";
+import {
+  chatJson,
+  classifyHttpError,
+  diffUsage,
+  isProviderInfraReason,
+  LlmError,
+  parseUsage,
+} from "../src/llm.js";
 
 async function withReplies<T>(replies: string[], fn: () => Promise<T>): Promise<{ result?: T; error?: unknown; calls: number }> {
   const realFetch = globalThis.fetch;
@@ -54,6 +61,12 @@ describe("LlmError / infra reasons", () => {
     assert.equal(isProviderInfraReason("provider_unavailable"), true);
     assert.equal(isProviderInfraReason("model_response_invalid"), false);
     assert.equal(isProviderInfraReason("traversal_error"), false);
+  });
+
+  it("reads a spending limit on the key as credits", () => {
+    const body = '{"error":{"message":"Key limit exceeded (monthly limit).","code":403}}';
+    assert.equal(classifyHttpError(403, body), "provider_credits");
+    assert.equal(classifyHttpError(403, '{"error":{"message":"Forbidden"}}'), "provider_error");
   });
 
   it("carries kind and status", () => {
