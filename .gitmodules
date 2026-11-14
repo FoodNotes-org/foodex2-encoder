@@ -1,3 +1,6 @@
 [submodule "vendor/efsa-catalogues"]
 	path = vendor/efsa-catalogues
 	url = https://github.com/openefsa/efsa-catalogues.git
+[submodule "vendor/foodex2-reference-set"]
+	path = vendor/foodex2-reference-set
+	url = https://github.com/FoodNotes-org/foodex2-reference-set.git

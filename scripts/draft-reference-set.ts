@@ -22,48 +22,16 @@ import { formatFreeText } from "../src/encode/free-text.js";
 import { toUserEncodeResult } from "../src/encode/user-result.js";
 import type { EncodeUserResult } from "../src/encode/types.js";
 import { loadEnv } from "../src/env.js";
+import { type CsvRow, parseCsv } from "../src/eval/reference-set.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DRAFTS_DIR = join(ROOT, "_private", "reference-set-drafts");
-
-type Row = Record<string, string>;
-
-function parseCsv(text: string): { header: string[]; rows: Row[] } {
-  const records: string[][] = [];
-  let record: string[] = [];
-  let field = "";
-  let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i] as string;
-    if (quoted) {
-      if (ch === '"' && text[i + 1] === '"') {
-        field += '"';
-        i++;
-      } else if (ch === '"') quoted = false;
-      else field += ch;
-    } else if (ch === '"') quoted = true;
-    else if (ch === ",") {
-      record.push(field);
-      field = "";
-    } else if (ch === "\n" || ch === "\r") {
-      if (ch === "\r" && text[i + 1] === "\n") i++;
-      record.push(field);
-      records.push(record);
-      record = [];
-      field = "";
-    } else field += ch;
-  }
-  if (field !== "" || record.length > 0) records.push([...record, field]);
-  const [header, ...body] = records;
-  if (header === undefined) throw new Error("empty CSV");
-  return { header, rows: body.map((r) => Object.fromEntries(header.map((h, i) => [h, r[i] ?? ""]))) };
-}
 
 function csvField(value: string): string {
   return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-function writeCsv(path: string, header: string[], rows: Row[]): void {
+function writeCsv(path: string, header: string[], rows: CsvRow[]): void {
   const lines = [header, ...rows.map((r) => header.map((h) => r[h] ?? ""))];
   writeFileSync(path, lines.map((l) => l.map(csvField).join(",")).join("\n") + "\n", "utf8");
 }
