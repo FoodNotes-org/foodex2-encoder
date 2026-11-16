@@ -245,7 +245,8 @@ async function main(): Promise<void> {
       const r = await runOnce(cat, c, run, full);
       results.get(c.id)!.push(r);
       done += 1;
-      console.log(`[${done}/${jobs.length}] ${c.id}#${run + 1} → ${r.pick ?? r.reason} (${r.ms} ms)`);
+      const shown = full && r.code ? r.code : (r.pick ?? r.reason);
+      console.log(`[${done}/${jobs.length}] ${c.id}#${run + 1} → ${shown} (${r.ms} ms)`);
       if (r.infra && !stoppedForInfra) {
         console.log(`  → ${r.reason}; stopping eval early`);
         stoppedForInfra = true;
