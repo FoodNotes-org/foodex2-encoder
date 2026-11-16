@@ -58,24 +58,29 @@ Reply with JSON only, listing the codes of those groups, or an empty list if the
 
 /**
  * Precision pick among recalled descriptors of one facet. note is MTX scope text.
- * A repeatable facet may take every term the phrase states; a single facet takes one.
+ * A repeatable facet may take every matching term; a single facet takes one.
  */
-function systemLeaf(withCountry: boolean, many = false): string {
+export function systemLeaf(withCountry: boolean, many = false): string {
+  const foodLine = withCountry
+    ? "- `food`: the food being described, to be understood alongside `phrase` in the food nomenclature of: `country`."
+    : "- `food`: the food being described.";
   const task = many
-    ? "Your task is to decide which terms, if any, are the values of the phrase taken as one statement."
-    : "Your task is to decide which term, if any, is the value of the phrase taken as one statement.";
+    ? "Your task is to decide which terms, if any, mean the same thing about `food` as `phrase` does — the same attribute and the same value of it."
+    : "Your task is to decide which term, if any, means the same thing about `food` as `phrase` does — the same attribute and the same value of it.";
   const reply = many
-    ? `Reply with JSON only, listing the codes of those terms, or an empty list if there are none:
-{"codes":["<code>",...]}`
-    : `Reply with JSON only, giving the code of that term, or null if the phrase states none of them:
-{"code":"<code>"|null}`;
+    ? `Reply with JSON only, first stating in English what \`phrase\` means about \`food\`, then listing the codes of the matching terms, or an empty list if there are none:
+{"meaning":"<meaning>","codes":["<code>",...]}`
+    : `Reply with JSON only, first stating in English what \`phrase\` means about \`food\`, then giving the code of the matching term, or null if there is none:
+{"meaning":"<meaning>","code":"<code>"|null}`;
   return `You are an expert in food classification.
 
+A food description is being expressed in the terms of a food catalogue.
+
 Your given inputs:
-- \`description\`: the food being coded.
-- \`phrase\`: one thing that description says about that food.
-- \`terms\`: catalogue terms, each with a \`code\`, a \`name\`, the \`list\` it belongs to and, for some, a \`note\` from the catalogue on when to use it.
-${countryParagraph(withCountry, "description")}
+${foodLine}
+- \`phrase\`: a phrase that qualifies \`food\`.
+- \`terms\`: catalogue terms, each with a \`code\`, a \`label\` (\`<attribute>: <value>\`) that names it, and, for some, a \`note\` from the catalogue explaining its meaning, scope and use.
+
 ${task}
 
 ${reply}
@@ -181,7 +186,13 @@ ${reply}
 export type FacetWalkAccept = (header: string, code: string) => boolean;
 
 /** The food the phrase belongs to, shown to the model alongside the phrase. */
-export type FacetWalkFood = { input: string; baseTerm: string; baseScope: string };
+export type FacetWalkFood = {
+  input: string;
+  /** Input with stated attributes cut out; falls back to `input`. */
+  food?: string;
+  baseTerm: string;
+  baseScope: string;
+};
 
 export type FacetWalkOptions = {
   model: string;
@@ -310,12 +321,28 @@ function facetAllowsMany(header: string): boolean {
   return facetCardinality(header)?.flag === "repeatable";
 }
 
+export function leafTerms(
+  terms: ReadonlyArray<{ code: string; name: string; list: string; note?: string }>
+): Array<{ code: string; label: string; note?: string }> {
+  return terms.map(({ code, name, list, note }) => ({
+    code,
+    label: `${list}: ${name}`,
+    ...(note !== undefined ? { note } : {}),
+  }));
+}
+
+function parseMeaning(content: unknown): string | null {
+  if (content === null || typeof content !== "object") return null;
+  const raw = (content as { meaning?: unknown }).meaning;
+  return typeof raw === "string" && raw.trim() !== "" ? raw.trim() : null;
+}
+
 async function askSelect(
   phrase: string,
   terms: Array<{ code: string; name: string; list: string; parent?: string; note?: string }>,
   options: FacetWalkOptions,
   many = false
-): Promise<{ codes: string[]; model: string }> {
+): Promise<{ codes: string[]; meaning: string | null; model: string }> {
   const allowed = new Set(terms.map((c) => c.code));
   if (options.originRole !== undefined && options.food !== undefined) {
     const picked = await chatJson({
@@ -346,17 +373,18 @@ async function askSelect(
           const code = pickAllowedCode(picked.content, allowed);
           return code === null ? [] : [code];
         })();
-    return { codes, model: picked.model };
+    return { codes, meaning: null, model: picked.model };
   }
+  const foodText = options.food?.food ?? options.food?.input;
   const picked = await chatJson({
     model: options.model,
     system: systemLeaf(hasCountry(options), many),
     user: JSON.stringify(
       {
-        ...(options.food ? { description: options.food.input } : {}),
+        ...(foodText !== undefined ? { food: foodText } : {}),
         ...countryField(options),
         phrase,
-        terms,
+        terms: leafTerms(terms),
       },
       null,
       2
@@ -368,7 +396,7 @@ async function askSelect(
         const code = pickAllowedCode(picked.content, allowed);
         return code === null ? [] : [code];
       })();
-  return { codes, model: picked.model };
+  return { codes, meaning: parseMeaning(picked.content), model: picked.model };
 }
 
 /**
@@ -766,6 +794,7 @@ async function selectAmong(
       ...(c.parent !== undefined ? { parent: c.parent } : {}),
       hasGuidance: c.note !== undefined,
     })),
+    ...(picked.meaning !== null ? { meaning: picked.meaning } : {}),
     picked: many ? picked.codes : (picked.codes[0] ?? null),
     model: picked.model,
   });

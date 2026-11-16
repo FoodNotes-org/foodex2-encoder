@@ -396,10 +396,31 @@ export function partPhrasesToRemove(
   return out;
 }
 
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+
+function findPhraseSpan(text: string, phrase: string): number {
+  const lowerText = text.toLowerCase();
+  const lowerPhrase = phrase.toLowerCase();
+  if (lowerPhrase === "") return -1;
+  const checkStart = WORD_CHAR.test(lowerPhrase[0]!);
+  const checkEnd = WORD_CHAR.test(lowerPhrase[lowerPhrase.length - 1]!);
+  let from = 0;
+  while (from <= lowerText.length - lowerPhrase.length) {
+    const at = lowerText.indexOf(lowerPhrase, from);
+    if (at < 0) return -1;
+    const beforeOk = !checkStart || at === 0 || !WORD_CHAR.test(lowerText[at - 1]!);
+    const end = at + lowerPhrase.length;
+    const afterOk = !checkEnd || end === lowerText.length || !WORD_CHAR.test(lowerText[end]!);
+    if (beforeOk && afterOk) return at;
+    from = at + 1;
+  }
+  return -1;
+}
+
 /**
  * The description with each phrase cut out where it occurs, and the phrases
- * that were. A phrase not found as written is left. Empty comma parts are
- * dropped; when nothing would remain the description is kept whole.
+ * that were. A phrase not found on word boundaries is left. Empty brackets and
+ * comma parts are dropped; when nothing would remain the description is kept whole.
  */
 export function removePhrases(
   description: string,
@@ -408,12 +429,13 @@ export function removePhrases(
   let text = description;
   const removed: string[] = [];
   for (const phrase of phrases) {
-    const at = text.toLowerCase().indexOf(phrase.toLowerCase());
+    const at = findPhraseSpan(text, phrase);
     if (at < 0) continue;
     removed.push(text.slice(at, at + phrase.length));
     text = `${text.slice(0, at)} ${text.slice(at + phrase.length)}`;
   }
   const cleaned = text
+    .replace(/\(\s*\)|\[\s*\]/g, " ")
     .split(",")
     .map((part) => part.replace(/\s+/g, " ").trim())
     .filter((part) => part !== "")

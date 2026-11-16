@@ -65,7 +65,7 @@ import {
   parseNumericContent,
   type NumericContentClaim,
 } from "./numeric-facets.js";
-import type { NamedFacets } from "./base-compare.js";
+import { removePhrases, type NamedFacets } from "./base-compare.js";
 import type {
   AuditEntry,
   BaseTermRef,
@@ -663,6 +663,8 @@ interface PlaceContext {
   limitedSlots: Set<string>;
   model: string;
   input: string;
+  /** Input with stated attribute phrases cut out; falls back to `input`. */
+  food: string;
   /** English country name, when the caller passed one. */
   country: string | null;
   fit: SelectFit | null;
@@ -686,9 +688,21 @@ interface PlaceContext {
 function walkFood(ctx: PlaceContext): FacetWalkFood {
   return {
     input: ctx.input,
+    food: ctx.food,
     baseTerm: ctx.baseName,
     baseScope: ctx.cat.term(ctx.baseCode)?.scopeNote?.trim() ?? "",
   };
+}
+
+/** Longest phrases first so a compound attribute is cut before a word inside it. */
+export function stripAttributePhrases(
+  description: string,
+  phrases: readonly string[]
+): string {
+  const ordered = [...new Set(phrases.map((phrase) => phrase.trim()).filter(Boolean))].sort(
+    (a, b) => b.length - a.length
+  );
+  return removePhrases(description, ordered).text;
 }
 
 function altNames(code: string): string[] {
@@ -4403,6 +4417,7 @@ async function askFoodOrigin(
     step: "residuals_origin",
     detail: {
       model: asked.model,
+      description,
       differentiae,
       fit: ctx.fit,
       ...(filtered.dropped.length > 0 ? { droppedEarlyClaims: filtered.dropped } : {}),
@@ -4421,10 +4436,12 @@ async function assignResidualSlots(
     model: ctx.model,
     country: ctx.country,
   });
+  ctx.food = stripAttributePhrases(input, [...listed.attributes, ...namedPhrases(ctx)]);
   audit.push({
     step: "residuals_slots",
     detail: {
       model: listed.model,
+      food: ctx.food,
       attributes: listed.attributes,
       ...(listed.omitted.length > 0 ? { omitted: listed.omitted } : {}),
     },
@@ -4459,7 +4476,7 @@ async function assignResidualSlots(
       const header = key.split(".")[0] ?? key;
       return `${ctx.cat.facetCategory(header)?.label ?? header}: ${name}`;
     });
-    const origin = await askFoodOrigin(ctx, input, implicit, audit);
+    const origin = await askFoodOrigin(ctx, ctx.food, implicit, audit);
     for (const property of origin.from) {
       const entry = property.name ?? property.phrase;
       if (originCoversPhrase(entry, ctx.originCovered)) {
@@ -4499,7 +4516,7 @@ async function assignResidualSlots(
     }
   }
 
-  const resolutions = [];
+  const resolutions: Record<string, unknown>[] = [];
   for (const draft of drafts) {
     resolutions.push(
       await placeAttributeSlot(ctx, draft.phrase, {
@@ -4545,6 +4562,7 @@ export async function assignResiduals(
     limitedSlots: new Set(),
     model,
     input,
+    food: input,
     country: options.country ?? null,
     fit: options.fit ?? null,
     fortificationClaim: { status: "none" },
@@ -4706,6 +4724,10 @@ export async function assignResiduals(
   // minus what a role facet claimed, then the input's own origin wording.
   const gapInput = input;
   const properties = await listInputProperties();
+  ctx.food = stripAttributePhrases(input, [
+    ...properties.map((property) => property.phrase),
+    ...namedPhrases(ctx),
+  ]);
 
   const passes: FacetsPass[] = [];
   for (const property of properties) passes.push(await placeFacetsPass(ctx, property, "freeText"));

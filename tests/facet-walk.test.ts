@@ -7,12 +7,14 @@ import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
 import {
   FACET_WALK_SKIP_HEADERS,
+  leafTerms,
   nearestFacetSeeds,
+  systemLeaf,
   systemOriginPick,
   systemSourceCommodityPick,
   walkableDimensions,
 } from "../src/encode/facet-walk.js";
-import { facetDimensions } from "../src/encode/residuals.js";
+import { facetDimensions, stripAttributePhrases } from "../src/encode/residuals.js";
 
 const cat = Catalogue.load();
 
@@ -102,5 +104,43 @@ describe("walkableDimensions", () => {
     );
     assert.ok(walkable.some((d) => d.header === "F28"));
     assert.ok(walkable.some((d) => d.header === "F10"));
+  });
+});
+
+describe("systemLeaf and leafTerms", () => {
+  it("frames food, phrase, <attribute>: <value> labels, and meaning-before-codes", () => {
+    const manyPrompt = systemLeaf(true, true);
+    assert.match(manyPrompt, /- `food`: the food being described, to be understood alongside `phrase`/);
+    assert.match(manyPrompt, /`label` \(`<attribute>: <value>`\)/);
+    assert.match(manyPrompt, /same attribute and the same value of it/);
+    assert.match(manyPrompt, /\{"meaning":"<meaning>","codes":\["<code>",\.\.\.\]\}/);
+
+    const singlePrompt = systemLeaf(false, false);
+    assert.doesNotMatch(singlePrompt, /food nomenclature/);
+    assert.match(singlePrompt, /\{"meaning":"<meaning>","code":"<code>"\|null\}/);
+  });
+
+  it("prefixes each term name with its facet label", () => {
+    assert.deepEqual(
+      leafTerms([
+        { code: "A07NC", name: "Vegetables inside cooked", list: "Extent-of-cooking", note: "When a vegetable is thoroughly cooked" },
+        { code: "A0F2Q", name: "Green", list: "Qualitative-info" },
+      ]),
+      [
+        {
+          code: "A07NC",
+          label: "Extent-of-cooking: Vegetables inside cooked",
+          note: "When a vegetable is thoroughly cooked",
+        },
+        { code: "A0F2Q", label: "Qualitative-info: Green" },
+      ]
+    );
+  });
+
+  it("strips longest attribute phrases first to isolate the food head", () => {
+    assert.equal(stripAttributePhrases("Spruitjes diepvries gekookt", ["diepvries", "gekookt"]), "Spruitjes");
+    assert.equal(stripAttributePhrases("Asperge groene gekookt", ["groene", "gekookt"]), "Asperge");
+    assert.equal(stripAttributePhrases("Potatoes, fried in oil", ["fried", "fried in oil"]), "Potatoes");
+    assert.equal(stripAttributePhrases("Beef steak, well done", ["well done"]), "Beef steak");
   });
 });

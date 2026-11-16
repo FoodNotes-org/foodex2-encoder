@@ -110,6 +110,17 @@ describe("removePhrases", () => {
   it("keeps the description whole when nothing would remain", () => {
     assert.deepEqual(removePhrases("Quinoa flour", ["Quinoa flour"]), { text: "Quinoa flour", removed: [] });
   });
+
+  it("matches whole words and drops empty brackets left behind", () => {
+    assert.deepEqual(removePhrases("Spruitjes met ui", ["ui"]), {
+      text: "Spruitjes met",
+      removed: ["ui"],
+    });
+    assert.deepEqual(removePhrases("Yoghurt (halfvol)", ["halfvol"]), {
+      text: "Yoghurt",
+      removed: ["halfvol"],
+    });
+  });
 });
 
 describe("parseStatedProcesses", () => {
