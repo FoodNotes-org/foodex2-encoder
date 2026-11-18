@@ -5,20 +5,17 @@
  * Classify against the full input. Residuals also see that input.
  *
  * 1. One model pass: fit class per candidate (exact|broad|narrow|related|none).
- * 2. Prefer exact, else broad. Narrow, related, and none stay on the audit.
+ * 2. Exact and broad are both shelves. A term that contains another accepted
+ *    shelf is dropped. Narrow, related, and none stay on the audit.
  * 3. For a mix, a generic group the named foods share is the base when the
  *    walk already accepted it. A strict majority is enough when every food
- *    outside that group is a minor share. Otherwise, when more than one broad
- *    remains, a broad term that contains another is dropped. When more than
- *    one is left, the model picks the kind of product the food is primarily
- *    eaten as. Only when it gives no usable answer does the score decide: a
- *    shelf that already carries a process gets that bonus once. Related terms
- *    are not passed on.
- * 4. Otherwise within the winning class, C/E/P detail-level bonus may prefer a
- *    denser term; ties → deterministic tie-breaks (specificity, non-specific P,
- *    core/extended, code). The same order breaks a broad-score tie the model
- *    does not answer.
- * 5. pickKind / residual fit is the winning tier (exact|broad).
+ *    outside that group is a minor share.
+ * 4. When more than one shelf remains, the model chooses the term that best
+ *    describes the food. Stated process rules are shown beside the terms.
+ *    Only when it gives no usable answer does fit, then detail level, then
+ *    the deterministic tie-break decide. A process a term already carries
+ *    does not decide.
+ * 5. pickKind / residual fit is the chosen term's class (exact|broad).
  */
 
 import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
@@ -77,8 +74,6 @@ const SCORING_AUDIT = {
   detailLevelBonus: DETAIL_LEVEL_BONUS,
   detailLevels: DETAIL_LEVELS,
   detailBonusScope: "within_fit_class",
-  processBonus: PROCESS_BONUS,
-  processBonusScope: "broad_shelf_once",
 };
 
 /** Fit points + detail bonus (for audit). Shortlist uses fit class first. */
@@ -94,7 +89,7 @@ export function selectScore(
 
 export interface SelectOptions {
   model?: string;
-  /** How the route read the description; frames the classify system prompt. */
+  /** Set only for a mix. The walk no longer decides a description kind. */
   descriptionKind?: DescriptionKind | null;
   /** English name of the country the description comes from. */
   country?: string | null;
@@ -102,6 +97,8 @@ export interface SelectOptions {
   treatments?: readonly string[];
   /** Words taken out of the input, each stating parts it includes or leaves out. */
   parts?: readonly string[];
+  /** Conditional table rule for each process the description states. */
+  processes?: readonly { name: string; rule: string }[];
 }
 
 export interface SelectResult {
@@ -267,6 +264,24 @@ export function narrowestTerms(
   return pool.filter((c) => descendantsInSet(cat, c.code, codes).length === 0);
 }
 
+/**
+ * Exact and broad candidates, after a term that contains another of them is
+ * dropped. Hierarchy terms already held back are left out.
+ */
+export function shelfCandidates(
+  cat: Catalogue,
+  pool: readonly BaseTermCandidate[],
+  byCode: Map<string, CandidateFit>,
+  heldBack: readonly string[]
+): BaseTermCandidate[] {
+  const held = new Set(heldBack);
+  const accepted = pool.filter((candidate) => {
+    const fit = byCode.get(candidate.code) ?? "none";
+    return (fit === "exact" || fit === "broad") && !held.has(candidate.code);
+  });
+  return narrowestTerms(cat, accepted);
+}
+
 /** Prefer exact, else broad. Empty if neither present. */
 export function selectableFitTier(
   byCode: Map<string, CandidateFit>,
@@ -412,17 +427,13 @@ export async function scoreTraversalCandidates(
   const scores = new Map(
     pool.map((c) => {
       const fit = byCode.get(c.code) ?? "none";
-      const parts = fit === "broad" ? broadShelfScore(cat, c.code) : selectScore(cat, c.code, fit);
-      return [c.code, parts] as const;
+      return [c.code, selectScore(cat, c.code, fit)] as const;
     })
   );
 
   const hierarchyHeldBack = hierarchyTermsHeldBack(cat, byCode, pool);
-  const tier = selectableFitTier(
-    byCode,
-    pool.filter((c) => !hierarchyHeldBack.includes(c.code))
-  );
-  if (tier === null) {
+  const shelves = shelfCandidates(cat, pool, byCode, hierarchyHeldBack);
+  if (shelves.length === 0) {
     const scored = pool
       .map((candidate) =>
         toScored(
@@ -452,17 +463,16 @@ export async function scoreTraversalCandidates(
     return { pool, scored, pick: null, pickKind: null, audit };
   }
 
-  const tierPool = pool.filter((c) => tier.codes.has(c.code));
-
-  let shortlistCodes: Set<string>;
-  let shortlist: BaseTermCandidate[];
-  let maxScore: number;
+  let shortlistCodes = new Set<string>();
+  let shortlist: BaseTermCandidate[] = [];
+  let maxScore = 0;
   let parentPickVia: "model" | "tie_break" | "narrowest" | "same_nature" | null = null;
   let shelfPool: BaseTermCandidate[] | null = null;
   let minorFoods: string[] | undefined;
+  let winningFit: SelectFit = (byCode.get(shelves[0]!.code) ?? "broad") as SelectFit;
 
   const sameNature =
-    options.descriptionKind === "mix" && tier.fit === "broad"
+    options.descriptionKind === "mix" && shelves.every((candidate) => byCode.get(candidate.code) === "broad")
       ? sameNatureGroup(
           cat,
           input,
@@ -514,12 +524,17 @@ export async function scoreTraversalCandidates(
     }
   }
 
+  function take(candidate: BaseTermCandidate, via: typeof parentPickVia): void {
+    shortlistCodes = new Set([candidate.code]);
+    shortlist = [candidate];
+    maxScore = scores.get(candidate.code)!.score;
+    shelfPool = shelves;
+    parentPickVia = via;
+    winningFit = (byCode.get(candidate.code) ?? "broad") as SelectFit;
+  }
+
   if (sameNaturePick !== null) {
-    shortlistCodes = new Set([sameNaturePick.code]);
-    shortlist = [sameNaturePick];
-    maxScore = scores.get(sameNaturePick.code)!.score;
-    shelfPool = [sameNaturePick];
-    parentPickVia = "same_nature";
+    take(sameNaturePick, "same_nature");
     audit.push({
       step: "select_same_nature",
       detail: {
@@ -528,56 +543,34 @@ export async function scoreTraversalCandidates(
         ...(minorFoods !== undefined ? { minorFoods } : {}),
       },
     });
-  } else if (tier.fit === "broad" && tierPool.length > 1) {
-    shelfPool = narrowestTerms(cat, tierPool);
-    if (shelfPool.length === 1) {
-      const only = shelfPool[0]!;
-      shortlistCodes = new Set([only.code]);
-      shortlist = [only];
-      maxScore = scores.get(only.code)!.score;
-      parentPickVia = "narrowest";
-    } else {
-      const kindPick = await pickProductKind(input, shelfPool, options);
-      audit.push(...kindPick.audit);
-      const chosen =
-        kindPick.code !== null
-          ? shelfPool.find((c) => c.code === kindPick.code) ?? null
-          : null;
-      if (chosen !== null) {
-        shortlistCodes = new Set([chosen.code]);
-        shortlist = [chosen];
-        maxScore = scores.get(chosen.code)!.score;
-        parentPickVia = "model";
-      } else {
-        maxScore = Math.max(...shelfPool.map((c) => scores.get(c.code)!.score));
-        const top = shelfPool.filter((c) => scores.get(c.code)!.score === maxScore);
-        shortlistCodes = new Set(top.map((c) => c.code));
-        shortlist = [...top].sort((a, b) =>
-          compareTieBreak(
-            tieBreakRank(cat, a, shortlistCodes).rank,
-            tieBreakRank(cat, b, shortlistCodes).rank
-          )
-        );
-        parentPickVia = "tie_break";
-      }
-    }
-  } else if (tier.fit === "broad" && tierPool.length === 1) {
-    const only = tierPool[0]!;
-    shortlistCodes = new Set([only.code]);
-    shortlist = [only];
-    maxScore = scores.get(only.code)!.score;
+  } else if (shelves.length === 1) {
+    take(shelves[0]!, null);
   } else {
-    maxScore = Math.max(...tierPool.map((c) => scores.get(c.code)!.score));
-    shortlistCodes = new Set(
-      tierPool.filter((c) => scores.get(c.code)!.score === maxScore).map((c) => c.code)
-    );
-    shortlist = pool.filter((c) => shortlistCodes.has(c.code));
-    shortlist.sort((a, b) =>
-      compareTieBreak(
-        tieBreakRank(cat, a, shortlistCodes).rank,
-        tieBreakRank(cat, b, shortlistCodes).rank
-      )
-    );
+    shelfPool = shelves;
+    const kindPick = await pickProductKind(input, shelves, options);
+    audit.push(...kindPick.audit);
+    const chosen =
+      kindPick.code !== null ? shelves.find((c) => c.code === kindPick.code) ?? null : null;
+    if (chosen !== null) {
+      take(chosen, "model");
+    } else {
+      const ranked = [...shelves].sort((a, b) => {
+        const delta = (scores.get(b.code)?.score ?? 0) - (scores.get(a.code)?.score ?? 0);
+        if (delta !== 0) return delta;
+        return compareTieBreak(
+          tieBreakRank(cat, a, new Set(shelves.map((c) => c.code))).rank,
+          tieBreakRank(cat, b, new Set(shelves.map((c) => c.code))).rank
+        );
+      });
+      const top = ranked[0]!;
+      shortlistCodes = new Set(
+        ranked.filter((c) => scores.get(c.code)!.score === scores.get(top.code)!.score).map((c) => c.code)
+      );
+      shortlist = ranked.filter((c) => shortlistCodes.has(c.code));
+      maxScore = scores.get(top.code)!.score;
+      parentPickVia = "tie_break";
+      winningFit = (byCode.get(shortlist[0]!.code) ?? "broad") as SelectFit;
+    }
   }
 
   const pickCandidate = shortlist[0] ?? null;
@@ -611,10 +604,10 @@ export async function scoreTraversalCandidates(
     step: "select_pick",
     detail: {
       scoring: SCORING_AUDIT,
-      winningFit: tier.fit,
+      winningFit,
       ...(hierarchyHeldBack.length > 0 ? { hierarchyHeldBack } : {}),
       maxScore,
-      tierSize: tier.codes.size,
+      tierSize: shelves.length,
       ...(shelfPool !== null
         ? {
             shelfPickPool: shelfPool.map((c) => ({
@@ -641,7 +634,7 @@ export async function scoreTraversalCandidates(
     pool,
     scored,
     pick,
-    pickKind: pick === null ? null : tier.fit,
+    pickKind: pick === null ? null : winningFit,
     ...(minorFoods !== undefined ? { minorFoods } : {}),
     audit,
   };

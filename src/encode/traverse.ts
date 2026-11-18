@@ -1,12 +1,10 @@
 /**
  * Top-down exposure-tree traversal for base-term candidate recall.
  *
- * The router picks one descriptionKind for the whole description. That kind is
- * reused for classify / select wording and for residuals. A foodstuff is
- * compared as the description given, with a treatment that does not create a
- * new kind of food taken out, unless a catalogue group that already implies
- * that treatment is this food. A dish or a mix is compared as the description
- * given.
+ * The walk compares the description as given, so a commodity and a dish can
+ * both be collected. It is not told whether the description is a foodstuff or
+ * a dish. Stated processes and parts are named for the selector and for
+ * facets; they are not taken out of the text the walk sees.
  *
  * Embeddings tip the walk toward opaque branches: a few high cosine hits contribute
  * their expo parents as extra seeds. A catalogue group that already implies a
@@ -28,11 +26,10 @@ import {
   EXPO_ROOT,
   isInExposureTree,
 } from "../catalogue.js";
-import { countryContextLine } from "../country.js";
 import { chatJson, defaultModel, LlmError } from "../llm.js";
 import { vectorIndexAvailable, vectorSearchBase } from "../search/vector.js";
 import { parseClassifications } from "./answers.js";
-import { resolveBaseCompare, type NamedFacets } from "./base-compare.js";
+import { nameStatedFacets } from "./base-compare.js";
 import { renderEmbeddingQuery, type EmbeddingQuery } from "./embed-query.js";
 import {
   LADDER_LABELS,
@@ -86,20 +83,6 @@ interface TraversalChildView {
 interface RawCandidate {
   code: string;
   match: CandidateMatch;
-}
-
-function routeSystem(withCountry: boolean): string {
-  return `Assign exactly one descriptionKind to the input:
-
-- "foodstuff": a food, beverage, food product or food commodity
-- "category": a food group or group of foods taken together for statistical reporting
-- "dish": a prepared dish or meal, including a named dish with sides or accompaniments
-- "dish_type": a type of dish, without a specific dish name
-- "mix": a product you can buy that is a blend of several foods
-${withCountry ? `\n${countryContextLine("input")}\n` : ""}
-Reply with JSON only:
-{"descriptionKind":"foodstuff|category|dish|dish_type|mix"}
-`;
 }
 
 /** Display name for the classify parent. */
@@ -716,46 +699,8 @@ export async function collectTraversalCandidates(
   const country = options.country ?? null;
   const seedLimit = options.embeddingSeedLimit ?? DEFAULT_EMBEDDING_SEED_LIMIT;
   const searchEmbeddings = seedLimit > 0 && vectorIndexAvailable();
-  const routed = await chatJson({
-    model,
-    system: routeSystem(country !== null),
-    user: JSON.stringify({ input, ...(country !== null ? { country } : {}) }, null, 2),
-  });
-  const route = parseRoute(routed.content, input);
-  const { descriptionKind } = route;
-
-  audit.push({
-    step: "route",
-    detail: {
-      input,
-      model: routed.model,
-      descriptionKind,
-    },
-  });
-
-  let compareAs = input;
-  let treatmentsApplied: string[] = [];
-  let statedTreatments: string[] = [];
-  let partsApplied: string[] = [];
-  let statedParts: string[] = [];
-  let named: NamedFacets | null = null;
-  let baseTermTypes: ReadonlySet<string> | null = null;
-  let processGroup: TraverseCollectResult["processGroup"] = null;
-  let processSeeds: string[] = [];
-  if (descriptionKind === "foodstuff") {
-    const compared = await resolveBaseCompare(input, country, model);
-    compareAs = compared.compareAs;
-    treatmentsApplied = compared.treatmentsApplied;
-    statedTreatments = compared.statedTreatments;
-    partsApplied = compared.partsApplied;
-    statedParts = compared.statedParts;
-    named = compared.named;
-    baseTermTypes = compared.termTypes;
-    processGroup = compared.processGroup;
-    processSeeds = compared.seeds;
-    audit.push({ step: "base_compare", detail: compared.detail });
-  }
-
+  const compareAs = input;
+  const namedPromise = nameStatedFacets(input, country, model);
   const wholeSystem = routeWalkSystem(country !== null);
   const rendered = searchEmbeddings
     ? await renderEmbeddingQuery(compareAs, country, model)
@@ -763,7 +708,7 @@ export async function collectTraversalCandidates(
   const embeddingSeeds = await embeddingWalkSeeds(rendered, seedLimit, audit);
   const seenSeeds = new Set<string>([EXPO_ROOT]);
   const wholeSeeds = [EXPO_ROOT];
-  for (const seed of [...embeddingSeeds, ...processSeeds]) {
+  for (const seed of embeddingSeeds) {
     if (seenSeeds.has(seed)) continue;
     seenSeeds.add(seed);
     wholeSeeds.push(seed);
@@ -777,20 +722,21 @@ export async function collectTraversalCandidates(
       seeds: wholeSeeds,
       system: wholeSystem,
       compareAs,
-      treatments: treatmentsApplied,
-      parts: partsApplied,
-      ...(descriptionKind !== null ? { descriptionKind } : {}),
-      baseTermTypes,
+      treatments: [],
+      parts: [],
       country,
     },
     state
   );
 
-  // A group that already implies the process may have no children to classify,
-  // so the walk would otherwise never collect it.
-  for (const code of processSeeds) {
-    addCandidate(state.collected, code, "broad");
-  }
+  const named = await namedPromise;
+  audit.push({
+    step: "stated_facets",
+    detail: {
+      processes: named.processes.map((process) => process.code),
+      parts: named.parts.map((part) => part.code),
+    },
+  });
 
   const collectedRefs = toCandidateRefs(cat, state.collected);
   const candidates = collectedRefs.filter((c) => cat.isReportable(c.code, DEFAULT_HIERARCHY));
@@ -821,14 +767,14 @@ export async function collectTraversalCandidates(
 
   return {
     candidates,
-    descriptionKind,
+    descriptionKind: null,
     compareAs,
-    treatmentsApplied,
-    statedTreatments,
-    partsApplied,
-    statedParts,
+    treatmentsApplied: [],
+    statedTreatments: named.processes.map((process) => process.code),
+    partsApplied: [],
+    statedParts: named.parts.map((part) => part.code),
     named,
-    processGroup,
+    processGroup: null,
     walks: state.walks,
     steps: state.steps,
     audit,

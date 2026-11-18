@@ -19,10 +19,12 @@ import {
   PROCESS_BONUS,
   DETAIL_LEVEL_BONUS,
   narrowestTerms,
+  shelfCandidates,
 } from "../src/encode/select.js";
 import { otherSiblingFields, systemProductKind } from "../src/encode/select-classify.js";
 import { TERM_NOTE_GIVEN, classifySystemPrompt, itemGiven } from "../src/encode/classify-ladder.js";
 import type { BaseTermCandidate, CandidateFit } from "../src/encode/types.js";
+import { descriptionKindForPick } from "../src/encode/base-term.js";
 
 describe("otherSiblingFields", () => {
   const cat = Catalogue.load();
@@ -195,6 +197,53 @@ describe("narrowest broad terms", () => {
   });
 });
 
+describe("shelfCandidates", () => {
+  const cat = Catalogue.load();
+  const fit = (code: string, name: string, kind: CandidateFit): BaseTermCandidate => ({
+    code,
+    name,
+    match: kind === "exact" ? "exact" : "broad",
+  });
+
+  it("keeps an exact dish and a broad commodity when neither contains the other", () => {
+    const byCode = new Map<string, CandidateFit>([
+      ["A03VJ", "exact"],
+      ["A00ZT", "broad"],
+    ]);
+    const pool = [fit("A03VJ", "Potatoes and meat meal", "exact"), fit("A00ZT", "Potatoes", "broad")];
+    assert.deepEqual(
+      shelfCandidates(cat, pool, byCode, []).map((c) => c.code).sort(),
+      ["A00ZT", "A03VJ"]
+    );
+  });
+
+  it("drops a broader term when a narrower accepted term sits under it", () => {
+    const byCode = new Map<string, CandidateFit>([
+      ["A011N", "broad"],
+      ["A0BYV", "exact"],
+    ]);
+    const pool = [fit("A011N", "Fries (finger chips)", "broad"), fit("A0BYV", "French fries from cut potato", "exact")];
+    assert.deepEqual(
+      shelfCandidates(cat, pool, byCode, []).map((c) => c.code),
+      ["A0BYV"]
+    );
+  });
+});
+
+describe("descriptionKindForPick", () => {
+  it("reads a composite dish whose name is not the description as a dish", () => {
+    assert.equal(descriptionKindForPick("A03VV", "boeuf bourguignon"), "dish");
+  });
+
+  it("reads a composite dish named by the description as a foodstuff", () => {
+    assert.equal(descriptionKindForPick("A041P", "Potato soup"), "foodstuff");
+  });
+
+  it("reads a raw commodity as a foodstuff", () => {
+    assert.equal(descriptionKindForPick("A00JR", "Courgette, fried in corn oil"), "foodstuff");
+  });
+});
+
 describe("product-kind prompt", () => {
   it("reads item and scope notes in the same words as the matching prompt", () => {
     const kind = systemProductKind(true);
@@ -203,7 +252,8 @@ describe("product-kind prompt", () => {
     assert.equal(match.includes(itemGiven(true)), true);
     assert.equal(kind.includes(TERM_NOTE_GIVEN), true);
     assert.equal(match.includes(TERM_NOTE_GIVEN), true);
-    assert.equal(kind.includes("primarily eaten as"), true);
+    assert.equal(kind.includes("best describes this food"), true);
+    assert.equal(kind.includes("Apply a process rule only when this food is one of the foods the rule names."), true);
   });
 });
 

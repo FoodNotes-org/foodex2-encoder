@@ -8,6 +8,7 @@ import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
 import {
   newFoodCandidates,
+  processTableFact,
   partCodes,
   partPhrasesToRemove,
   parseProcessGroup,
@@ -21,6 +22,28 @@ import {
 
 const cat = Catalogue.load();
 const allowed = processCodes(cat);
+
+describe("processTableFact", () => {
+  it("states frying as a new food only for potatoes", () => {
+    const fact = processTableFact(cat, "A07GR");
+    assert.equal(fact?.name, "Frying");
+    assert.match(fact?.rule ?? "", /only for Potatoes/);
+    assert.match(fact?.rule ?? "", /Fries, chips and other potato snacks/);
+    assert.match(fact?.rule ?? "", /For any other food it is a process of that food/);
+  });
+
+  it("covers boiling by the cooking-in-water rule for eggs", () => {
+    const fact = processTableFact(cat, "A07GL");
+    assert.match(fact?.rule ?? "", /Boiling is covered by Cooking in water/);
+    assert.match(fact?.rule ?? "", /only for Eggs/);
+    assert.match(fact?.rule ?? "", /Hardened egg products/);
+  });
+
+  it("states freezing as a process that does not create a new food", () => {
+    const fact = processTableFact(cat, "A07KQ");
+    assert.match(fact?.rule ?? "", /does not create a new food/);
+  });
+});
 
 describe("process list", () => {
   it("includes every kind of process: coating, polishing, grain milling, puffing", () => {

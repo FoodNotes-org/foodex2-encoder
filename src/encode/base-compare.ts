@@ -16,7 +16,7 @@ import { Catalogue, DEFAULT_HIERARCHY, isInExposureTree } from "../catalogue.js"
 import { isHierarchyTerm } from "../rules/check.js";
 import { countryParagraph } from "../country.js";
 import { chatJson } from "../llm.js";
-import { NEW_FOOD_TREATMENTS } from "../rules/processes.js";
+import { FACET_ONLY_ROWS, NEW_FOOD_TREATMENTS, type FacetOnlyRow, type NewFoodTreatment } from "../rules/processes.js";
 
 const PROCESS_HIERARCHY = "process";
 const PART_HIERARCHY = "partcon";
@@ -74,6 +74,62 @@ export function newFoodCandidates(
     });
   }
   return out;
+}
+
+/** The process, then each parent, nearest first. */
+function processChain(cat: Catalogue, code: string): string[] {
+  const chain: string[] = [];
+  const seen = new Set<string>();
+  let current: string | null = code;
+  while (current !== null && !seen.has(current)) {
+    seen.add(current);
+    chain.push(current);
+    current = cat.parent(current, PROCESS_HIERARCHY);
+  }
+  return chain;
+}
+
+function nearestNewFood(cat: Catalogue, processCode: string): NewFoodTreatment | undefined {
+  for (const code of processChain(cat, processCode)) {
+    const row = NEW_FOOD_TREATMENTS.find((treatment) => treatment.code === code);
+    if (row !== undefined) return row;
+  }
+  return undefined;
+}
+
+function nearestFacetOnly(cat: Catalogue, processCode: string): FacetOnlyRow | undefined {
+  for (const code of processChain(cat, processCode)) {
+    const row = FACET_ONLY_ROWS.find((entry) => entry.codes.includes(code));
+    if (row !== undefined) return row;
+  }
+  return undefined;
+}
+
+/**
+ * The table sentence for a stated process, still conditional on which food it
+ * was applied to. Null when no table mentions the process.
+ */
+export function processTableFact(
+  cat: Catalogue,
+  processCode: string
+): { name: string; rule: string } | null {
+  const name = cat.term(processCode)?.name ?? processCode;
+  const row = nearestNewFood(cat, processCode);
+  if (row !== undefined) {
+    const covered = row.code === processCode ? "" : `${name} is covered by ${row.process}. `;
+    return {
+      name,
+      rule: `${covered}${row.process} creates a new food only for ${row.appliedTo}, and that food is ${row.leadsTo}. For any other food it is a process of that food.`,
+    };
+  }
+  const facet = nearestFacetOnly(cat, processCode);
+  if (facet === undefined) return null;
+  const exception = facet.exceptions?.trim();
+  const rule =
+    exception !== undefined && exception !== ""
+      ? `${name} does not create a new food. It is a process of that food. Exception: ${exception}`
+      : `${name} does not create a new food. It is a process of that food.`;
+  return { name, rule };
 }
 
 /** Every process term the catalogue still uses. */
@@ -443,16 +499,15 @@ export function removePhrases(
   return cleaned === "" ? { text: description, removed: [] } : { text: cleaned, removed };
 }
 
-/** Foodstuff only. A dish or a mix keeps the description as given. */
-export async function resolveBaseCompare(
+/** Name the processes and parts a description states, without deciding the base term. */
+export async function nameStatedFacets(
   description: string,
   country: string | null,
   model: string
-): Promise<BaseCompare> {
+): Promise<NamedFacets> {
   const cat = Catalogue.load();
   const withCountry = country !== null && country !== "";
   const countryField = withCountry ? { country } : {};
-
   const [statedCall, partsCall] = await Promise.all([
     chatJson({
       model,
@@ -473,8 +528,23 @@ export async function resolveBaseCompare(
       ),
     }),
   ]);
-  const stated = parseStatedProcesses(statedCall.content, processCodes(cat)) ?? [];
-  const parts = parseStatedProcesses(partsCall.content, partCodes(cat), "parts") ?? [];
+  return {
+    processes: parseStatedProcesses(statedCall.content, processCodes(cat)) ?? [],
+    parts: parseStatedProcesses(partsCall.content, partCodes(cat), "parts") ?? [],
+  };
+}
+
+/** Foodstuff only. A dish or a mix keeps the description as given. */
+export async function resolveBaseCompare(
+  description: string,
+  country: string | null,
+  model: string
+): Promise<BaseCompare> {
+  const cat = Catalogue.load();
+  const withCountry = country !== null && country !== "";
+  const named = await nameStatedFacets(description, country, model);
+  const stated = named.processes;
+  const parts = named.parts;
   const treatments =
     stated.length > 0
       ? await resolveTreatments(cat, description, country, withCountry, model, stated)
@@ -499,9 +569,6 @@ export async function resolveBaseCompare(
     processGroup,
     seeds: processGroup === null ? [] : [processGroup.code],
     detail: {
-      model: statedCall.model,
-      parsed: statedCall.content !== null,
-      partsModel: partsCall.model,
       processes: stated,
       parts,
       ...(treatments?.detail ?? { nature: [] }),

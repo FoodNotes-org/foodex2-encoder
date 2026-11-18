@@ -183,9 +183,9 @@ export interface WalkSummary {
 
 export interface TraverseCollectResult {
   candidates: BaseTermCandidate[];
-  /** From the route; null if the model omitted or returned an unknown value. */
+  /** Set after the base term is chosen, not by the walk. */
   descriptionKind: DescriptionKind | null;
-  /** Food the base-term walk compared. The full description for a dish or a mix. */
+  /** The description the walk compared, in full. */
   compareAs: string;
   /** Words taken out of the description, each stating a treatment applied to the food. */
   treatmentsApplied: string[];
@@ -195,12 +195,9 @@ export interface TraverseCollectResult {
   partsApplied: string[];
   /** Every part the description was found to state. */
   statedParts: string[];
-  /** A foodstuff's stated processes and parts with their words; null when not a foodstuff. */
+  /** Stated processes and parts, named for facets. The walk text is left intact. */
   named: NamedFacets | null;
-  /**
-   * Catalogue term that already implies a Table 22 process and was judged to be
-   * this food. Null when the description is not a foodstuff, or no such term fits.
-   */
+  /** No longer chosen before the walk. Always null. */
   processGroup: { code: string; name: string; processes: string[] } | null;
   walks: WalkSummary[];
   /** Every classify call in order, across walks. */

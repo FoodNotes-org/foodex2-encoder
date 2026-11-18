@@ -118,9 +118,6 @@ describe("classifySystemPrompt", () => {
     'When a term\'s name contains the word "other" or "not separately listed", the term denotes the members of that term\'s `parent` that are not members of that term\'s `siblings`.';
   const terms =
     '- `terms`: the catalogue terms to judge. Each has a `code` and a `name`. `directSubcategories`, if included, are the names of the terms that sit directly under that term. `note`, if included, is the scope note, which says what that term covers. `properties`, if included, are characteristics entailed by the class. Each has a `kind` and a `name`. A term whose `name` contains "other" or "not separately listed" also has `parent`, the term it sits under, and `siblings`, the other terms directly under that parent.';
-  const kind =
-    "- `descriptionKind`: which kind of description `item` is: a foodstuff, a food category, a dish, a dish type, or a mix of foods.";
-
   it("asks once for one relation, in hypernym and hyponym terms", () => {
     const prompt = classifySystemPrompt({
       answerKey: "match",
@@ -153,7 +150,7 @@ describe("classifySystemPrompt", () => {
     assert.equal(same(walk), same(pick));
     assert.equal(walk.includes(remainder), true);
     assert.equal(walk.includes(terms), true);
-    assert.equal(walk.includes(kind), true);
+    assert.equal(walk.includes("descriptionKind"), false);
   });
 
   it("reads the food description in the country's nomenclature", () => {

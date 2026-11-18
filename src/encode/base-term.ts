@@ -1,17 +1,20 @@
 /**
- * Base-term encoding, then residuals (essence when dish/dish_type, then input vs base).
+ * Base-term encoding, then residuals. A composite-dish pick whose name is not
+ * the description is read as a dish; any other pick is read as a foodstuff.
  *
  *   search → identical wording? → residuals
  *   else → expo traversal (embeddings tip walk seeds) → selection → residuals
  */
 
-import { Catalogue } from "../catalogue.js";
+import { Catalogue, DEFAULT_HIERARCHY } from "../catalogue.js";
 import { DEFAULT_COUNTRY_CODE, resolveCountry } from "../country.js";
 import { searchTerms } from "../search/lexical.js";
+import { sameContentTokenSet } from "../search/content-match.js";
 import { LlmError } from "../llm.js";
 import { formatFoodEx2Code } from "./foodex2-code.js";
 import { evaluateLexicalAccept } from "./lexical-accept.js";
-import type { NamedFacets } from "./base-compare.js";
+import { processTableFact, type NamedFacets } from "./base-compare.js";
+import type { DescriptionKind } from "./types.js";
 import { assignResiduals } from "./residuals.js";
 import { scoreTraversalCandidates } from "./select.js";
 import { collectTraversalCandidates } from "./traverse.js";
@@ -22,6 +25,23 @@ import type { AuditEntry, BaseTermRef, EncodeOk, EncodeResult } from "./types.js
  * every model call and multiply cost; eval cases top out well under this.
  */
 export const MAX_ENCODE_INPUT_CHARS = 300;
+
+/** Exposure root of composite dishes. A pick here is a dish shelf. */
+const COMPOSITE_DISHES = "A03VA";
+
+/**
+ * A composite-dish term whose name is not the description is a named dish:
+ * the name stands for ingredients the term does not already state. Any other
+ * pick is read as a foodstuff, so a stated process can be recorded on it.
+ */
+export function descriptionKindForPick(code: string, description: string): DescriptionKind {
+  const cat = Catalogue.load();
+  const name = cat.term(code)?.name ?? "";
+  if (cat.isAncestor(COMPOSITE_DISHES, code, DEFAULT_HIERARCHY) && !sameContentTokenSet(description, name)) {
+    return "dish";
+  }
+  return "foodstuff";
+}
 
 function rejectFromError(err: unknown, audit: AuditEntry[]): EncodeResult {
   const raw = err instanceof Error ? err.message : String(err);
@@ -218,12 +238,14 @@ export async function encodeBaseTerm(
       };
     }
 
-    const selection = await scoreTraversalCandidates(collected.compareAs, candidates, {
+    const processes = (collected.named?.processes ?? []).flatMap((process) => {
+      const fact = processTableFact(Catalogue.load(), process.code);
+      return fact === null ? [] : [fact];
+    });
+    const selection = await scoreTraversalCandidates(input, candidates, {
       model: options.model,
-      descriptionKind: collected.descriptionKind,
       country,
-      treatments: collected.treatmentsApplied,
-      parts: collected.partsApplied,
+      processes,
     });
     audit.push(...selection.audit);
 
@@ -241,7 +263,7 @@ export async function encodeBaseTerm(
     const base = okBase(pick, "traversal", audit, {
       ...(pickKind !== null ? { fit: pickKind } : {}),
       food: input,
-      descriptionKind: collected.descriptionKind,
+      descriptionKind: descriptionKindForPick(pick.code, input),
       candidates,
       scored: selection.scored,
       walks: collected.walks,

@@ -135,13 +135,14 @@ export async function assessSelectClassify(
 export function systemProductKind(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-Task: the food belongs to each of these catalogue terms, and none of them contains another. Choose the term for the kind of product the food is primarily eaten as.
+Task: choose the term that best describes this food. None of these terms contains another.
 
 Given:
 ${itemGiven(withCountry)}
+- \`processes\`, if included: processes the description states. Each has a \`name\` and a \`rule\`. The rule says when that process creates a new food, and for which foods. For any other food the process stays a process of that food.
 - \`terms\`: the catalogue terms to choose from. ${TERM_FIELDS_GIVEN} ${TERM_NOTE_GIVEN}
 
-Use your own knowledge of how the food is eaten.
+Apply a process rule only when this food is one of the foods the rule names.
 
 Reply with JSON only:
 {"code":"<code>"}
@@ -157,7 +158,11 @@ export interface PickProductKindResult {
 export async function pickProductKind(
   food: string,
   terms: BaseTermCandidate[],
-  options: { model?: string; country?: string | null } = {}
+  options: {
+    model?: string;
+    country?: string | null;
+    processes?: readonly { name: string; rule: string }[];
+  } = {}
 ): Promise<PickProductKindResult> {
   const audit: AuditEntry[] = [];
   if (terms.length === 0) {
@@ -170,9 +175,11 @@ export async function pickProductKind(
   const allowed = new Set(terms.map((c) => c.code));
   const cat = Catalogue.load();
   const country = options.country ?? null;
+  const processes = options.processes ?? [];
   const payload = {
     item: food,
     ...(country !== null ? { country } : {}),
+    ...(processes.length > 0 ? { processes } : {}),
     terms: terms.map((c) => {
       const note = cat.term(c.code)?.scopeNote?.trim();
       return { ...candidatePayload(c), ...(note ? { note } : {}) };
