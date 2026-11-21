@@ -67,6 +67,11 @@ describe("checkCode: structure", () => {
 });
 
 describe("checkCode: cardinality", () => {
+  it("BR03 carries the conflict with the 2015 single-ingredient exception", () => {
+    const finding = checkCode("A065H#F01.A057E", lookup).findings.find((f) => f.rule === "BR03");
+    assert.equal(finding?.conflict?.id, "applicability-BR03");
+    assert.equal(finding?.conflict?.ours, false);
+  });
   it("BR25 on two F01 sources carries the conflict with the facet description", () => {
     const finding = checkCode("A039M#F01.A05YH$F01.A05YG", lookup).findings.find((f) => f.rule === "BR25");
     assert.equal(finding?.conflict?.id, "cardinality-F01-F30-F32");

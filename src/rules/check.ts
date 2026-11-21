@@ -142,7 +142,11 @@ function facetChecks(bt: RuleTerm, facet: string, d: RuleTerm, lookup: TermLooku
     const impliedF04 = bt.implied.filter((k) => k.startsWith("F04.")).map((k) => k.slice(4));
     if (!impliedF04.some((imp) => isAtOrUnder(d, imp, hierarchy))) out.push(efsa("BR12", [code]));
   }
-  if (COMPOSITE.has(type) && facet === "F01") out.push(efsa("BR03", [bt.code, code]));
+  if (COMPOSITE.has(type) && facet === "F01") {
+    const finding = efsa("BR03", [bt.code, code]);
+    const ref = conflict("applicability-BR03");
+    out.push(ref === undefined ? finding : { ...finding, conflict: ref });
+  }
   if (COMPOSITE.has(type) && facet === "F27") out.push(efsa("BR04", [bt.code, code]));
   if (facet === "F28" && RECONSTITUTION_PROCESSES.has(code)) {
     const text = `${bt.name} ${bt.scopeNote ?? ""}`;

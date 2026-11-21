@@ -1,7 +1,7 @@
 {
   "_provenance": {
     "generated_by": "scripts/build-rules.ts",
-    "generated_at": "2026-11-13T12:17:06.782Z",
+    "generated_at": "2026-11-16T17:19:13.597Z",
     "sources": [
       "rules/cardinality.yaml",
       "rules/conflicts.yaml",
@@ -398,6 +398,22 @@
       ],
       "verdict": "Error, although EFSA's message says \"discouraged\".",
       "why": "The checking tool's level comes first.",
+      "ours": false
+    },
+    "applicability-BR03": {
+      "topic": "A source facet on a composite food, naming the plant or animal behind one ingredient",
+      "sources": [
+        {
+          "source": "EFSA TermRules.java (Catalogue Browser 1.2.15, 2024) and warningMessages.txt",
+          "says": "BR03, text level HIGH. A source facet on a composite base term (type s or c) is rejected. There is no exception. \"Choose instead an F04 ingredient facet.\""
+        },
+        {
+          "source": "FoodEx2 guidance rev 2 (2015), §5.11 and Table 20",
+          "says": "The source facet is normally never used on a composite. It may be tolerated when one characterising ingredient is a generic commodity and the exact plant or animal is known, because a facet cannot carry its own facet. Table 20 says F01 applies to composite food in rare cases, to specify a single generic source commodity."
+        }
+      ],
+      "verdict": "Error (BR03), including that one-ingredient case. The plant or animal is recorded in text, not as F01.",
+      "why": "The checking tool is the newer source, and it comes first. The 2015 exception is not in the checker.",
       "ours": false
     }
   },

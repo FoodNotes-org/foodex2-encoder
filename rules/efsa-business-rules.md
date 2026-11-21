@@ -60,6 +60,10 @@ Labelled as ours in results, never as EFSA's:
   ICT's Excel macros or on EFSA's servers, so they are known from the rule
   sheet only. BR15 has no description and BR14 only an example. BR25 follows
   the catalogue's cardinality flag (see `cardinality.yaml`).
+- **BR03 rejects every source facet on a composite.** The 2015 guidance
+  (§5.11, Table 20) tolerates one when it names the plant or animal behind a
+  single generic ingredient. The checker has no such exception. We follow the
+  checker (`conflicts.yaml`, `applicability-BR03`).
 - **BR16 has two definitions.** The 2020 rule sheet compares ordinal codes; the
   current code checks hierarchy ancestry. We follow the code (`conflicts.yaml`,
   `definition-BR16`).
