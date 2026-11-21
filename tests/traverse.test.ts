@@ -113,11 +113,11 @@ describe("entailedProperties", () => {
 
 describe("classifySystemPrompt", () => {
   const compare =
-    "Compare `item` with the class each term denotes, using the term's `name`, any `directSubcategories`, any `note`, and any `properties` to decide its exact scope.";
+    "Compare `item` with the class each term denotes, using the term's `name`, any `directSubcategories`, any `note`, and any `properties` to decide its scope.";
   const remainder =
     'When a term\'s name contains the word "other" or "not separately listed", the term denotes the members of that term\'s `parent` that are not members of that term\'s `siblings`.';
   const terms =
-    '- `terms`: the catalogue terms to judge. Each has a `code` and a `name`. `directSubcategories`, if included, are the names of the terms that sit directly under that term. `note`, if included, is the scope note, which says what that term covers. `properties`, if included, are characteristics entailed by the class. Each has a `kind` and a `name`. A term whose `name` contains "other" or "not separately listed" also has `parent`, the term it sits under, and `siblings`, the other terms directly under that parent.';
+    '- `terms`: the catalogue terms to judge. Each has a `code` and a `name`. `directSubcategories`, if included, are the names of the terms that sit directly under that term. `note`, if included, explains the term\'s scope and usage. `properties`, if included, are characteristics entailed by the class. Each has a `kind` and a `name`. A term whose `name` contains "other" or "not separately listed" also has `parent`, the term it sits under, and `siblings`, the other terms directly under that parent.';
   it("asks once for one relation, in hypernym and hyponym terms", () => {
     const prompt = classifySystemPrompt({
       answerKey: "match",
@@ -137,6 +137,8 @@ describe("classifySystemPrompt", () => {
     assert.equal(prompt.includes("in order"), false);
     assert.equal(prompt.includes("skip the other"), false);
     assert.equal(prompt.includes("strict sense"), false);
+    assert.equal(prompt.includes("`treatments`"), false);
+    assert.equal(prompt.includes("`parts`"), false);
   });
 
   it("uses one wording for the walk and the final pick", () => {
@@ -160,7 +162,7 @@ describe("classifySystemPrompt", () => {
       withCountry: true,
     });
     const line =
-      "- `item`: the food description. It denotes the class that name has in the food nomenclature of `country`.";
+      "- `item`: the food description, in the food nomenclature of `country`.";
     assert.equal(prompt.split(line).length - 1, 1);
     const select = classifySystemPrompt({ answerKey: "fit", withCountry: true });
     assert.equal(select.split(line).length - 1, 1);

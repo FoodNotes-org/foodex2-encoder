@@ -116,6 +116,36 @@ conflicts:
     report_to_efsa: false
     decided: 2026-10
 
+  - id: catalogue-A03VA-scope-note
+    facets: []
+    topic: >-
+      Whether Composite dishes (A03VA) is only for foods with no identifiable
+      main category, or the parent of all recipe-based dish shelves
+    sources:
+      - source: MTX 17.1 scope note on A03VA Composite dishes
+        says: >-
+          The category covers dishes with more than one characterising
+          ingredient and a recipe, where the ingredients are so diverse that
+          no relevant main category can be identified.
+      - source: MTX 17.1 exposure hierarchy under A03VA
+        says: >-
+          Children include Meat based dishes, Egg based dishes, Vegetable
+          based dishes and the other principal-ingredient dish shelves.
+      - source: FoodEx2 guidance rev 2 (2015), §5.1.7 and §5.4.3
+        says: >-
+          Use a composite base term when a recipe with different ingredients
+          and a preparation process produces the food.
+    verdict: >-
+      Classify prompts omit A03VA's scope note. The hierarchy and the guidance
+      decide: a recipe dish belongs under Composite dishes even when a main
+      ingredient category is clear.
+    why: >-
+      The note contradicts the term's own children and the guidance's recipe
+      criterion, and it sends named dishes into commodity groups.
+    ours: true
+    report_to_efsa: true
+    decided: 2026-11
+
   - id: applicability-BR03
     facets: [F01]
     topic: A source facet on a composite food, naming the plant or animal behind one ingredient

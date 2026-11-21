@@ -33,6 +33,7 @@ import { nameStatedFacets } from "./base-compare.js";
 import { renderEmbeddingQuery, type EmbeddingQuery } from "./embed-query.js";
 import {
   LADDER_LABELS,
+  classifyScopeNote,
   classifySystemPrompt,
 } from "./classify-ladder.js";
 import { otherSiblingFields } from "./select-classify.js";
@@ -172,14 +173,14 @@ function listChildren(cat: Catalogue, parent: string): ChildRef[] {
 function traversalChildView(cat: Catalogue, code: string): TraversalChildView {
   const term = cat.term(code);
   const subgroups = listChildren(cat, code).map((c) => c.name);
-  const note = term?.scopeNote?.trim();
+  const note = classifyScopeNote(cat, code);
   const properties = entailedProperties(cat, code);
   const name = term?.name ?? code;
   const remainder = otherSiblingFields(cat, code, name);
   const base = {
     code,
     name,
-    ...(note ? { note } : {}),
+    ...(note !== undefined ? { note } : {}),
     ...(properties.length > 0 ? { properties } : {}),
     ...(remainder !== undefined ? remainder : {}),
   };

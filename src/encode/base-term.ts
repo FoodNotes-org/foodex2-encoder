@@ -14,6 +14,7 @@ import { LlmError } from "../llm.js";
 import { formatFoodEx2Code } from "./foodex2-code.js";
 import { evaluateLexicalAccept } from "./lexical-accept.js";
 import { processTableFact, type NamedFacets } from "./base-compare.js";
+import { COMPOSITE_DISHES } from "./classify-ladder.js";
 import type { DescriptionKind } from "./types.js";
 import { assignResiduals } from "./residuals.js";
 import { scoreTraversalCandidates } from "./select.js";
@@ -25,9 +26,6 @@ import type { AuditEntry, BaseTermRef, EncodeOk, EncodeResult } from "./types.js
  * every model call and multiply cost; eval cases top out well under this.
  */
 export const MAX_ENCODE_INPUT_CHARS = 300;
-
-/** Exposure root of composite dishes. A pick here is a dish shelf. */
-const COMPOSITE_DISHES = "A03VA";
 
 /**
  * A composite-dish term whose name is not the description is a named dish:
