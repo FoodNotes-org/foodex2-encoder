@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import { Catalogue } from "../src/catalogue.js";
 import {
   FACET_WALK_SKIP_HEADERS,
+  hierarchyDescriptorsHeldBack,
   leafTerms,
   nearestFacetSeeds,
   systemLeaf,
@@ -17,6 +18,31 @@ import {
 import { facetDimensions, stripAttributePhrases } from "../src/encode/residuals.js";
 
 const cat = Catalogue.load();
+
+describe("hierarchyDescriptorsHeldBack", () => {
+  it("drops a hierarchy descriptor when a specific one is in the same choice", () => {
+    assert.equal(cat.term("A008G")?.detailLevel, "H");
+    assert.equal(cat.term("A009J")?.detailLevel, "C");
+    const held = hierarchyDescriptorsHeldBack(cat, [{ code: "A008G" }, { code: "A009J" }]);
+    assert.deepEqual(
+      held.map((candidate) => candidate.code),
+      ["A008G"]
+    );
+  });
+
+  it("keeps a hierarchy descriptor when nothing else was found", () => {
+    assert.deepEqual(hierarchyDescriptorsHeldBack(cat, [{ code: "A008G" }]), []);
+  });
+
+  it("leaves a choice of non-hierarchy descriptors unchanged", () => {
+    assert.notEqual(cat.term("A00KP")?.detailLevel, "H");
+    assert.notEqual(cat.term("A036V")?.detailLevel, "H");
+    assert.deepEqual(
+      hierarchyDescriptorsHeldBack(cat, [{ code: "A00KP" }, { code: "A036V" }]),
+      []
+    );
+  });
+});
 
 describe("FACET_WALK_SKIP_HEADERS", () => {
   it("excludes numeric, fortification-agent and generic-term headers", () => {

@@ -229,6 +229,31 @@ type RecalledCandidate = {
   code: string;
 };
 
+/**
+ * Hierarchy descriptors (detail level H) to leave out of a facet choice
+ * because a descriptor of any other detail level is in the same pool.
+ * Empty when every descriptor is a hierarchy term: §5.2, the same last
+ * resort as a base term.
+ */
+export function hierarchyDescriptorsHeldBack<T extends { code: string }>(
+  cat: Catalogue,
+  pool: readonly T[]
+): T[] {
+  const hierarchy = pool.filter((candidate) => cat.term(candidate.code)?.detailLevel === "H");
+  if (hierarchy.length === 0 || hierarchy.length === pool.length) return [];
+  return hierarchy;
+}
+
+function withoutHierarchyDescriptors<T extends { code: string }>(
+  cat: Catalogue,
+  pool: readonly T[]
+): { offered: T[]; heldBack: T[] } {
+  const heldBack = hierarchyDescriptorsHeldBack(cat, pool);
+  if (heldBack.length === 0) return { offered: [...pool], heldBack };
+  const drop = new Set(heldBack.map((candidate) => candidate.code));
+  return { offered: pool.filter((candidate) => !drop.has(candidate.code)), heldBack };
+}
+
 function hierarchyFor(cat: Catalogue, header: string): string | null {
   return cat.facetCategory(header)?.hierarchyCode ?? null;
 }
@@ -767,6 +792,14 @@ async function selectAmong(
   via: string
 ): Promise<RecalledCandidate[]> {
   if (pool.length === 0) return [];
+  const held = withoutHierarchyDescriptors(cat, pool);
+  if (held.heldBack.length > 0) {
+    steps.push({
+      via: "hierarchy_held_back",
+      dropped: held.heldBack.map((candidate) => candidate.code),
+    });
+  }
+  pool = held.offered;
   if (pool.length === 1) {
     steps.push({
       via,

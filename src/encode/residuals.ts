@@ -50,6 +50,7 @@ import { pickAllowedCode, pickAllowedCodes } from "./answers.js";
 import {
   openFacetDimensions,
   pickFacets,
+  hierarchyDescriptorsHeldBack,
   resolveFacetWalk,
   selectStatedFacet,
   systemOriginPick,
@@ -2229,18 +2230,22 @@ async function resolveClosedFacetPhrase(
 ): Promise<ClosedResolution> {
   const allowRootFallback =
     options.allowRootFallback ?? (header === F28 || header === F21);
-  const { alignedAccepted, pool, ranked } = buildClosedPickPool(
-    cat,
-    phrase,
-    header,
-    implied,
-    {
-      allowRootFallback,
-      seedHits: options.seedHits,
-      rejectUnderImplied: options.rejectUnderImplied,
-      termTypes: options.termTypes,
-    }
-  );
+  const built = buildClosedPickPool(cat, phrase, header, implied, {
+    allowRootFallback,
+    seedHits: options.seedHits,
+    rejectUnderImplied: options.rejectUnderImplied,
+    termTypes: options.termTypes,
+  });
+  const ranked = built.ranked;
+  // §5.2: a hierarchy descriptor loses to any other detail level in the same choice.
+  const choice = built.pool.length > 0 ? built.pool : built.alignedAccepted;
+  const heldBack = hierarchyDescriptorsHeldBack(cat, choice);
+  const drop = new Set(heldBack.map((hit) => hit.code));
+  const alignedAccepted =
+    drop.size === 0
+      ? built.alignedAccepted
+      : built.alignedAccepted.filter((hit) => !drop.has(hit.code));
+  const pool = drop.size === 0 ? built.pool : built.pool.filter((hit) => !drop.has(hit.code));
 
   // Unique exact lexical hit — no model call. Partial name containment
   // (*chocolate* ⊂ *Chocolate coating*) still needs a model refuse/accept.
