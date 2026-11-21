@@ -1,10 +1,13 @@
 /**
- * Residuals after the base term: unstated essence / name meaning first, then
- * input vs base.
+ * Residuals after the base term: fortification and numeric claims first, then
+ * either the composite-dish route or foodstuff name meaning + input vs base.
  *
- * 1a. Named-dish unstated essence — when route said dish/dish_type: define →
- *     kind-tagged properties → drop those entailed by the base name (model) →
- *     place survivors by kind (code-to-code implicits at place).
+ * 1a. Composite dish — when route said dish/dish_type, after 1c and 1d: the
+ *     principal characterising ingredients (F04 walk), one descriptor choice
+ *     per facet in DISH_FACETS, then a gate over the whole code that drops the
+ *     chosen descriptors an expert would infer from the rest. Then step 3 and
+ *     the cleanup; foodstuff name meaning and input-vs-base do not run
+ *     (dish-route.ts).
  * 1b. Foodstuff name meaning — when route said foodstuff and fit is broad:
  *     what the common name conventionally means that the locked base does not
  *     capture → same property shape, miss → drop (no not_in_input filter).
@@ -15,19 +18,12 @@
  * 1d. Numeric content — fat % (F07) / alcohol % v/v (F11): model reports values;
  *     code snaps to the nearest catalogue bucket. Soft claims without a number
  *     are left for later residual passes.
- * 2. Input vs base — what the input still expresses; covered includes step 1.
- *    A foodstuff also receives `called`, the name already resolved. A phrase
- *    that only denotes that food is not listed again. Descriptors drawn from
- *    the name are not covered here: they are still unplaced, and a word such
- *    as "red" is not the same fact as "red grapefruits".
- *    Outside dishes (and in 1b), leftovers are unsorted: one facet pick per
- *    phrase over the Facets dimensions (excl. F07/F09/F11/F26, owned by earlier
- *    steps) plus two origin options, every pick placed. Origin options use the
- *    origin route: `made_from` → F01/F27 (F04 on a composite), `added` → F04.
- *    Dishes keep ingredient/source/side kinds: `side` → free text;
- *    ingredient/source → origin role → F01/F27/F04 (`mix` on an RPC/derivative
- *    base prefers F27 over F01); `process` → F28; `other` → top-down Facets
- *    walk. F04 is also a top-down walk of `ingred`. Mix skips F26.
+ * 2. Input vs base — non-dish only: what the input still expresses; covered
+ *    includes step 1. A foodstuff also receives `called`, the name already
+ *    resolved. Leftovers are unsorted: one facet pick per phrase over the Facets
+ *    dimensions (excl. F07/F09/F11/F26) plus two origin options. Origin options
+ *    use the origin route: `made_from` → F01/F27 (F04 on a composite),
+ *    `added` → F04. F04 is also a top-down walk of `ingred`. Mix skips F26.
  * 3. F26 Generic-term — its own step after placement (chooseF26): Other when the
  *    input is a missing sibling of the base's children, else Unspecified on an
  *    H/M/P base.
@@ -35,14 +31,6 @@
  *    more descriptors remain besides generic-term: drop a descriptor whose
  *    characteristic another recorded descriptor already includes. Other and
  *    Unspecified stay out of that judgement.
- * For dish/dish_type, defining span is for essence grounding + dish= identity;
- * step 2 always sees the full input (attributes in the dish wording stay claimable).
- * Other route kinds: wording denseness goes through input vs base like any leftover.
- * Both channels use the same property shape and placeByKind (no cross-kind fall-through).
- * Essence / name meaning (`onMiss: drop`) may specify a child under an implied F04
- * when the phrase names that child (beef under mammals meat); it drops generic
- * restatements (eggs under Whole eggs → not Hen eggs). Input-vs-base may still
- * narrow freely.
  */
 
 import { searchTerms, type SearchCandidate } from "../search/lexical.js";
@@ -58,6 +46,18 @@ import {
   type FacetWalkFood,
   type OriginPickRole,
 } from "./facet-walk.js";
+import {
+  dishFacetInfo,
+  dishFacets,
+  dishFacetTerms,
+  dishGateDescriptor,
+  dishGateShelf,
+  parseDishIngredients,
+  parseOfferedCodes,
+  systemDishFacetSelect,
+  systemDishGate,
+  systemDishIngredients,
+} from "./dish-route.js";
 import {
   dropNumericRestatements,
   nearestAlcoholFacet,
@@ -216,39 +216,6 @@ Reply with JSON only:
 `;
 }
 
-/** Named-dish unstated essence → kind-tagged properties to place. */
-function systemEssence(withCountry: boolean): string {
-  return `You are an expert in food classification.
-
-Give a concise definition of this named dish or dish type that only captures the essential characteristics of the dish – only the ones that strictly define it.
-
-From that definition only, list the characterising parts of the finished dish as properties. For each: a short \`phrase\` and a \`kind\`.
-
-Kinds:
-- ingredient — characterising ingredient or inclusion
-- source — plant/animal/commodity the food comes from
-- process — treatment or preparation
-- other — any other distinctness (fat level, part, packaging, production method, …)
-${countryBlock(withCountry, "name")}
-Reply with JSON only:
-{"definition":"<text>","properties":[{"phrase":"<text>","kind":"ingredient"|"source"|"process"|"other"},...]}
-`;
-}
-
-/**
- * Does the base term itself already entail each essence property?
- * Catalogue implicits are applied later, code-to-code, when placing.
- */
-const SYSTEM_ESSENCE_COVER = `You are an expert in food classification.
-
-A food has been assigned the given base term. Each property is a candidate attribute.
-
-For each property, is it already entailed by that base term — something the base name itself assumes or defines (ingredient, source, process, or other), not merely a common optional addition or variant?
-
-Reply with JSON only:
-{"verdicts":[{"id":"<id>","covered":true|false},...]}
-`;
-
 /**
  * Origin options offered to the facet picker beside the Facets dimensions; each
  * code is the property kind whose origin route places it.
@@ -368,38 +335,11 @@ function countryBlock(withCountry: boolean, textField = "input"): string {
   return countryParagraph(withCountry, textField);
 }
 
-/** Input vs locked base → kind-tagged properties not yet captured. */
-export function systemInputVsBase(withCountry = false): string {
-  const kinds = [
-    "- ingredient — a characterising constituent of this food",
-    "- source — plant/animal/commodity the food comes from",
-    "- process — treatment or preparation",
-    "- side — another food served with it",
-    "- other — any other distinctness (fat level, part, packaging, production method, …)",
-  ].join("\n");
-  const kindEnum = '"ingredient"|"source"|"process"|"side"|"other"';
-  return `You are an expert in food classification.
-
-You are given a food description (\`input\`) and what is already captured (\`baseTerm\`, \`implicits\`, \`covered\`).
-${countryBlock(withCountry)}
-List only additional properties asserted by input that are not already represented by \`baseTerm\`, \`implicits\`, or \`covered\`. Omit wording that do not materially change the food. For each kept property: a short \`phrase\` and a \`kind\`. Put omitted candidates in \`omitted\` with a short \`reason\` so the omission is explicit.
-
-Kinds:
-${kinds}
-
-If nothing is left to keep, return an empty properties list.
-
-Reply with JSON only:
-{"properties":[{"phrase":"<text>","kind":${kindEnum}},...],"omitted":[{"phrase":"<text>","reason":"<text>"},...]}
-`;
-}
-
 /**
  * Leftovers for anything but a dish. The facet picker decides which facets
  * each phrase speaks to, so one phrase can carry several (in sunflower oil →
  * surrounding medium and ingredient). A foodstuff is asked which characterising
- * descriptors remain once `called` denotes the food. Dishes keep
- * `systemInputVsBase`.
+ * descriptors remain once `called` denotes the food.
  */
 export function systemInputRelations(
   descriptionKind: DescriptionKind | null = null,
@@ -911,12 +851,11 @@ export type AcceptFacetOptions = {
   baseCode?: string;
   baseTermType?: string | null;
   /**
-   * Essence channel: when a descriptor sits under an implied F04, keep it only if
-   * `phrase` names that child (specify-the-generic). Drop if the phrase merely
-   * restates the implied parent (e.g. "eggs" under Whole eggs → not Hen eggs).
+   * Essence channel: a descriptor under an implied F04 is still eligible. The
+   * walk decides which child; a word match is not required.
    */
   rejectUnderImplied?: boolean;
-  /** Required with rejectUnderImplied for the specify-vs-restate test. */
+  /** Passed through for callers. The F04 accept no longer matches it to the term name. */
   phrase?: string;
 };
 
@@ -951,9 +890,6 @@ export function acceptF04Descriptor(
     }
   }
 
-  const phrase = options.phrase?.trim() ?? "";
-  const descName = cat.term(descriptorCode)?.name ?? descriptorCode;
-
   // An implied source commodity (F27) is the food the base is made from, so an
   // ingredient that names it restates the base as much as an implied F04 does.
   const impliedSources =
@@ -967,21 +903,6 @@ export function acceptF04Descriptor(
   for (const implied of [...impliedF04, ...impliedSources]) {
     if (descriptorCode === implied) return "restate";
     if (cat.isAncestor(descriptorCode, implied, INGRED_HIERARCHY)) return "broader";
-    if (
-      options.rejectUnderImplied === true &&
-      cat.isAncestor(implied, descriptorCode, INGRED_HIERARCHY)
-    ) {
-      // Narrower than implied: keep only when the phrase specifies this child,
-      // not when it only matches the implied generic ("eggs" ≠ "Hen eggs").
-      if (phrase === "") return "already_implied";
-      const impliedName = cat.term(implied)?.name ?? implied;
-      if (alignsComponentToFoodTerm(phrase, implied, impliedName)) {
-        return "already_implied";
-      }
-      if (!alignsComponentToFoodTerm(phrase, descriptorCode, descName)) {
-        return "already_implied";
-      }
-    }
   }
   return "keep";
 }
@@ -1342,98 +1263,6 @@ export function parseGapOmitted(content: unknown): GapOmitted[] {
 function foodMatchesBaseTerm(food: string, baseCode: string, baseName: string): boolean {
   if (sameContentTokenSet(food, baseName)) return true;
   return altNames(baseCode).some((alt) => sameContentTokenSet(food, alt));
-}
-
-function parseEssence(content: unknown): {
-  definition: string | null;
-  properties: GapProperty[];
-} {
-  if (content === null || typeof content !== "object") {
-    return { definition: null, properties: [] };
-  }
-  const body = content as { definition?: unknown };
-  const definition =
-    typeof body.definition === "string" && body.definition.trim() !== ""
-      ? body.definition.trim()
-      : null;
-  return { definition, properties: parseGapProperties(content) };
-}
-
-export function parseEssenceCover(content: unknown): Map<string, boolean> {
-  const out = new Map<string, boolean>();
-  if (content === null || typeof content !== "object") return out;
-  const raw = (content as { verdicts?: unknown }).verdicts;
-  if (!Array.isArray(raw)) return out;
-  for (const row of raw) {
-    if (row === null || typeof row !== "object") continue;
-    const id = (row as { id?: unknown }).id;
-    const covered = (row as { covered?: unknown }).covered;
-    if (typeof id !== "string" || id.trim() === "") continue;
-    if (typeof covered !== "boolean") continue;
-    out.set(id.trim(), covered);
-  }
-  return out;
-}
-
-type EssenceCoverDrop = {
-  property: GapProperty;
-  id: string;
-  reason: "base_entailed";
-};
-
-/**
- * Drop essence properties the base name already entails; survivors go to place
- * (where implicits are applied code-to-code).
- */
-async function coverEssenceProperties(
-  ctx: PlaceContext,
-  properties: GapProperty[]
-): Promise<{
-  kept: GapProperty[];
-  dropped: EssenceCoverDrop[];
-  model: string | null;
-  asked: Array<{ id: string; phrase: string; kind: GapPropertyKind }>;
-  verdicts: Array<{ id: string; covered: boolean }>;
-}> {
-  if (properties.length === 0) {
-    return { kept: [], dropped: [], model: null, asked: [], verdicts: [] };
-  }
-
-  const indexed = properties.map((property, i) => ({
-    id: String(i + 1),
-    property,
-  }));
-  const asked = indexed.map(({ id, property }) => ({
-    id,
-    phrase: property.phrase,
-    kind: property.kind,
-  }));
-  const answered = await chatJson({
-    model: ctx.model,
-    system: SYSTEM_ESSENCE_COVER,
-    user: JSON.stringify(
-      {
-        baseTerm: { code: ctx.baseCode, name: ctx.baseName },
-        properties: asked,
-      },
-      null,
-      2
-    ),
-  });
-  const byId = parseEssenceCover(answered.content);
-  const dropped: EssenceCoverDrop[] = [];
-  const kept: GapProperty[] = [];
-  const verdicts: Array<{ id: string; covered: boolean }> = [];
-  for (const { id, property } of indexed) {
-    const covered = byId.get(id) === true;
-    verdicts.push({ id, covered });
-    if (covered) {
-      dropped.push({ property, id, reason: "base_entailed" });
-    } else {
-      kept.push(property);
-    }
-  }
-  return { kept, dropped, model: answered.model, asked, verdicts };
 }
 
 /**
@@ -4537,6 +4366,102 @@ async function assignResidualSlots(
   });
 }
 
+/**
+ * A composite dish: the dish name in text when the shelf does not name it, the
+ * principal characterising ingredients, one descriptor choice per facet, and a
+ * gate that drops chosen descriptors the rest of the code already conveys.
+ */
+async function assignDishRoute(
+  ctx: PlaceContext,
+  input: string,
+  dishPhrase: string,
+  audit: AuditEntry[]
+): Promise<AssignResidualsResult> {
+  const span = findDishSpan(input, dishPhrase);
+  if (span === null) {
+    audit.push({
+      step: "residuals_essence_ungrounded",
+      detail: { reason: "name_not_in_input", name: dishPhrase, descriptionKind: ctx.descriptionKind },
+    });
+    return {
+      status: "rejected",
+      reason: "named_dish_ungrounded",
+      message: `Dish name ${JSON.stringify(dishPhrase)} is not a substring of the input`,
+      audit,
+    };
+  }
+  if (!foodMatchesBaseTerm(span.span, ctx.baseCode, ctx.baseName)) {
+    pushFreeText(ctx.freeText, "dish", span.span);
+  }
+
+  const country = ctx.country !== null && ctx.country !== "" ? ctx.country : null;
+  const withCountry = country !== null;
+  const countryField = country !== null ? { country } : {};
+  const shelf = { name: ctx.baseName, scope: genusScope(ctx.cat.term(ctx.baseCode)?.scopeNote) };
+  const ask = (system: string, user: Record<string, unknown>) =>
+    chatJson({
+      model: ctx.model,
+      system,
+      user: JSON.stringify({ description: input, ...user, ...countryField }, null, 2),
+    });
+
+  const [ingredientsAnswer, selections] = await Promise.all([
+    ask(systemDishIngredients(withCountry), { group: shelf }),
+    Promise.all(
+      dishFacets(ctx.baseTermType).map(async (facet) => {
+        const terms = dishFacetTerms(ctx.cat, ctx.baseCode, facet);
+        if (terms.length === 0) return { facet, codes: [] as string[] };
+        const answered = await ask(systemDishFacetSelect(withCountry), {
+          genus: shelf,
+          facet: dishFacetInfo(ctx.cat, facet),
+          terms,
+        });
+        return { facet, codes: parseOfferedCodes(answered.content, new Set(terms.map((t) => t.code))) };
+      })
+    ),
+  ]);
+
+  const ingredients = parseDishIngredients(ingredientsAnswer.content);
+  const ingredientResolutions = [];
+  for (const phrase of ingredients) {
+    ingredientResolutions.push(await placeByKind(ctx, { phrase, kind: "ingredient" }, "drop"));
+  }
+  audit.push({
+    step: "residuals_dish_ingredients",
+    detail: { model: ingredientsAnswer.model, ingredients, resolutions: ingredientResolutions },
+  });
+
+  const selected: FacetDescriptorRef[] = [];
+  for (const { facet, codes } of selections) {
+    for (const code of codes) {
+      const ref = { header: facet, code, name: ctx.cat.term(code)?.name ?? code };
+      if (addFacet(ctx, ref)) selected.push(ref);
+    }
+  }
+  audit.push({
+    step: "residuals_dish_facets",
+    detail: {
+      selected: selections.filter((s) => s.codes.length > 0),
+      added: selected.map((f) => ({ header: f.header, code: f.code, name: f.name })),
+    },
+  });
+
+  if (selected.length > 0) {
+    const gate = await ask(systemDishGate(withCountry), {
+      shelf: dishGateShelf(ctx.cat, ctx.baseCode, shelf),
+      descriptors: ctx.facets.map((f) => dishGateDescriptor(ctx.cat, f.header, f.code)),
+    });
+    const droppable = new Set(selected.map((f) => `${f.header}.${f.code}`));
+    const drop = parseOfferedCodes(gate.content, droppable);
+    for (const facet of selected) {
+      if (drop.includes(`${facet.header}.${facet.code}`)) removeFacet(ctx, facet);
+    }
+    audit.push({ step: "residuals_dish_gate", detail: { model: gate.model, dropped: drop } });
+  }
+
+  return await finishResiduals(ctx, audit, { from: "dish" });
+}
+
 export async function assignResiduals(
   input: string,
   baseTerm: BaseTermRef,
@@ -4606,127 +4531,39 @@ export async function assignResiduals(
   });
   const numericCover = numericContentCovered(numericClaim);
 
-  // --- 1. Unstated essence (dish / dish type from route) ---
-  const descriptionKind = ctx.descriptionKind;
-  const essenceKinds = descriptionKind === "dish" || descriptionKind === "dish_type";
+  if (isDishKind(ctx.descriptionKind)) {
+    return await assignDishRoute(ctx, input, (options.food?.trim() || input).trim(), audit);
+  }
 
-  /** Dish / dish_type only: grounded span for essence + dish= identity. */
-  let definingSpan: { start: number; end: number; span: string } | null = null;
+  // --- 1. Foodstuff name meaning ---
+  const descriptionKind = ctx.descriptionKind;
   /** Foodstuff: the name already resolved. */
   let called: string | null = null;
-
-  /** World knowledge (origin question / dish essence), placed after the input's Facets pass. */
+  /** World knowledge from the origin question, placed after the input's Facets pass. */
   const known: Array<{ property: GapProperty; origin: boolean }> = [];
-  let knownFrom: "origin" | "essence" | null = null;
+  let knownFrom: "origin" | null = null;
 
-  if (!essenceKinds) {
-    if (descriptionKind !== "foodstuff") {
-      audit.push({
-        step: "residuals_essence",
-        detail: {
-          skipped: descriptionKind === null ? "no_route_kind" : "not_dish_kind",
-          descriptionKind,
-        },
-      });
-    } else {
-      const description = (options.food?.trim() || input).trim();
-      const implicit = implicits.map(({ key, name }) => {
-        const header = key.split(".")[0] ?? key;
-        return `${cat.facetCategory(header)?.label ?? header}: ${name}`;
-      });
-      const origin = await askFoodOrigin(ctx, description, implicit, audit);
-      knownFrom = "origin";
-      called = origin.name;
-      for (const property of origin.from) known.push({ property, origin: true });
-    }
-  } else {
-    const dishPhrase = (options.food?.trim() || input).trim();
-    const span = findDishSpan(input, dishPhrase);
-    if (span === null) {
-      audit.push({
-        step: "residuals_essence_ungrounded",
-        detail: {
-          reason: "name_not_in_input",
-          name: dishPhrase,
-          descriptionKind,
-        },
-      });
-      return {
-        status: "rejected",
-        reason: "named_dish_ungrounded",
-        message: `Dish name ${JSON.stringify(dishPhrase)} is not a substring of the input`,
-        audit,
-      };
-    }
-
-    definingSpan = span;
-    const dishName = span.span;
+  if (descriptionKind !== "foodstuff") {
     audit.push({
-      step: "residuals_essence_span",
+      step: "residuals_essence",
       detail: {
+        skipped: descriptionKind === null ? "no_route_kind" : "not_dish_kind",
         descriptionKind,
-        name: dishPhrase,
-        span: dishName,
-        start: span.start,
-        end: span.end,
       },
     });
-
-    const defined = await chatJson({
-      model,
-      system: systemEssence(ctx.country !== null),
-      user: JSON.stringify(
-        { name: dishName, ...(ctx.country !== null ? { country: ctx.country } : {}) },
-        null,
-        2
-      ),
+  } else {
+    const description = (options.food?.trim() || input).trim();
+    const implicit = implicits.map(({ key, name }) => {
+      const header = key.split(".")[0] ?? key;
+      return `${cat.facetCategory(header)?.label ?? header}: ${name}`;
     });
-    const essence = parseEssence(defined.content);
-    audit.push({
-      step: "residuals_essence_define",
-      detail: {
-        model: defined.model,
-        name: dishName,
-        definition: essence.definition,
-        properties: essence.properties,
-      },
-    });
-
-    knownFrom = "essence";
-    if (essence.properties.length > 0) {
-      const covered = await coverEssenceProperties(ctx, essence.properties);
-      audit.push({
-        step: "residuals_essence_cover",
-        detail: {
-          model: covered.model,
-          asked: covered.asked,
-          verdicts: covered.verdicts,
-          dropped: covered.dropped.map((d) => ({
-            id: d.id,
-            phrase: d.property.phrase,
-            kind: d.property.kind,
-            reason: d.reason,
-          })),
-          kept: covered.kept,
-        },
-      });
-      for (const property of dropEarlyClaimRestatements(
-        covered.kept,
-        ctx.fortificationClaim,
-        ctx.numericClaim
-      ).kept) {
-        known.push({ property, origin: false });
-      }
-    }
-    if (!foodMatchesBaseTerm(dishName, baseTerm.code, baseTerm.name)) {
-      pushFreeText(ctx.freeText, "dish", dishName);
-    }
+    const origin = await askFoodOrigin(ctx, description, implicit, audit);
+    knownFrom = "origin";
+    called = origin.name;
+    for (const property of origin.from) known.push({ property, origin: true });
   }
 
   // --- 2. Input vs base ---
-  // Always the full input; dish= identity does not hide modifiers. Facets
-  // dimensions from the input are placed first, then world knowledge (step 1)
-  // minus what a role facet claimed, then the input's own origin wording.
   const gapInput = input;
   const properties = await listInputProperties();
   ctx.food = stripAttributePhrases(input, [
@@ -4819,19 +4656,15 @@ export async function assignResiduals(
       ...(numericCover !== null ? { numeric: numericCover } : {}),
     };
 
-    const dish = isDishKind(descriptionKind);
     const country = options.country ?? null;
     const listed = await chatJson({
       model,
-      system: dish
-        ? systemInputVsBase(country !== null)
-        : systemInputRelations(descriptionKind, country !== null),
+      system: systemInputRelations(descriptionKind, country !== null),
       user: JSON.stringify(
         {
           input: gapInput,
           ...(country !== null ? { country } : {}),
           ...(called !== null ? { called } : {}),
-          ...(definingSpan !== null ? { dishSpan: definingSpan.span } : {}),
           baseTerm: { code: baseTerm.code, name: baseTerm.name },
           implicits,
           covered,
@@ -4843,8 +4676,7 @@ export async function assignResiduals(
     });
     const listedRaw = parseGapProperties(listed.content);
     const omitted = parseGapOmitted(listed.content);
-    const forFilter = dish ? listedRaw : asUnsorted(listedRaw);
-    const { kept: inInput, dropped } = filterPropertiesToInput(forFilter, gapInput);
+    const { kept: inInput, dropped } = filterPropertiesToInput(asUnsorted(listedRaw), gapInput);
     const claimDrop = dropEarlyClaimRestatements(
       inInput,
       ctx.fortificationClaim,

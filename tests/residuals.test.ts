@@ -115,8 +115,8 @@ describe("acceptF04Descriptor", () => {
     assert.equal(acceptF04Descriptor(cat, "A0EYH", ["A01SP"]), "broader");
   });
 
-  it("keeps a named child under an implied F04; drops a generic eggs restatement", () => {
-    // Meat stew implies mammals meat (A0EYH); beef names Cow/ox/bull fresh meat.
+  it("keeps a child under an implied F04 without matching the words", () => {
+    // Meat stew implies mammals meat (A0EYH); beef is the child the walk opened.
     assert.equal(
       acceptF04Descriptor(cat, "A01QX", ["A0EYH"], {
         rejectUnderImplied: true,
@@ -124,18 +124,12 @@ describe("acceptF04Descriptor", () => {
       }),
       "keep"
     );
-    // Omelette implies Whole eggs; "eggs" only restates that generic — not Hen eggs.
+    // Sweet corn sits under the garden vegetables a vegetable dish already implies.
+    // "Sweetcorn" is not the same spelling as "Sweet corn", and the child is kept.
     assert.equal(
-      acceptF04Descriptor(cat, "A031G", ["A031F"], {
+      acceptF04Descriptor(cat, "A00KP", ["A07XJ"], {
         rejectUnderImplied: true,
-        phrase: "eggs",
-      }),
-      "already_implied"
-    );
-    assert.equal(
-      acceptF04Descriptor(cat, "A031G", ["A031F"], {
-        rejectUnderImplied: true,
-        phrase: "hen eggs",
+        phrase: "Sweetcorn",
       }),
       "keep"
     );
@@ -164,7 +158,7 @@ describe("acceptF04Descriptor", () => {
 });
 
 describe("recallIngredF04 rejectUnderImplied", () => {
-  it("keeps beef under meat-stew implicit; drops hen eggs for bare eggs", () => {
+  it("keeps beef under meat-stew implicit", () => {
     const meatImplied = ["A0EYH"];
     const beefHits = recallIngredF04(cat, "beef", meatImplied, {
       baseCode: "A03VY",
@@ -177,17 +171,6 @@ describe("recallIngredF04 rejectUnderImplied", () => {
       `expected Cow/ox/bull fresh meat; got ${beefHits.map((h) => h.name).join(", ")}`
     );
 
-    const eggImplied = ["A031F", "A07XJ"];
-    const eggHits = recallIngredF04(cat, "beaten eggs", eggImplied, {
-      baseCode: "A03YQ",
-      baseTermType: "c",
-      rejectUnderImplied: true,
-      phrase: "beaten eggs",
-    });
-    assert.ok(
-      !eggHits.some((h) => h.code === "A031G"),
-      `bare/beaten eggs must not keep Hen eggs; got ${eggHits.map((h) => h.name).join(", ")}`
-    );
   });
 });
 
