@@ -523,7 +523,7 @@ Then, decide how \`input\` relates to the children:
 - "within" — it is a kind of one of the children
 - "sibling" — it is another kind of \`baseTerm\`, at the same level as the children, that none of them covers
 - "parent" — it covers several of the children, or is no narrower than \`baseTerm\`
-- "none" — none of these
+- "none" — none of these, including when it differs from the children only in how it is processed or which part is eaten
 
 Reply with JSON only:
 {"relation":"same"|"within"|"sibling"|"parent"|"none"}
