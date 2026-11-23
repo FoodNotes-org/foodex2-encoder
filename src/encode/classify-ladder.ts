@@ -65,8 +65,10 @@ export function classifySystemPrompt(options: {
   ];
   const other =
     "When a term's name contains the word \"other\" or \"not separately listed\", the term denotes the members of that term's `parent` that are not members of that term's `siblings`.";
-  const compare =
-    "Compare `item` with the class each term denotes, using the term's `name`, any `directSubcategories`, any `note`, and any `properties` to decide its scope.";
+  const compare = [
+    "Compare `item` with the class each term denotes, using the term's `name`, any `directSubcategories`, any `note`, and any `properties` to decide its scope.",
+    "A process applied to the food, or a statement of which of its parts are eaten, does not change which class it belongs to, unless the processed form is a class of its own.",
+  ].join(" ");
   const ladder = [
     "- exact: `item` and the term denote the same class",
     "- broad: the term is a hypernym of `item`",
