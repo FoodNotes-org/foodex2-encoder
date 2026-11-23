@@ -192,7 +192,7 @@ export class Catalogue {
     return assignment === undefined ? true : assignment[1];
   }
 
-  children(code: string, hierarchy: string): string[] {
+  children(code: string, hierarchy: string): readonly string[] {
     let index = this.childrenIndex.get(hierarchy);
     if (index === undefined) {
       index = new Map();
@@ -209,7 +209,7 @@ export class Catalogue {
   }
 
   /** Direct children of the exposure hierarchy (Table 15 top-level groups). */
-  exposureTopLevel(): string[] {
+  exposureTopLevel(): readonly string[] {
     return this.children(EXPO_ROOT, DEFAULT_HIERARCHY);
   }
 

@@ -132,7 +132,7 @@ export function dishFacetTerms(cat: Catalogue, baseCode: string, facet: string):
   );
   const out: DishTerm[] = [];
   const seen = new Set<string>();
-  const queue = cat.children("root", hierarchy);
+  const queue = [...cat.children("root", hierarchy)];
   while (queue.length > 0) {
     const code = queue.shift() as string;
     if (seen.has(code) || cat.isDeprecated(code)) continue;

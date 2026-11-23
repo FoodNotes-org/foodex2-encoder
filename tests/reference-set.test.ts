@@ -19,8 +19,8 @@ describe("loadReferenceSet", () => {
   const foods = loadReferenceSet();
   const byId = new Map(foods.map((f) => [f.id, f]));
 
-  it("loads every coded row of v0.1.0", () => {
-    assert.equal(foods.length, 107);
+  it("loads every coded row", () => {
+    assert.equal(foods.length, 137);
     assert.deepEqual(
       [...new Set(foods.map((f) => f.sourceId))].sort(),
       ["cofid-2021", "efsa-foodex2-guidance-2015", "nevo-online-2025", "usda-fdc-foundation"]
