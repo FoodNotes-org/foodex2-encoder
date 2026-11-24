@@ -4450,6 +4450,7 @@ async function assignDishRoute(
     const selection = await ask(systemDishSelection(withCountry), {
       genus: dishSelectionGenus(ctx.cat, ctx.baseCode, shelf),
       differentiae: ctx.facets.map((f) => dishDifferentia(ctx.cat, f.header, f.code)),
+      facets: [...new Set(ctx.facets.map((f) => f.header))].map((header) => dishFacetInfo(ctx.cat, header)),
     });
     const kept = parseOfferedCodes(selection.content, new Set(candidates.map((f) => `${f.header}.${f.code}`)));
     const dropped: string[] = [];

@@ -65,24 +65,25 @@ Reply with JSON only:
 `;
 }
 
-const DEFINITION_CONTEXT =
-  "Context: a food description is being expressed in the terms of a food catalogue, as a definition by genus and differentiae, for experts in dietary exposure assessment. The genus is a class in the catalogue; the differentiae are descriptors from the catalogue's facets.";
-
-const DEFINITION_GOAL = "Goal: a code that denotes the described food as narrowly as the description allows.";
+function dishDescriptionLine(withCountry: boolean): string {
+  return withCountry
+    ? "- `description`: the food, as understood in the food nomenclature of: `country`."
+    : "- `description`: the food.";
+}
 
 export function systemDishRecall(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-${DEFINITION_CONTEXT}
+Context: a food description is being expressed in the terms of a food catalogue, for use in dietary exposure assessment. The expression is a definition: a genus, which is a class in the catalogue, with differentiae, which are descriptors from the catalogue's facets.
 
-${DEFINITION_GOAL}
+Goal: a definition that denotes the described food as narrowly as the description and the catalogue allow.
 
 Given:
-- \`description\`: the food.
+${dishDescriptionLine(withCountry)}
 - \`genus\`: the class the food has been placed in, with its \`name\` and its \`scope\` note.
 - \`facet\`: one facet, with its \`name\` and its \`description\`.
 - \`descriptors\`: the facet's descriptors, each with a \`code\`, a \`name\`, and its \`scope\` note.
-${countryParagraph(withCountry, "description")}
+
 Your task: list the codes of the descriptors that are differentiae of the described food within the genus.
 
 If none, leave \`codes\` empty.
@@ -93,9 +94,6 @@ Reply with JSON only:
 }
 
 export function systemDishSelection(withCountry: boolean): string {
-  const description = withCountry
-    ? "- `description`: the food, as understood in the food nomenclature of: `country`."
-    : "- `description`: the food.";
   return `You are an expert in food classification.
 
 Context: a food description is being expressed in the terms of a food catalogue for use in dietary exposure assessment.
@@ -103,9 +101,10 @@ Context: a food description is being expressed in the terms of a food catalogue 
 Goal: a code that denotes the food the description denotes.
 
 Given:
-${description}
+${dishDescriptionLine(withCountry)}
 - \`genus\`: the class the food has been placed in, with its \`name\`, its \`scope\` note, its implicit facets (\`implies\`), and the classes above it, broadest first (\`broader\`).
 - \`differentiae\`: candidate descriptors, each with a \`code\`, a \`name\` preceded by its facet, and its \`scope\` note.
+- \`facets\`: the facets of the differentiae, each with its \`name\` and its \`description\`.
 
 Your task: choose the differentiae such that the code, the genus with the chosen differentiae, comes as close as possible to being:
 - complete: it expresses every characteristic of the food that the description expresses;

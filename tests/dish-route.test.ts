@@ -26,13 +26,13 @@ describe("dish route prompts", () => {
 
   it("reads the description in the country's nomenclature only when a country is given", () => {
     const line = countryContextLine("description");
-    for (const prompt of [systemDishIngredients, systemDishRecall]) {
-      assert.equal(prompt(false).includes(line), false);
-      assert.equal(prompt(true).split(line).length - 1, 1);
+    assert.equal(systemDishIngredients(false).includes(line), false);
+    assert.equal(systemDishIngredients(true).split(line).length - 1, 1);
+    const descriptionLine = "- `description`: the food, as understood in the food nomenclature of: `country`.";
+    for (const prompt of [systemDishRecall, systemDishSelection]) {
+      assert.equal(prompt(false).includes("`country`"), false);
+      assert.equal(prompt(true).split(descriptionLine).length - 1, 1);
     }
-    const selectionLine = "- `description`: the food, as understood in the food nomenclature of: `country`.";
-    assert.equal(systemDishSelection(false).includes("`country`"), false);
-    assert.equal(systemDishSelection(true).split(selectionLine).length - 1, 1);
     for (const prompt of prompts) {
       assert.equal(prompt(false).includes("\n\n\n"), false);
       assert.equal(prompt(true).includes("\n\n\n"), false);
@@ -43,6 +43,10 @@ describe("dish route prompts", () => {
     assert.match(systemDishIngredients(false), /\{"ingredients":\["<phrase>",\.\.\.\]\}/);
     assert.match(systemDishRecall(false), /\{"codes":\["<code>",\.\.\.\]\}/);
     assert.match(systemDishSelection(false), /\{"codes":\["<code>",\.\.\.\]\}/);
+  });
+
+  it("tells selection that each candidate's facet comes with its catalogue note", () => {
+    assert.match(systemDishSelection(true), /- `facets`: the facets of the differentiae, each with its `name` and its `description`\./);
   });
 });
 
