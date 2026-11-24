@@ -1,7 +1,7 @@
 /**
  * Composite dishes: the principal characterising ingredients, one descriptor
- * choice per facet, and a gate that removes what the rest of the code already
- * conveys.
+ * choice per facet, and a gate that keeps the chosen descriptors that narrow
+ * the code towards the described food.
  */
 
 import type { Catalogue } from "../catalogue.js";
@@ -65,20 +65,25 @@ Reply with JSON only:
 `;
 }
 
+const DEFINITION_CONTEXT =
+  "Context: a food description is being expressed in the terms of a food catalogue, as a definition by genus and differentiae, for experts in dietary exposure assessment. The genus is a class in the catalogue; the differentiae are descriptors from the catalogue's facets.";
+
+const DEFINITION_GOAL = "Goal: a code that denotes the described food as narrowly as the description allows.";
+
 export function systemDishFacetSelect(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-Context: a food description is being expressed in the terms of a food catalogue, as a definition by genus and differentia. The genus is the shelf the food has been classified to; the differentiae are descriptors from the catalogue's facets.
+${DEFINITION_CONTEXT}
 
-Goal: select the differentiae from one facet.
+${DEFINITION_GOAL}
 
 Given:
 - \`description\`: the food.
-- \`genus\`: the shelf, with its \`name\` and its \`scope\`.
+- \`genus\`: the class the food has been placed in, with its \`name\` and its \`scope\` note.
 - \`facet\`: one facet, with its \`name\` and its \`description\`.
-- \`terms\`: the facet's descriptors, each with a \`code\`, a \`name\`, and its \`scope\` note.
+- \`descriptors\`: the facet's descriptors, each with a \`code\`, a \`name\`, and its \`scope\` note.
 ${countryParagraph(withCountry, "description")}
-Your task: list the codes of the descriptors that an expert in dietary exposure assessment needs as differentiae in order to achieve a precise understanding of the described food.
+Your task: list the codes of the descriptors that are differentiae of the described food within the genus.
 
 If none, leave \`codes\` empty.
 
@@ -90,16 +95,16 @@ Reply with JSON only:
 export function systemDishGate(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-Context: a food description has been encoded in a food catalogue as a shelf plus descriptors from the catalogue's facets. The code is read by experts in dietary exposure assessment.
+${DEFINITION_CONTEXT} The code is the genus with its differentiae.
 
-Goal: remove the descriptors that add no information to the code.
+${DEFINITION_GOAL}
 
 Given:
 - \`description\`: the food.
-- \`shelf\`: the shelf, with its \`name\`, its \`scope\`, and the descriptors it implies.
-- \`descriptors\`: the descriptors added to the shelf, each with a \`code\`, a \`name\` preceded by its facet, and its \`scope\` note.
+- \`genus\`: the class the food has been placed in, with its \`name\`, its \`scope\` note, and its implicit facets (\`implies\`).
+- \`differentiae\`: the descriptors added to the genus, each with a \`code\`, a \`name\` preceded by its facet, and its \`scope\` note.
 ${countryParagraph(withCountry, "description")}
-Your task: list the codes of the added descriptors that such an expert would infer from the rest of the code. When two descriptors convey the same information, keep the one the description denotes.
+Your task: list the codes of the added differentiae that narrow the set of foods the code denotes while keeping in it every food the description can refer to. When two differentiae convey the same information, keep the one the description denotes.
 
 If none, leave \`codes\` empty.
 

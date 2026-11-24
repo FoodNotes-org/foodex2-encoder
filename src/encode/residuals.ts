@@ -4369,7 +4369,8 @@ async function assignResidualSlots(
 /**
  * A composite dish: the dish name in text when the shelf does not name it, the
  * principal characterising ingredients, one descriptor choice per facet, and a
- * gate that drops chosen descriptors the rest of the code already conveys.
+ * gate that keeps the chosen descriptors that narrow the code towards the
+ * described food.
  */
 async function assignDishRoute(
   ctx: PlaceContext,
@@ -4414,7 +4415,7 @@ async function assignDishRoute(
         const answered = await ask(systemDishFacetSelect(withCountry), {
           genus: shelf,
           facet: dishFacetInfo(ctx.cat, facet),
-          terms,
+          descriptors: terms,
         });
         return { facet, codes: parseOfferedCodes(answered.content, new Set(terms.map((t) => t.code))) };
       })
@@ -4448,15 +4449,18 @@ async function assignDishRoute(
 
   if (selected.length > 0) {
     const gate = await ask(systemDishGate(withCountry), {
-      shelf: dishGateShelf(ctx.cat, ctx.baseCode, shelf),
-      descriptors: ctx.facets.map((f) => dishGateDescriptor(ctx.cat, f.header, f.code)),
+      genus: dishGateShelf(ctx.cat, ctx.baseCode, shelf),
+      differentiae: ctx.facets.map((f) => dishGateDescriptor(ctx.cat, f.header, f.code)),
     });
-    const droppable = new Set(selected.map((f) => `${f.header}.${f.code}`));
-    const drop = parseOfferedCodes(gate.content, droppable);
+    const keep = parseOfferedCodes(gate.content, new Set(selected.map((f) => `${f.header}.${f.code}`)));
+    const dropped: string[] = [];
     for (const facet of selected) {
-      if (drop.includes(`${facet.header}.${facet.code}`)) removeFacet(ctx, facet);
+      const key = `${facet.header}.${facet.code}`;
+      if (keep.includes(key)) continue;
+      removeFacet(ctx, facet);
+      dropped.push(key);
     }
-    audit.push({ step: "residuals_dish_gate", detail: { model: gate.model, dropped: drop } });
+    audit.push({ step: "residuals_dish_gate", detail: { model: gate.model, kept: keep, dropped } });
   }
 
   return await finishResiduals(ctx, audit, { from: "dish" });
