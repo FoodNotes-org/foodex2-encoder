@@ -26,10 +26,9 @@ describe("dish route prompts", () => {
 
   it("reads the description in the country's nomenclature only when a country is given", () => {
     const line = countryContextLine("description");
-    assert.equal(systemDishIngredients(false).includes(line), false);
-    assert.equal(systemDishIngredients(true).split(line).length - 1, 1);
     const descriptionLine = "- `description`: the food, as understood in the food nomenclature of: `country`.";
-    for (const prompt of [systemDishRecall, systemDishSelection]) {
+    for (const prompt of prompts) {
+      assert.equal(prompt(true).includes(line), false);
       assert.equal(prompt(false).includes("`country`"), false);
       assert.equal(prompt(true).split(descriptionLine).length - 1, 1);
     }

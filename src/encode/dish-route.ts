@@ -1,11 +1,10 @@
 /**
- * Composite dishes: the principal characterising ingredients, a recall of
- * candidate descriptors per facet, and one selection over all candidates that
+ * Composite foods: the defining ingredients, a recall of candidate descriptors
+ * per facet, and one selection over the ingredients and all candidates that
  * keeps a complete, precise, non-redundant and consistent set.
  */
 
 import { DEFAULT_HIERARCHY, type Catalogue } from "../catalogue.js";
-import { countryParagraph } from "../country.js";
 
 /**
  * Facets offered to a dish. Ingredients, generic term, fat, alcohol and
@@ -45,18 +44,30 @@ export interface DishTerm {
   scope: string;
 }
 
+const DEFINITION_CONTEXT =
+  "Context: a food description is being expressed in the terms of a food catalogue, for use in dietary exposure assessment. The expression is a definition: a genus, which is a class in the catalogue, with differentiae, which are descriptors from the catalogue's facets.";
+
+const DEFINITION_GOAL =
+  "Goal: a definition that denotes the described food as narrowly as the description and the catalogue allow.";
+
+function dishDescriptionLine(withCountry: boolean): string {
+  return withCountry
+    ? "- `description`: the food, as understood in the food nomenclature of: `country`."
+    : "- `description`: the food.";
+}
+
 export function systemDishIngredients(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-Context: a dish has been classified to a broader shelf in a food catalogue.
+${DEFINITION_CONTEXT}
 
-Goal: identify its principal characterising ingredients.
+${DEFINITION_GOAL}
 
 Given:
-- \`description\`: the dish.
-- \`group\`: the shelf, with its \`name\` and its \`scope\`.
-${countryParagraph(withCountry, "description")}
-Your task: list the principal characterising ingredients that distinguish the dish within the shelf. Leave out ingredients that the description attaches to a process rather than to the dish.
+${dishDescriptionLine(withCountry)}
+- \`genus\`: the class the food has been placed in, with its \`name\` and its \`scope\` note.
+
+Your task: list the defining ingredients of the described food that the genus does not already convey. Leave out ingredients that the description attaches to a process rather than to the food.
 
 If none, leave \`ingredients\` empty.
 
@@ -65,18 +76,12 @@ Reply with JSON only:
 `;
 }
 
-function dishDescriptionLine(withCountry: boolean): string {
-  return withCountry
-    ? "- `description`: the food, as understood in the food nomenclature of: `country`."
-    : "- `description`: the food.";
-}
-
 export function systemDishRecall(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-Context: a food description is being expressed in the terms of a food catalogue, for use in dietary exposure assessment. The expression is a definition: a genus, which is a class in the catalogue, with differentiae, which are descriptors from the catalogue's facets.
+${DEFINITION_CONTEXT}
 
-Goal: a definition that denotes the described food as narrowly as the description and the catalogue allow.
+${DEFINITION_GOAL}
 
 Given:
 ${dishDescriptionLine(withCountry)}

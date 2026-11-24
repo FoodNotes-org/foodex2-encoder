@@ -4367,9 +4367,10 @@ async function assignResidualSlots(
 }
 
 /**
- * A composite dish: the dish name in text when the shelf does not name it, the
- * principal characterising ingredients, a recall of candidate descriptors per
- * facet, and one selection over all candidates.
+ * A named composite food: its name in text when the base term does not name
+ * it, the defining ingredients, a recall of candidate descriptors per facet,
+ * and one selection over those ingredients and all candidates. Descriptors
+ * from earlier steps stay fixed.
  */
 async function assignDishRoute(
   ctx: PlaceContext,
@@ -4406,7 +4407,7 @@ async function assignDishRoute(
     });
 
   const [ingredientsAnswer, recalls] = await Promise.all([
-    ask(systemDishIngredients(withCountry), { group: shelf }),
+    ask(systemDishIngredients(withCountry), { genus: shelf }),
     Promise.all(
       dishFacets(ctx.baseTermType).map(async (facet) => {
         const terms = dishFacetTerms(ctx.cat, ctx.baseCode, facet);
@@ -4423,9 +4424,11 @@ async function assignDishRoute(
 
   const ingredients = parseDishIngredients(ingredientsAnswer.content);
   const ingredientResolutions = [];
+  const before = new Set(ctx.facets.map((f) => `${f.header}.${f.code}`));
   for (const phrase of ingredients) {
     ingredientResolutions.push(await placeByKind(ctx, { phrase, kind: "ingredient" }, "drop"));
   }
+  const placedIngredients = ctx.facets.filter((f) => f.header === "F04" && !before.has(`${f.header}.${f.code}`));
   audit.push({
     step: "residuals_dish_ingredients",
     detail: { model: ingredientsAnswer.model, ingredients, resolutions: ingredientResolutions },
@@ -4446,15 +4449,16 @@ async function assignDishRoute(
     },
   });
 
-  if (candidates.length > 0) {
+  const droppable = [...placedIngredients, ...candidates];
+  if (droppable.length > 0) {
     const selection = await ask(systemDishSelection(withCountry), {
       genus: dishSelectionGenus(ctx.cat, ctx.baseCode, shelf),
       differentiae: ctx.facets.map((f) => dishDifferentia(ctx.cat, f.header, f.code)),
       facets: [...new Set(ctx.facets.map((f) => f.header))].map((header) => dishFacetInfo(ctx.cat, header)),
     });
-    const kept = parseOfferedCodes(selection.content, new Set(candidates.map((f) => `${f.header}.${f.code}`)));
+    const kept = parseOfferedCodes(selection.content, new Set(droppable.map((f) => `${f.header}.${f.code}`)));
     const dropped: string[] = [];
-    for (const facet of candidates) {
+    for (const facet of droppable) {
       const key = `${facet.header}.${facet.code}`;
       if (kept.includes(key)) continue;
       removeFacet(ctx, facet);
