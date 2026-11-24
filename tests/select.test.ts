@@ -239,6 +239,10 @@ describe("descriptionKindForPick", () => {
     assert.equal(descriptionKindForPick("A041P", "Potato soup"), "foodstuff");
   });
 
+  it("reads a composite food outside the composite-dishes class as a dish", () => {
+    assert.equal(descriptionKindForPick("A025T", "Saveloy, unbattered, takeaway"), "dish");
+  });
+
   it("reads a raw commodity as a foodstuff", () => {
     assert.equal(descriptionKindForPick("A00JR", "Courgette, fried in corn oil"), "foodstuff");
   });

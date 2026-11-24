@@ -99,15 +99,18 @@ Reply with JSON only:
 }
 
 export function systemDishSelection(withCountry: boolean): string {
+  const descriptionLines = withCountry
+    ? "- `description`: the food, as understood in the food nomenclature of `country`.\n- `country`: the country whose food nomenclature the description uses."
+    : "- `description`: the food.";
   return `You are an expert in food classification.
 
-Context: a food description is being expressed in the terms of a food catalogue for use in dietary exposure assessment.
+${DEFINITION_CONTEXT} Each facet records one aspect of a food and has its own descriptors.
 
 Goal: a code that denotes the food the description denotes.
 
 Given:
-${dishDescriptionLine(withCountry)}
-- \`genus\`: the class the food has been placed in, with its \`name\`, its \`scope\` note, its implicit facets (\`implies\`), and the classes above it, broadest first (\`broader\`).
+${descriptionLines}
+- \`genus\`: the class the food has been placed in, with its \`name\`, its \`scope\` note, the descriptors it already carries (\`implies\`), and the classes it falls under in the catalogue's hierarchy, broadest first (\`broader\`).
 - \`differentiae\`: candidate descriptors, each with a \`code\`, a \`name\` preceded by its facet, and its \`scope\` note.
 - \`facets\`: the facets of the differentiae, each with its \`name\` and its \`description\`.
 

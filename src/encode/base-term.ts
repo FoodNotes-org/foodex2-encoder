@@ -27,17 +27,22 @@ import type { AuditEntry, BaseTermRef, EncodeOk, EncodeResult } from "./types.js
  */
 export const MAX_ENCODE_INPUT_CHARS = 300;
 
+/** Catalogue term types for composite food: simple and aggregated. */
+const COMPOSITE_TERM_TYPES = new Set(["s", "c"]);
+
 /**
- * A composite-dish term whose name is not the description is a named dish:
- * the name stands for ingredients the term does not already state. Any other
- * pick is read as a foodstuff, so a stated process can be recorded on it.
+ * A composite food whose term name is not the description is a named dish:
+ * the name stands for ingredients the term does not already state. Composite
+ * food includes terms outside the composite-dishes class, such as sausages,
+ * sauces and cakes. Any other pick is read as a foodstuff, so a stated process
+ * can be recorded on it.
  */
 export function descriptionKindForPick(code: string, description: string): DescriptionKind {
   const cat = Catalogue.load();
-  const name = cat.term(code)?.name ?? "";
-  if (cat.isAncestor(COMPOSITE_DISHES, code, DEFAULT_HIERARCHY) && !sameContentTokenSet(description, name)) {
-    return "dish";
-  }
+  const term = cat.term(code);
+  const composite =
+    COMPOSITE_TERM_TYPES.has(term?.termType ?? "") || cat.isAncestor(COMPOSITE_DISHES, code, DEFAULT_HIERARCHY);
+  if (composite && !sameContentTokenSet(description, term?.name ?? "")) return "dish";
   return "foodstuff";
 }
 
