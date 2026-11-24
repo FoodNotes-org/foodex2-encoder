@@ -50,12 +50,12 @@ import {
   dishFacetInfo,
   dishFacets,
   dishFacetTerms,
-  dishGateDescriptor,
-  dishGateShelf,
+  dishDifferentia,
+  dishSelectionGenus,
   parseDishIngredients,
   parseOfferedCodes,
-  systemDishFacetSelect,
-  systemDishGate,
+  systemDishRecall,
+  systemDishSelection,
   systemDishIngredients,
 } from "./dish-route.js";
 import {
@@ -4368,9 +4368,8 @@ async function assignResidualSlots(
 
 /**
  * A composite dish: the dish name in text when the shelf does not name it, the
- * principal characterising ingredients, one descriptor choice per facet, and a
- * gate that keeps the chosen descriptors that narrow the code towards the
- * described food.
+ * principal characterising ingredients, a recall of candidate descriptors per
+ * facet, and one selection over all candidates.
  */
 async function assignDishRoute(
   ctx: PlaceContext,
@@ -4406,13 +4405,13 @@ async function assignDishRoute(
       user: JSON.stringify({ description: input, ...user, ...countryField }, null, 2),
     });
 
-  const [ingredientsAnswer, selections] = await Promise.all([
+  const [ingredientsAnswer, recalls] = await Promise.all([
     ask(systemDishIngredients(withCountry), { group: shelf }),
     Promise.all(
       dishFacets(ctx.baseTermType).map(async (facet) => {
         const terms = dishFacetTerms(ctx.cat, ctx.baseCode, facet);
         if (terms.length === 0) return { facet, codes: [] as string[] };
-        const answered = await ask(systemDishFacetSelect(withCountry), {
+        const answered = await ask(systemDishRecall(withCountry), {
           genus: shelf,
           facet: dishFacetInfo(ctx.cat, facet),
           descriptors: terms,
@@ -4432,35 +4431,35 @@ async function assignDishRoute(
     detail: { model: ingredientsAnswer.model, ingredients, resolutions: ingredientResolutions },
   });
 
-  const selected: FacetDescriptorRef[] = [];
-  for (const { facet, codes } of selections) {
+  const candidates: FacetDescriptorRef[] = [];
+  for (const { facet, codes } of recalls) {
     for (const code of codes) {
       const ref = { header: facet, code, name: ctx.cat.term(code)?.name ?? code };
-      if (addFacet(ctx, ref)) selected.push(ref);
+      if (addFacet(ctx, ref)) candidates.push(ref);
     }
   }
   audit.push({
-    step: "residuals_dish_facets",
+    step: "residuals_dish_recall",
     detail: {
-      selected: selections.filter((s) => s.codes.length > 0),
-      added: selected.map((f) => ({ header: f.header, code: f.code, name: f.name })),
+      recalled: recalls.filter((r) => r.codes.length > 0),
+      added: candidates.map((f) => ({ header: f.header, code: f.code, name: f.name })),
     },
   });
 
-  if (selected.length > 0) {
-    const gate = await ask(systemDishGate(withCountry), {
-      genus: dishGateShelf(ctx.cat, ctx.baseCode, shelf),
-      differentiae: ctx.facets.map((f) => dishGateDescriptor(ctx.cat, f.header, f.code)),
+  if (candidates.length > 0) {
+    const selection = await ask(systemDishSelection(withCountry), {
+      genus: dishSelectionGenus(ctx.cat, ctx.baseCode, shelf),
+      differentiae: ctx.facets.map((f) => dishDifferentia(ctx.cat, f.header, f.code)),
     });
-    const keep = parseOfferedCodes(gate.content, new Set(selected.map((f) => `${f.header}.${f.code}`)));
+    const kept = parseOfferedCodes(selection.content, new Set(candidates.map((f) => `${f.header}.${f.code}`)));
     const dropped: string[] = [];
-    for (const facet of selected) {
+    for (const facet of candidates) {
       const key = `${facet.header}.${facet.code}`;
-      if (keep.includes(key)) continue;
+      if (kept.includes(key)) continue;
       removeFacet(ctx, facet);
       dropped.push(key);
     }
-    audit.push({ step: "residuals_dish_gate", detail: { model: gate.model, kept: keep, dropped } });
+    audit.push({ step: "residuals_dish_selection", detail: { model: selection.model, kept, dropped } });
   }
 
   return await finishResiduals(ctx, audit, { from: "dish" });

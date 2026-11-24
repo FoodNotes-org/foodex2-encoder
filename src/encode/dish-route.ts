@@ -1,10 +1,10 @@
 /**
- * Composite dishes: the principal characterising ingredients, one descriptor
- * choice per facet, and a gate that keeps the chosen descriptors that narrow
- * the code towards the described food.
+ * Composite dishes: the principal characterising ingredients, a recall of
+ * candidate descriptors per facet, and one selection over all candidates that
+ * keeps a complete, precise, non-redundant and consistent set.
  */
 
-import type { Catalogue } from "../catalogue.js";
+import { DEFAULT_HIERARCHY, type Catalogue } from "../catalogue.js";
 import { countryParagraph } from "../country.js";
 
 /**
@@ -70,7 +70,7 @@ const DEFINITION_CONTEXT =
 
 const DEFINITION_GOAL = "Goal: a code that denotes the described food as narrowly as the description allows.";
 
-export function systemDishFacetSelect(withCountry: boolean): string {
+export function systemDishRecall(withCountry: boolean): string {
   return `You are an expert in food classification.
 
 ${DEFINITION_CONTEXT}
@@ -92,19 +92,23 @@ Reply with JSON only:
 `;
 }
 
-export function systemDishGate(withCountry: boolean): string {
+export function systemDishSelection(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-${DEFINITION_CONTEXT} The code is the genus with its differentiae.
+${DEFINITION_CONTEXT}
 
 ${DEFINITION_GOAL}
 
 Given:
 - \`description\`: the food.
-- \`genus\`: the class the food has been placed in, with its \`name\`, its \`scope\` note, and its implicit facets (\`implies\`).
-- \`differentiae\`: the descriptors added to the genus, each with a \`code\`, a \`name\` preceded by its facet, and its \`scope\` note.
+- \`genus\`: the class the food has been placed in, with its \`name\`, its \`scope\` note, its implicit facets (\`implies\`), and the classes above it, broadest first (\`broader\`).
+- \`differentiae\`: candidate descriptors, each with a \`code\`, a \`name\` preceded by its facet, and its \`scope\` note.
 ${countryParagraph(withCountry, "description")}
-Your task: list the codes of the added differentiae that narrow the set of foods the code denotes while keeping in it every food the description can refer to. When two differentiae convey the same information, keep the one the description denotes.
+Your task: choose the differentiae such that the definition, the genus with the chosen differentiae, is:
+- complete: it expresses every characteristic of the food that the description expresses;
+- precise: it asserts no characteristic that the description does not entail;
+- non-redundant: no chosen differentia is entailed by the genus or by the other chosen differentiae;
+- consistent: no two chosen differentiae exclude each other.
 
 If none, leave \`codes\` empty.
 
@@ -150,12 +154,19 @@ export function dishFacetTerms(cat: Catalogue, baseCode: string, facet: string):
   return out;
 }
 
-/** The shelf as the gate sees it: name, scope, and its implied descriptors labelled by facet. */
-export function dishGateShelf(
+/**
+ * The genus as selection sees it: name, scope, its implied descriptors labelled
+ * by facet, and the classes above it, broadest first.
+ */
+export function dishSelectionGenus(
   cat: Catalogue,
   baseCode: string,
   shelf: DishShelf
-): { name: string; scope: string; implies: string[] } {
+): { name: string; scope: string; implies: string[]; broader: string[] } {
+  const broader: string[] = [];
+  for (let code = cat.parent(baseCode, DEFAULT_HIERARCHY); code !== null; code = cat.parent(code, DEFAULT_HIERARCHY)) {
+    broader.unshift(cat.term(code)?.name ?? code);
+  }
   return {
     ...shelf,
     implies: cat.impliedFacets(baseCode).map((key) => {
@@ -164,15 +175,16 @@ export function dishGateShelf(
       const code = key.slice(dot + 1);
       return `${facetLabel(cat, facet)}: ${cat.term(code)?.name ?? code}`;
     }),
+    broader,
   };
 }
 
 /**
- * An added descriptor as the gate sees it. The code carries its facet, because
- * one descriptor can sit in two facets (Ready-to-eat is both a quality and an
- * intended use).
+ * A candidate descriptor as selection sees it. The code carries its facet,
+ * because one descriptor can sit in two facets (Ready-to-eat is both a quality
+ * and an intended use).
  */
-export function dishGateDescriptor(
+export function dishDifferentia(
   cat: Catalogue,
   facet: string,
   code: string

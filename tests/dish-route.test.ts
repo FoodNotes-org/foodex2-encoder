@@ -10,19 +10,19 @@ import {
   dishFacetInfo,
   dishFacets,
   dishFacetTerms,
-  dishGateDescriptor,
-  dishGateShelf,
+  dishDifferentia,
+  dishSelectionGenus,
   parseDishIngredients,
   parseOfferedCodes,
-  systemDishFacetSelect,
-  systemDishGate,
+  systemDishRecall,
+  systemDishSelection,
   systemDishIngredients,
 } from "../src/encode/dish-route.js";
 
 const cat = Catalogue.load();
 
 describe("dish route prompts", () => {
-  const prompts = [systemDishIngredients, systemDishFacetSelect, systemDishGate];
+  const prompts = [systemDishIngredients, systemDishRecall, systemDishSelection];
 
   it("reads the description in the country's nomenclature only when a country is given", () => {
     const line = countryContextLine("description");
@@ -36,8 +36,8 @@ describe("dish route prompts", () => {
 
   it("asks each prompt for its own answer key", () => {
     assert.match(systemDishIngredients(false), /\{"ingredients":\["<phrase>",\.\.\.\]\}/);
-    assert.match(systemDishFacetSelect(false), /\{"codes":\["<code>",\.\.\.\]\}/);
-    assert.match(systemDishGate(false), /\{"codes":\["<code>",\.\.\.\]\}/);
+    assert.match(systemDishRecall(false), /\{"codes":\["<code>",\.\.\.\]\}/);
+    assert.match(systemDishSelection(false), /\{"codes":\["<code>",\.\.\.\]\}/);
   });
 });
 
@@ -74,15 +74,24 @@ describe("dishFacetTerms", () => {
   });
 });
 
-describe("dish gate inputs", () => {
-  it("labels the shelf's implied descriptors with their facet", () => {
-    const shelf = dishGateShelf(cat, "A03YJ", { name: "Egg based dishes", scope: "" });
-    assert.ok(shelf.implies.some((line) => line.startsWith("Ingredient: ")));
+describe("dish selection inputs", () => {
+  it("labels the genus's implied descriptors with their facet", () => {
+    const genus = dishSelectionGenus(cat, "A03YJ", { name: "Egg based dishes", scope: "" });
+    assert.ok(genus.implies.some((line) => line.startsWith("Ingredient: ")));
   });
 
-  it("keys an added descriptor by facet, so one descriptor in two facets stays apart", () => {
-    const quality = dishGateDescriptor(cat, "F10", "A07VP");
-    const use = dishGateDescriptor(cat, "F24", "A07VP");
+  it("lists the classes above the genus, broadest first", () => {
+    const genus = dishSelectionGenus(cat, "A03XX", { name: "Vegetable based dishes", scope: "" });
+    assert.deepEqual(genus.broader, [
+      "Composite dishes",
+      "Dishes, incl. Ready to eat meals (excluding soups and salads)",
+      "Dishes excluding pasta or rice dishes, sandwiches and pizza",
+    ]);
+  });
+
+  it("keys a candidate descriptor by facet, so one descriptor in two facets stays apart", () => {
+    const quality = dishDifferentia(cat, "F10", "A07VP");
+    const use = dishDifferentia(cat, "F24", "A07VP");
     assert.equal(quality.code, "F10.A07VP");
     assert.equal(use.code, "F24.A07VP");
     assert.notEqual(quality.name, use.name);
