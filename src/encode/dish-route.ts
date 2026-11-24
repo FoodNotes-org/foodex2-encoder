@@ -93,18 +93,21 @@ Reply with JSON only:
 }
 
 export function systemDishSelection(withCountry: boolean): string {
+  const description = withCountry
+    ? "- `description`: the food, as understood in the food nomenclature of: `country`."
+    : "- `description`: the food.";
   return `You are an expert in food classification.
 
-${DEFINITION_CONTEXT}
+Context: a food description is being expressed in the terms of a food catalogue for use in dietary exposure assessment.
 
-${DEFINITION_GOAL}
+Goal: a code that denotes the food the description denotes.
 
 Given:
-- \`description\`: the food.
+${description}
 - \`genus\`: the class the food has been placed in, with its \`name\`, its \`scope\` note, its implicit facets (\`implies\`), and the classes above it, broadest first (\`broader\`).
 - \`differentiae\`: candidate descriptors, each with a \`code\`, a \`name\` preceded by its facet, and its \`scope\` note.
-${countryParagraph(withCountry, "description")}
-Your task: choose the differentiae such that the definition, the genus with the chosen differentiae, is:
+
+Your task: choose the differentiae such that the code, the genus with the chosen differentiae, comes as close as possible to being:
 - complete: it expresses every characteristic of the food that the description expresses;
 - precise: it asserts no characteristic that the description does not entail;
 - non-redundant: no chosen differentia is entailed by the genus or by the other chosen differentiae;
