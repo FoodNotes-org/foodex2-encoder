@@ -24,9 +24,9 @@
  *    dimensions (excl. F07/F09/F11/F26) plus two origin options. Origin options
  *    use the origin route: `made_from` → F01/F27 (F04 on a composite),
  *    `added` → F04. F04 is also a top-down walk of `ingred`. Mix skips F26.
- * 3. F26 Generic-term — its own step after placement (chooseF26): Other when the
- *    input is a missing sibling of the base's children, else Unspecified on an
- *    H/M/P base.
+ * 3. F26 Generic-term — its own step after cleanup (chooseF26): Other when an
+ *    origin facet is broader than the description or an origin has no term,
+ *    else Unspecified on an H/M/P base that no origin facet narrows.
  * 4. Included characteristics — after the deterministic cleanup, when two or
  *    more descriptors remain besides generic-term: drop a descriptor whose
  *    characteristic another recorded descriptor already includes. Other and
@@ -34,7 +34,7 @@
  */
 
 import { searchTerms, type SearchCandidate } from "../search/lexical.js";
-import { pickAllowedCode, pickAllowedCodes } from "./answers.js";
+import { pickAllowedCode, pickOriginMatches, type OriginMatch } from "./answers.js";
 import {
   openFacetDimensions,
   pickFacets,
@@ -505,31 +505,6 @@ Reply with JSON only:
 `;
 }
 
-/**
- * F26: how the input relates to the base's direct children. The answer decides
- * Other vs Unspecified in code (see decideF26); the model does not pick F26.
- */
-function systemF26Relation(withCountry: boolean): string {
-  return `You are an expert in food classification.
-
-You are given a food description (\`input\`), the catalogue term chosen for it (\`baseTerm\`), and the terms directly under that term (\`children\`).
-${countryBlock(withCountry)}
-First, consider what food \`input\` identifies.
-
-Then, consider what kinds of \`baseTerm\` the children are.
-
-Then, decide how \`input\` relates to the children:
-- "same" — it is the same food as one of the children
-- "within" — it is a kind of one of the children
-- "sibling" — it is another kind of \`baseTerm\`, at the same level as the children, that none of them covers
-- "parent" — it covers several of the children, or is no narrower than \`baseTerm\`
-- "none" — none of these, including when it differs from the children only in how it is processed or which part is eaten
-
-Reply with JSON only:
-{"relation":"same"|"within"|"sibling"|"parent"|"none"}
-`;
-}
-
 export interface AssignResidualsOptions {
   model?: string;
   /** How the base was selected relative to the input (from traversal/lexical). */
@@ -624,6 +599,41 @@ interface PlaceContext {
   protectedFacets: Set<string>;
   /** Stated processes and parts named before placement; null when not given. */
   named: NamedFacets | null;
+  /**
+   * How each origin term found matched its phrase, keyed `F04.A00JL`. An exact
+   * match for any phrase wins. No entry, or null: no label (treated as exact).
+   */
+  originMatches: Map<string, OriginMatch | null>;
+  /** Phrases an origin search placed in the tree but found no term for. */
+  originGaps: Set<string>;
+  /** Phrases that ended with no facet (free text, or dropped as having none). */
+  unplaced: Set<string>;
+}
+
+/** Record how an origin search ended, for F26 Other. */
+function noteOrigin(
+  ctx: PlaceContext,
+  phrase: string,
+  facets: readonly FacetDescriptorRef[],
+  matches: Readonly<Record<string, OriginMatch | null>>,
+  branchEntered: boolean
+): void {
+  if (facets.length === 0) {
+    if (branchEntered) ctx.originGaps.add(phrase.trim().toLowerCase());
+    return;
+  }
+  for (const facet of facets) {
+    const key = `${facet.header}.${facet.code}`;
+    const match = matches[facet.code] ?? null;
+    const prior = ctx.originMatches.get(key);
+    if (prior === undefined || match === "exact" || (prior === null && match !== null)) {
+      ctx.originMatches.set(key, match);
+    }
+  }
+}
+
+function markUnplaced(ctx: PlaceContext, phrase: string): void {
+  ctx.unplaced.add(phrase.trim().toLowerCase());
 }
 
 function walkFood(ctx: PlaceContext): FacetWalkFood {
@@ -1671,6 +1681,7 @@ async function resolveF04Phrase(
     seeds,
     originRole: "ingredient",
   });
+  noteOrigin(ctx, phrase, walked.facets, walked.matches, walked.branchEntered);
   return {
     facet: walked.facet,
     facets: walked.facets,
@@ -1707,6 +1718,7 @@ async function resolveF27Phrase(
     seeds: pool.map((hit) => ({ header: F27, code: hit.code })),
     originRole: "made_from",
   });
+  noteOrigin(ctx, phrase, walked.facets, walked.matches, walked.branchEntered);
   return { facet: walked.facet, facets: walked.facets, detail: walked.detail };
 }
 
@@ -1941,12 +1953,8 @@ async function modelPickClosedDescriptor(
         2
       ),
     });
-    const codes = many
-      ? pickAllowedCodes(picked.content, allowed)
-      : (() => {
-          const code = pickAllowedCode(picked.content, allowed);
-          return code === null ? [] : [code];
-        })();
+    const rows = pickOriginMatches(picked.content, allowed, many);
+    const codes = rows.map((row) => row.code);
     return {
       codes,
       model: picked.model,
@@ -1957,6 +1965,7 @@ async function modelPickClosedDescriptor(
         originRole: origin.role,
         candidates: candidates.map((c) => ({ code: c.code, name: c.name })),
         picked: many ? codes : (codes[0] ?? null),
+        matches: Object.fromEntries(rows.map((row) => [row.code, row.match])),
       },
     };
   }
@@ -2918,11 +2927,15 @@ async function resolveSourcePhrase(ctx: PlaceContext, lookup: string): Promise<C
     country: ctx.country,
     implied: ctx.implied,
   });
-  return {
-    facet: walked.facet,
-    facets: walked.facet === null ? [] : [walked.facet],
-    detail: walked.detail,
-  };
+  const facets = walked.facet === null ? [] : [walked.facet];
+  noteOrigin(
+    ctx,
+    lookup,
+    facets,
+    walked.facet === null ? {} : { [walked.facet.code]: walked.match },
+    walked.branchEntered
+  );
+  return { facet: walked.facet, facets, detail: walked.detail };
 }
 
 /**
@@ -3285,6 +3298,7 @@ async function finishPlacement(
 
   const label = freeTextLabelForOriginRole(originRole, kind, otherLabel);
   pushFreeText(ctx.freeText, label, lookup);
+  markUnplaced(ctx, lookup);
   return {
     phrase,
     kind,
@@ -3313,20 +3327,19 @@ export function siblingChildrenForF26(
   return out;
 }
 
-/** How the input relates to the base's children (systemF26Relation). */
-export type F26Relation = "same" | "within" | "sibling" | "parent" | "none";
-
-const F26_RELATIONS = new Set<F26Relation>(["same", "within", "sibling", "parent", "none"]);
-
 /** Detail levels above core/extended: the base itself is a broad group. */
 const F26_BROAD_LEVELS = new Set(["H", "M", "P"]);
 
-export function parseF26Relation(content: unknown): F26Relation | null {
-  if (content === null || typeof content !== "object") return null;
-  const raw = (content as { relation?: unknown }).relation;
-  if (typeof raw !== "string") return null;
-  const relation = raw.trim().toLowerCase() as F26Relation;
-  return F26_RELATIONS.has(relation) ? relation : null;
+/**
+ * A group for the kinds its siblings do not list ("Other cucurbits with edible
+ * peel", "Eggs from other not listed eggs producer birds"). Not "and other"
+ * (= and similar) or "other than" (= excluding).
+ */
+const REMAINDER_NAME =
+  /^Other\b|\bnot (elsewhere |separately )?(listed|mentioned)\b|\bnon-listed\b|\bfrom other\b/i;
+
+export function isRemainderName(name: string | null | undefined): boolean {
+  return name !== null && name !== undefined && REMAINDER_NAME.test(name.trim());
 }
 
 export type F26Decision =
@@ -3334,76 +3347,77 @@ export type F26Decision =
   | { kind: "unspecified" }
   | { kind: "none"; reason: string };
 
+export interface F26Evidence {
+  hasChildren: boolean;
+  baseDetailLevel: string | null;
+  /** The base is itself a remainder group: it already says "not listed". */
+  baseRemainder: boolean;
+  /** Source, source-commodity and ingredient facets in the code. */
+  origins: Array<{ key: string; match: OriginMatch | null; remainder: boolean }>;
+  /** Phrases an origin search placed in the tree, found no term for, and left unplaced. */
+  gaps: string[];
+}
+
 /**
+ * EFSA 2020 maintenance §3.8: a food not listed is described from the parent
+ * term with F01/F27/F04; Other is added when those cannot fully specify it.
  * Other and Unspecified are exclusive (F26 is single cardinality); Other is
  * decided first.
  *
- * - Other: the input names another kind of the base that no child covers.
- * - Unspecified: the base is a broad group (H/M/P) and the input does not name
- *   anything narrower. We only land on a broad group when the input is that
- *   vague, so detail level settles it once Other is ruled out.
- * - same/within: a child fits, so the base should have gone lower; neither
- *   descriptor describes that (a selection miss, visible in the audit).
- * - No children: no more detailed item exists to be missing or unknown.
+ * - Other: an origin facet is broader than what the description names, or an
+ *   origin the description names has no term. A remainder group, as the base
+ *   or as the facet, already says "not listed".
+ * - Unspecified: the base is a broad group (H/M/P) with children, and no origin
+ *   facet narrows it.
  */
-export function decideF26(
-  hasChildren: boolean,
-  baseDetailLevel: string | null,
-  relation: F26Relation | null
-): F26Decision {
-  if (!hasChildren) return { kind: "none", reason: "no_children" };
-  if (relation === "sibling") return { kind: "other" };
-  if (relation === "same" || relation === "within") {
-    return { kind: "none", reason: `child_fits_${relation}` };
-  }
-  if (baseDetailLevel !== null && F26_BROAD_LEVELS.has(baseDetailLevel)) {
+export function decideF26(evidence: F26Evidence): F26Decision {
+  if (evidence.baseRemainder) return { kind: "none", reason: "base_remainder" };
+  const broad = evidence.origins.some((origin) => origin.match === "broad" && !origin.remainder);
+  if (broad || evidence.gaps.length > 0) return { kind: "other" };
+  if (evidence.origins.length > 0) return { kind: "none", reason: "origin_specified" };
+  if (!evidence.hasChildren) return { kind: "none", reason: "no_children" };
+  if (evidence.baseDetailLevel !== null && F26_BROAD_LEVELS.has(evidence.baseDetailLevel)) {
     return { kind: "unspecified" };
   }
   return { kind: "none", reason: "base_core_or_extended" };
 }
 
-/** F26 for the locked base: one relation call, then decideF26. */
-export async function chooseF26(
-  cat: Catalogue,
-  input: string,
-  baseCode: string,
-  options: { model: string; country?: string | null }
-): Promise<{ facet: FacetDescriptorRef | null; detail: Record<string, unknown> }> {
-  if ([...impliedKeys(cat, baseCode)].some((key) => key.startsWith(`${F26}.`))) {
+const ORIGIN_HEADERS = new Set(["F01", "F27", "F04"]);
+
+/** F26 for the locked base, from how the origin searches ended (decideF26). */
+function chooseF26(
+  ctx: PlaceContext,
+  facets: readonly FacetDescriptorRef[]
+): { facet: FacetDescriptorRef | null; detail: Record<string, unknown> } {
+  const cat = ctx.cat;
+  if ([...impliedKeys(cat, ctx.baseCode)].some((key) => key.startsWith(`${F26}.`))) {
     return { facet: null, detail: { reason: "already_implied" } };
   }
-  const baseTerm = cat.term(baseCode);
+  const baseTerm = cat.term(ctx.baseCode);
   const baseDetailLevel = baseTerm?.detailLevel ?? null;
-  const children = siblingChildrenForF26(cat, baseCode);
-
-  let relation: F26Relation | null = null;
-  let model: string | undefined;
-  const country = options.country ?? null;
-  if (children.length > 0) {
-    const answered = await chatJson({
-      model: options.model,
-      system: systemF26Relation(country !== null),
-      user: JSON.stringify(
-        {
-          input,
-          ...(country !== null ? { country } : {}),
-          baseTerm: baseTerm?.name ?? baseCode,
-          children: children.map((c) => c.name),
-        },
-        null,
-        2
-      ),
+  const children = siblingChildrenForF26(cat, ctx.baseCode);
+  const origins = facets
+    .filter((facet) => ORIGIN_HEADERS.has(facet.header))
+    .map((facet) => {
+      const key = `${facet.header}.${facet.code}`;
+      return {
+        key,
+        match: ctx.originMatches.get(key) ?? null,
+        remainder: isRemainderName(cat.term(facet.code)?.name),
+      };
     });
-    relation = parseF26Relation(answered.content);
-    model = answered.model;
-  }
-
-  const decision = decideF26(children.length > 0, baseDetailLevel, relation);
-  const detail = {
-    ...(model !== undefined ? { model } : {}),
-    relation,
-    childCount: children.length,
+  const gaps = [...ctx.originGaps].filter((phrase) => ctx.unplaced.has(phrase));
+  const evidence: F26Evidence = {
+    hasChildren: children.length > 0,
     baseDetailLevel,
+    baseRemainder: isRemainderName(baseTerm?.name),
+    origins,
+    gaps,
+  };
+  const decision = decideF26(evidence);
+  const detail = {
+    ...evidence,
+    childCount: children.length,
     decision: decision.kind,
     ...(decision.kind === "none" ? { reason: decision.reason } : {}),
   };
@@ -3424,8 +3438,15 @@ async function finishResiduals(
   audit: AuditEntry[],
   extra: Record<string, unknown> = {}
 ): Promise<AssignResidualsOk> {
+  const cleaned = cleanupFacets(ctx.cat, ctx.facets, ctx.implied, {
+    baseCode: ctx.baseCode,
+    baseTermType: ctx.baseTermType,
+  });
+
   // Same-nature mix: the generic base is intentional (§3.1.10); neither a
   // missing sibling (Other) nor missing detail (Unspecified).
+  // F26 is judged on the cleaned facets, so a group dropped for its narrower
+  // child does not count as a broad origin.
   if (ctx.descriptionKind === "mix") {
     audit.push({
       step: "residuals_f26",
@@ -3437,21 +3458,14 @@ async function finishResiduals(
       },
     });
   } else {
-    const f26 = await chooseF26(ctx.cat, ctx.input, ctx.baseCode, {
-      model: ctx.model,
-      country: ctx.country,
-    });
+    const f26 = chooseF26(ctx, cleaned.facets);
     const applied = f26.facet !== null && addFacet(ctx, f26.facet);
+    if (applied) cleaned.facets = [...cleaned.facets, f26.facet!];
     audit.push({
       step: "residuals_f26",
       detail: { ...f26.detail, applied, facet: f26.facet, fit: ctx.fit },
     });
   }
-
-  const cleaned = cleanupFacets(ctx.cat, ctx.facets, ctx.implied, {
-    baseCode: ctx.baseCode,
-    baseTermType: ctx.baseTermType,
-  });
   if (cleaned.dropped.length > 0) {
     audit.push({
       step: "residuals_cleanup",
@@ -3578,36 +3592,46 @@ function keepFacetCandidate(
 }
 
 /**
- * Whether `phrase` names something added to the food. The plant, animal, or
- * commodity the food comes from is not an addition, so it is not an ingredient.
+ * What `phrase` says is put into or onto the food, by name. The plant, animal,
+ * or commodity the food comes from is not put in or on, so it is not listed.
  */
 export function systemAddedIngredient(withCountry: boolean): string {
   return `You are an expert in food classification.
 
-Does \`phrase\` name something added to the food?
+Task: list what \`phrase\` says is put into or onto the food. Each name is looked up as an ingredient in a food catalogue.
 
 Given:
 - \`description\`: the food.
-- \`baseTerm\`: the food group already chosen, with its name.
+- \`baseTerm\`: the food group already chosen, with its \`name\`.
 - \`phrase\`: words from the description.
 ${countryParagraph(withCountry, "description")}
-Something added is put into the food or onto it. The plant, animal, or commodity the food comes from is not something added.
+List only things \`phrase\` names; do not infer one from a process. Name each thing itself, not the food that results from putting it in or on. The plant, animal, or commodity the food comes from is not put into or onto it.
 
-Reply with JSON only:
-{"added":true|false}
+Reply with JSON only, with each name in English, or an empty list if \`phrase\` names nothing put into or onto the food:
+{"added":["<name>",...]}
 `;
 }
 
-/** True only when the reply explicitly says the phrase names an addition. */
-export function parseAddedClaim(content: unknown): boolean {
-  if (content === null || typeof content !== "object") return false;
-  return (content as { added?: unknown }).added === true;
+/** The non-empty names in the reply, without repeats; anything else is no name. */
+export function parseAddedNames(content: unknown): string[] {
+  if (content === null || typeof content !== "object") return [];
+  const raw = (content as { added?: unknown }).added;
+  if (!Array.isArray(raw)) return [];
+  const names: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const name = item.trim();
+    if (name !== "" && !names.some((kept) => kept.toLowerCase() === name.toLowerCase())) {
+      names.push(name);
+    }
+  }
+  return names;
 }
 
 async function askAddedIngredient(
   ctx: PlaceContext,
   phrase: string
-): Promise<{ added: boolean; detail: Record<string, unknown> }> {
+): Promise<{ names: string[]; detail: Record<string, unknown> }> {
   const withCountry = ctx.country !== null && ctx.country !== "";
   const answered = await chatJson({
     model: ctx.model,
@@ -3623,10 +3647,10 @@ async function askAddedIngredient(
       2
     ),
   });
-  const added = parseAddedClaim(answered.content);
+  const names = parseAddedNames(answered.content);
   return {
-    added,
-    detail: { via: "added_ingredient", model: answered.model, phrase, added },
+    names,
+    detail: { via: "added_ingredient", model: answered.model, phrase, names },
   };
 }
 
@@ -3668,10 +3692,13 @@ async function collectSlotCandidates(
   const origin = await placeOrigin(ctx, phrase, "made_from", false, attempts, false);
   const addition = await askAddedIngredient(ctx, phrase);
   attempts.push(addition.detail);
-  const added = addition.added
-    ? await placeOrigin(ctx, phrase, "added", false, attempts, false)
-    : { facets: [] as FacetDescriptorRef[] };
-  for (const facet of settleOriginCandidates(origin.facets, added.facets)) {
+  const added: FacetDescriptorRef[] = [];
+  for (const name of addition.names) {
+    const placed = await placeOrigin(ctx, name, "added", false, attempts, false);
+    added.push(...placed.facets);
+    if (ctx.originGaps.has(name.trim().toLowerCase())) ctx.originGaps.add(phrase.trim().toLowerCase());
+  }
+  for (const facet of settleOriginCandidates(origin.facets, added)) {
     keepFacetCandidate(ctx, facet, candidates);
   }
 
@@ -3712,6 +3739,7 @@ function namedPhrases(ctx: PlaceContext): string[] {
 
 /** An attribute no facet records. Words that share a named process or part are not repeated as free text. */
 function unplacedAttribute(ctx: PlaceContext, phrase: string): void {
+  markUnplaced(ctx, phrase);
   const overlaps = namedPhrases(ctx).some(
     (named) => wordsWithin(named, phrase) || wordsWithin(phrase, named)
   );
@@ -4338,6 +4366,7 @@ async function assignResidualSlots(
         continue;
       }
       if (collected.candidates.length === 0) {
+        markUnplaced(ctx, entry);
         originResolutions.push({
           phrase: entry,
           placed: "dropped",
@@ -4509,6 +4538,9 @@ export async function assignResiduals(
     minorFoods: options.minorFoods ?? [],
     protectedFacets: new Set(),
     named: options.named ?? null,
+    originMatches: new Map(),
+    originGaps: new Set(),
+    unplaced: new Set(),
   };
 
   if (options.facetSlots !== false && !isDishKind(ctx.descriptionKind)) {

@@ -5,7 +5,7 @@ import {
   chooseSourceLevel,
   systemSourceMatch,
 } from "../src/encode/source-walk.js";
-import { parseAddedClaim, systemAddedIngredient } from "../src/encode/residuals.js";
+import { parseAddedNames, systemAddedIngredient } from "../src/encode/residuals.js";
 
 describe("chooseSourceLevel", () => {
   it("takes the one exact child and does not open a broad sibling", () => {
@@ -106,17 +106,20 @@ describe("systemSourceMatch", () => {
   });
 });
 
-describe("parseAddedClaim", () => {
-  it("accepts an explicit addition and nothing else", () => {
-    assert.equal(parseAddedClaim({ added: true }), true);
-    assert.equal(parseAddedClaim({ added: false }), false);
-    assert.equal(parseAddedClaim({ added: "true" }), false);
-    assert.equal(parseAddedClaim(null), false);
+describe("parseAddedNames", () => {
+  it("keeps non-empty names once and nothing else", () => {
+    assert.deepEqual(parseAddedNames({ added: ["chocolate"] }), ["chocolate"]);
+    assert.deepEqual(parseAddedNames({ added: [" raisins ", "Raisins", "", 3, "almonds"] }), ["raisins", "almonds"]);
+    assert.deepEqual(parseAddedNames({ added: [] }), []);
+    assert.deepEqual(parseAddedNames({ added: true }), []);
+    assert.deepEqual(parseAddedNames(null), []);
   });
 
-  it("says the source of the food is not an addition", () => {
+  it("asks for the things put in or on by name, not inferred from a process", () => {
     const prompt = systemAddedIngredient(true);
-    assert.match(prompt, /not something added/);
-    assert.match(prompt, /\{"added":true\|false\}/);
+    assert.match(prompt, /do not infer one from a process/);
+    assert.match(prompt, /not the food that results from putting it in or on/);
+    assert.match(prompt, /The plant, animal, or commodity the food comes from is not put into or onto it\./);
+    assert.match(prompt, /\{"added":\["<name>",\.\.\.\]\}/);
   });
 });

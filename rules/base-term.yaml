@@ -410,23 +410,27 @@ rules:
           confectionery made with puffed rice and coated in chocolate, select a term
           from the confectionery category." National guidance, not EFSA.
     verdict: >-
-      A coating is a treatment like any other: it does not change which classes the
-      food belongs to, and when the base does not imply it, it is recorded as a facet.
-      A coated food can belong to two terms neither of which contains the other, such
-      as a commodity term and a coating group. Then the base is the term for the kind
-      of product the food is primarily eaten as. A term that contains another accepted
-      term gives way to the narrower one.
+      A coating does not make a new food (Table 22). A stated treatment that does make
+      a new food decides the base; the coating material is then a minor ingredient
+      (F04) and the coating a process (F28), each when the base does not imply it.
+      When no stated treatment makes a new food, a group that carries the coating is
+      the specific group Table 10 refers to, and it is the base. A term that contains
+      another accepted term gives way to the narrower one. Separately, a food that
+      belongs to two composite terms neither of which contains the other takes the term
+      for the kind of product it is primarily eaten as.
     why: >-
-      One rule for every pair of classes that cut across each other, coated or not,
-      judged from what the food is rather than from EFSA's examples. It contradicts no
-      scope note: A034R covers "any type of Chocolate coated confectionery". It departs
-      from EFSA's 5.13 example and from Table 10 for chocolate-coated nuts, and agrees
-      with ANSES 2025. Decided with Jorn, 2026-11-13.
+      Table 10 applies "when a specific food group is not present in the system", so a
+      group that carries the coating comes first. EFSA's 5.13 example still codes
+      candied citrus peel as Candied fruits although A034R exists: candying makes a new
+      food (Table 4) and coating does not. The catalogue agrees: candied orange peel
+      sits under Candied fruits. The 2026-11-13 verdict chose "the kind of product it is
+      primarily eaten as" for coated commodities too (ANSES 2025); that part was
+      replaced with Jorn, 2026-11-26. The composite clause is unchanged.
     families: [F7]
     examples:
-      - { input: "candied citrus peel, chocolate-coated", base: A034R, note: "Eaten as a chocolate sweet. EFSA 5.13 codes A01PS#F04.A034G$F27.A01QE$F28.A07HP" }
-      - { input: "chocolate-coated almonds", base: A034R, note: "Eaten as a chocolate sweet. Table 10 codes the nut plus an ingredient" }
-      - { input: "White sauce, sweet, made with skimmed milk, homemade", base: A046F, note: "Béchamel by its scope note, but eaten as a dessert sauce" }
+      - { input: "candied citrus peel, chocolate-coated", base: A01PS, note: "Candying makes a new food. EFSA 5.13: A01PS#F04.A034G$F27.A01QE$F28.A07HP. Gold uses Chocolate and similar (A0EQD): the description does not say bitter" }
+      - { input: "chocolate-coated almonds", base: A034R, note: "No treatment makes a new food, and A034R carries the coating: A034R#F04.A014D" }
+      - { input: "White sauce, sweet, made with skimmed milk, homemade", base: A046F, note: "Two composite terms: béchamel by its scope note, but eaten as a dessert sauce" }
 
   - id: BT-16
     topic: Composite groups, and other groups that carry a treatment that only transforms

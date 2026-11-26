@@ -450,7 +450,7 @@ cases:
     note: >-
       By their scope notes the food can be both a béchamel (milk sauce with a roux) and a
       dessert sauce (sweet, for desserts); neither term contains the other. It is primarily
-      eaten as a dessert sauce (BT-15, Jorn, 2026-11-13).
+      eaten as a dessert sauce (BT-15, composite clause, Jorn, 2026-11-13).
 
   # --- F4: two treatments compete (Table 6 priority) ---
   - id: eval-smoked-sprats-canned
@@ -494,13 +494,15 @@ cases:
     source: efsa-foodex2-guidance-2015
     families: F4, F7
     rules: BT-15
-    base: A034R
+    base: A01PS
+    forbid_base: A034R, A01QE
     new_food: A07JQ|A07JR
-    facets: F28.A07JR
+    facets: F28.A07HP
+    facets_allowed: F28.A07JR
     note: >-
-      Both a candied fruit and a chocolate-coated confection; neither term contains the other,
-      so the kind of product it is primarily eaten as decides (BT-15). Departs from EFSA's 5.13
-      code A01PS (Jorn, 2026-11-13).
+      Candying makes a candied fruit; the catalogue files candied orange peel under Candied
+      fruits. Candying makes a new food and coating does not, so the coating stays a process
+      with chocolate as a minor ingredient, as in EFSA's 5.13 code (BT-15, Jorn, 2026-11-26).
 
   - id: new-almonds-chocolate
     input: chocolate-coated almonds
@@ -509,11 +511,12 @@ cases:
     families: F7
     rules: BT-15
     base: A034R
+    forbid_base: A014D
     facets: none
     note: >-
-      Eaten as a chocolate sweet, and Chocolate coated confectionery's scope covers it (BT-15).
-      Departs from Table 10, which lists chocolate-coated nuts as commodity plus minor
-      ingredient (Jorn, 2026-11-13).
+      No stated treatment makes a new food, and Chocolate coated confectionery carries the
+      coating, so it is the specific group Table 10 refers to ("when a specific food group is
+      not present"). Almonds are the ingredient: A034R#F04.A014D (BT-15, Jorn, 2026-11-26).
 
   # --- F5: words that look like a treatment but are not one ---
   - id: usda-bulgur

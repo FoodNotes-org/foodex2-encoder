@@ -40,7 +40,8 @@ import {
   systemAttributeSlots,
   phraseCoveredByFortification,
   dropFortificationRestatements,
-  parseF26Relation,
+  isRemainderName,
+  type F26Evidence,
   parseOriginRole,
   orAlternatives,
   rawNoHeatOnRawCommodity,
@@ -1177,42 +1178,74 @@ describe("memberTermTypes / category members", () => {
   });
 });
 
-describe("decideF26 / parseF26Relation / siblingChildrenForF26", () => {
-  it("gives Other for a missing sibling, at any detail level", () => {
-    assert.deepEqual(decideF26(true, "C", "sibling"), { kind: "other" });
-    assert.deepEqual(decideF26(true, "H", "sibling"), { kind: "other" });
+describe("decideF26 / isRemainderName / siblingChildrenForF26", () => {
+  const base = {
+    hasChildren: true,
+    baseDetailLevel: "C",
+    baseRemainder: false,
+    origins: [] as F26Evidence["origins"],
+    gaps: [] as string[],
+  };
+  const origin = (match: "exact" | "broad" | null, remainder = false) => ({
+    key: "F04.A00JQ",
+    match,
+    remainder,
   });
 
-  it("gives Unspecified on an H/M/P base when the input names nothing narrower", () => {
-    for (const level of ["H", "M", "P"]) {
-      assert.deepEqual(decideF26(true, level, "parent"), { kind: "unspecified" });
-      assert.deepEqual(decideF26(true, level, "none"), { kind: "unspecified" });
-      assert.deepEqual(decideF26(true, level, null), { kind: "unspecified" });
-    }
-  });
-
-  it("gives nothing on a core or extended base unless the input is a missing sibling", () => {
-    assert.equal(decideF26(true, "C", "parent").kind, "none");
-    assert.equal(decideF26(true, "E", "none").kind, "none");
-  });
-
-  it("gives nothing when a child fits, even on a broad base", () => {
-    assert.deepEqual(decideF26(true, "P", "same"), { kind: "none", reason: "child_fits_same" });
-    assert.deepEqual(decideF26(true, "M", "within"), {
-      kind: "none",
-      reason: "child_fits_within",
+  it("gives Other when an origin facet is broader than the description, at any detail level", () => {
+    assert.deepEqual(decideF26({ ...base, origins: [origin("broad")] }), { kind: "other" });
+    assert.deepEqual(decideF26({ ...base, baseDetailLevel: "P", origins: [origin("broad")] }), {
+      kind: "other",
+    });
+    assert.deepEqual(decideF26({ ...base, hasChildren: false, origins: [origin("broad")] }), {
+      kind: "other",
     });
   });
 
-  it("gives nothing when the base has no children", () => {
-    assert.deepEqual(decideF26(false, "P", null), { kind: "none", reason: "no_children" });
+  it("gives Other when a named origin has no term", () => {
+    assert.deepEqual(decideF26({ ...base, gaps: ["tinda"] }), { kind: "other" });
   });
 
-  it("parses known relations and rejects others", () => {
-    assert.equal(parseF26Relation({ relation: " Sibling " }), "sibling");
-    assert.equal(parseF26Relation({ relation: "relative" }), null);
-    assert.equal(parseF26Relation({ verdict: "sibling" }), null);
-    assert.equal(parseF26Relation(null), null);
+  it("gives nothing when the origin facets match exactly, or carry no label", () => {
+    assert.deepEqual(decideF26({ ...base, origins: [origin("exact"), origin(null)] }), {
+      kind: "none",
+      reason: "origin_specified",
+    });
+    assert.deepEqual(decideF26({ ...base, baseDetailLevel: "P", origins: [origin("exact")] }), {
+      kind: "none",
+      reason: "origin_specified",
+    });
+  });
+
+  it("gives nothing when the remainder group already says not listed", () => {
+    assert.equal(decideF26({ ...base, origins: [origin("broad", true)] }).kind, "none");
+    assert.deepEqual(decideF26({ ...base, baseRemainder: true, origins: [origin("broad")] }), {
+      kind: "none",
+      reason: "base_remainder",
+    });
+  });
+
+  it("gives Unspecified on an H/M/P base that no origin facet narrows", () => {
+    for (const level of ["H", "M", "P"]) {
+      assert.deepEqual(decideF26({ ...base, baseDetailLevel: level }), { kind: "unspecified" });
+    }
+    assert.deepEqual(decideF26({ ...base, baseDetailLevel: "P", hasChildren: false }), {
+      kind: "none",
+      reason: "no_children",
+    });
+    assert.deepEqual(decideF26(base), { kind: "none", reason: "base_core_or_extended" });
+  });
+
+  it("recognises remainder groups by name", () => {
+    assert.ok(isRemainderName("Other cucurbits with edible peel"));
+    assert.ok(isRemainderName("Eggs from other not listed eggs producer birds"));
+    assert.ok(isRemainderName("Cereal and cereal-like flours not separately listed"));
+    assert.ok(isRemainderName("Other species of genus Tuber, not elsewhere mentioned"));
+    assert.ok(isRemainderName("Milk from other milk producer animals"));
+    assert.ok(!isRemainderName("Sea urchins and other echinoderms"));
+    assert.ok(!isRemainderName("Asian-style noodles other than glass noodles"));
+    assert.ok(!isRemainderName("Chicken, other slaughtering products"));
+    assert.ok(!isRemainderName("Cucurbits with edible peel"));
   });
 
   it("lists sibling children under egg based dishes", () => {

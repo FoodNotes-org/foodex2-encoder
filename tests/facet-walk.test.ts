@@ -61,15 +61,24 @@ describe("systemOriginPick", () => {
     assert.match(prompt, /that `baseTerm` does not already denote/);
     assert.match(prompt, /with its `name` and its `scope`/);
     assert.match(prompt, /including under another name/);
-    assert.match(prompt, /\{"code":"<code>"\|null\}/);
+    assert.match(prompt, /\{"code":"<code>"\|null,"match":"exact\|broad"\|null\}/);
+    assert.match(prompt, /- broad: `lookingFor` names a specific kind within this term that the term does not name\./);
   });
 
   it("asks the same of every term when the list allows several", () => {
     const prompt = systemOriginPick("ingredient", false, true);
-    assert.match(prompt, /characterising ingredient/);
+    assert.match(prompt, /which terms, if any, each stand for a defining ingredient of `food`/);
     assert.match(prompt, /that `baseTerm` does not already denote/);
-    assert.match(prompt, /\{"codes":\["<code>",\.\.\.\]\}/);
+    assert.match(prompt, /\{"terms":\[\{"code":"<code>","match":"exact\|broad"\}, \.\.\.\]\}/);
     assert.doesNotMatch(prompt, /fresh denotes the raw commodity/);
+  });
+
+  it("defines an ingredient as the thing added, for the ingredient role only", () => {
+    const definition = /An ingredient is the thing put into or onto `food`, not a food that has had it put in or on\./;
+    assert.match(systemOriginPick("ingredient", false, false), /which term, if any, stands for a defining ingredient/);
+    assert.match(systemOriginPick("ingredient", false, false), definition);
+    assert.doesNotMatch(systemOriginPick("source", false, false), definition);
+    assert.doesNotMatch(systemOriginPick("made_from", false, true), definition);
   });
 });
 
@@ -80,8 +89,8 @@ describe("systemSourceCommodityPick", () => {
     assert.match(prompt, /fresh denotes the raw commodity, not a further detail/);
     assert.match(prompt, /narrowest remainder/);
     assert.match(prompt, /European Union|food nomenclature/);
-    assert.match(prompt, /\{"codes":\["<code>",\.\.\.\]\}/);
-    assert.doesNotMatch(prompt, /does not name/);
+    assert.match(prompt, /\{"terms":\[\{"code":"<code>","match":"exact\|broad"\}, \.\.\.\]\}/);
+    assert.doesNotMatch(prompt, /adds a detail `lookingFor` does not name/);
   });
 });
 

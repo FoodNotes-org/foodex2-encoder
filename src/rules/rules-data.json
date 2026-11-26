@@ -1,7 +1,7 @@
 {
   "_provenance": {
     "generated_by": "scripts/build-rules.ts",
-    "generated_at": "2026-11-21T18:29:58.136Z",
+    "generated_at": "2026-11-26T11:07:05.455Z",
     "sources": [
       "rules/cardinality.yaml",
       "rules/conflicts.yaml",

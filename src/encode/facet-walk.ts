@@ -15,7 +15,7 @@ import { countryParagraph } from "../country.js";
 import { chatJson } from "../llm.js";
 import { facetCardinality } from "../rules/index.js";
 import { vectorIndexAvailable, vectorSearchFacets } from "../search/vector.js";
-import { pickAllowedCode, pickAllowedCodes } from "./answers.js";
+import { pickAllowedCode, pickAllowedCodes, pickOriginMatches, type OriginMatch } from "./answers.js";
 import { F07, F11 } from "./numeric-facets.js";
 import type { FacetDescriptorRef } from "./types.js";
 
@@ -96,7 +96,7 @@ const ORIGIN_TASK: Record<OriginPickRole, string> = {
   made_from:
     "which term, if any, is what `food` is made from, that `lookingFor` states and that `baseTerm` does not already denote",
   ingredient:
-    "which term, if any, is the characterising ingredient of `food` that `lookingFor` states and that `baseTerm` does not already denote",
+    "which term, if any, stands for a defining ingredient of `food` that `lookingFor` names and that `baseTerm` does not already denote",
 };
 
 const ORIGIN_TASK_MANY: Record<OriginPickRole, string> = {
@@ -105,8 +105,27 @@ const ORIGIN_TASK_MANY: Record<OriginPickRole, string> = {
   made_from:
     "which terms, if any, does `lookingFor` name as what `food` is made from, that `baseTerm` does not already denote",
   ingredient:
-    "which terms, if any, does `lookingFor` name as the characterising ingredient of `food`, that `baseTerm` does not already denote",
+    "which terms, if any, each stand for a defining ingredient of `food` that `lookingFor` names and that `baseTerm` does not already denote",
 };
+
+const ORIGIN_DEFINITION: Partial<Record<OriginPickRole, string>> = {
+  ingredient:
+    "An ingredient is the thing put into or onto `food`, not a food that has had it put in or on. ",
+};
+
+const ORIGIN_MATCH_LINES = `- exact: this term names what \`lookingFor\` names, even if it also covers other things.
+- broad: \`lookingFor\` names a specific kind within this term that the term does not name.`;
+
+/** Reply for the origin picks: each picked term with how it matches `lookingFor`. */
+function originPickReply(many: boolean): string {
+  return many
+    ? `Reply with JSON only, listing those terms, each with its code and how it matches \`lookingFor\`, or an empty list if there are none:
+{"terms":[{"code":"<code>","match":"exact|broad"}, ...]}
+${ORIGIN_MATCH_LINES}`
+    : `Reply with JSON only, with the code of that term and how it matches \`lookingFor\`, or null if none of them is:
+{"code":"<code>"|null,"match":"exact|broad"|null}
+${ORIGIN_MATCH_LINES}`;
+}
 
 /**
  * Final pick for origin walks.
@@ -123,11 +142,7 @@ export function systemOriginPick(role: OriginPickRole, withCountry = false, many
   const termsLine = many
     ? "- `terms`: candidate terms, each with a `code`, a `name`, and its `parent`."
     : "- `terms`: candidate terms, each with a `code` and a `name`.";
-  const reply = many
-    ? `Reply with JSON only, listing the codes of those terms, or an empty list if there are none:
-{"codes":["<code>",...]}`
-    : `Reply with JSON only, with the code of that term, or null if none of them is:
-{"code":"<code>"|null}`;
+  const reply = originPickReply(many);
   return `You are an expert in food classification.
 
 Task: ${task}?
@@ -138,7 +153,7 @@ ${detail}Given:
 - \`lookingFor\`: what we are trying to identify; it may be worded loosely.
 ${termsLine}
 ${countryParagraph(withCountry, "food")}
-A term counts only when it states a detail \`lookingFor\` names and \`baseTerm\` does not already denote. \`baseTerm\` denotes a detail when its name or scope fixes it, including under another name. A narrower kind counts only when the detail it adds is one \`baseTerm\` does not denote.
+${ORIGIN_DEFINITION[role] ?? ""}A term counts only when it states a detail \`lookingFor\` names and \`baseTerm\` does not already denote. \`baseTerm\` denotes a detail when its name or scope fixes it, including under another name. A narrower kind counts only when the detail it adds is one \`baseTerm\` does not denote.
 
 ${reply}
 `;
@@ -155,11 +170,7 @@ export function systemSourceCommodityPick(withCountry = false, many = false): st
   const termsLine = many
     ? "- `terms`: candidate raw commodities, each with a `code`, a `name`, and its `parent`."
     : "- `terms`: candidate raw commodities, each with a `code` and a `name`.";
-  const reply = many
-    ? `Reply with JSON only, listing the codes of those terms, or an empty list if there are none:
-{"codes":["<code>",...]}`
-    : `Reply with JSON only, with the code of that term, or null if none of them is:
-{"code":"<code>"|null}`;
+  const reply = originPickReply(many);
   const remainder = many
     ? `The remainder of a parent is the sibling that is the part of the parent the other siblings do not cover. A sibling other than the remainder counts when it is the raw commodity \`lookingFor\` states. In a raw-commodity name, fresh denotes the raw commodity, not a further detail. The narrowest remainder counts when \`lookingFor\` states a kind of its parent and no listed sibling is that commodity.
 
@@ -367,7 +378,12 @@ async function askSelect(
   terms: Array<{ code: string; name: string; list: string; parent?: string; note?: string }>,
   options: FacetWalkOptions,
   many = false
-): Promise<{ codes: string[]; meaning: string | null; model: string }> {
+): Promise<{
+  codes: string[];
+  meaning: string | null;
+  model: string;
+  matches?: Record<string, OriginMatch | null>;
+}> {
   const allowed = new Set(terms.map((c) => c.code));
   if (options.originRole !== undefined && options.food !== undefined) {
     const picked = await chatJson({
@@ -392,13 +408,13 @@ async function askSelect(
         2
       ),
     });
-    const codes = many
-      ? pickAllowedCodes(picked.content, allowed)
-      : (() => {
-          const code = pickAllowedCode(picked.content, allowed);
-          return code === null ? [] : [code];
-        })();
-    return { codes, meaning: null, model: picked.model };
+    const rows = pickOriginMatches(picked.content, allowed, many);
+    return {
+      codes: rows.map((row) => row.code),
+      meaning: null,
+      model: picked.model,
+      matches: Object.fromEntries(rows.map((row) => [row.code, row.match])),
+    };
   }
   const foodText = options.food?.food ?? options.food?.input;
   const picked = await chatJson({
@@ -800,7 +816,8 @@ async function selectAmong(
     });
   }
   pool = held.offered;
-  if (pool.length === 1) {
+  // A sole ingredient hit may be a food that carries the treatment, not the thing added.
+  if (pool.length === 1 && options.originRole !== "ingredient") {
     steps.push({
       via,
       sole: true,
@@ -829,6 +846,7 @@ async function selectAmong(
     })),
     ...(picked.meaning !== null ? { meaning: picked.meaning } : {}),
     picked: many ? picked.codes : (picked.codes[0] ?? null),
+    ...(picked.matches !== undefined ? { matches: picked.matches } : {}),
     model: picked.model,
   });
   return found;
@@ -845,6 +863,10 @@ export async function resolveFacetWalk(
 ): Promise<{
   facet: FacetDescriptorRef | null;
   facets: FacetDescriptorRef[];
+  /** Origin picks: how each picked term matches the phrase (absent for a sole hit). */
+  matches: Record<string, OriginMatch | null>;
+  /** The phrase opened at least one group: it names a kind of something in the tree. */
+  branchEntered: boolean;
   detail: Record<string, unknown>;
 }> {
   const steps: WalkStep[] = [];
@@ -900,16 +922,24 @@ export async function resolveFacetWalk(
   const facet = facets[0] ?? null;
   const resolved =
     facets.length === 0 ? null : facets.length === 1 ? facets[0]!.code : facets.map((f) => f.code);
+  const select = steps.find((step) => step.via === "select" && step.matches !== undefined);
+  const matches = (select?.matches ?? {}) as Record<string, OriginMatch | null>;
+  const branchEntered = steps.some(
+    (step) => step.via === "branch_open" && Array.isArray(step.opened) && step.opened.length > 0
+  );
 
   return {
     facet,
     facets,
+    matches,
+    branchEntered,
     detail: {
       phrase,
       via: "facet_walk",
       headers: tried,
       resolved,
       ...(facet !== null ? { header: facet.header, name: facet.name } : {}),
+      branchEntered,
       steps,
     },
   };

@@ -159,7 +159,14 @@ export async function resolveSourceWalk(
     country: string | null;
     implied: Set<string>;
   }
-): Promise<{ facet: FacetDescriptorRef | null; detail: Record<string, unknown> }> {
+): Promise<{
+  facet: FacetDescriptorRef | null;
+  /** exact: the walk found the organism; broad: it stopped on a group that contains it. */
+  match: "exact" | "broad" | null;
+  /** Some term was judged to contain or be the organism. */
+  branchEntered: boolean;
+  detail: Record<string, unknown>;
+}> {
   const steps: Record<string, unknown>[] = [];
   const recall = [
     ...new Set([...lexicalSourceHits(phrase), ...(await embeddingSourceHits(cat, phrase))]),
@@ -257,16 +264,29 @@ export async function resolveSourceWalk(
 
   const chosen = exact ?? (ambiguous ? null : deepest(cat, fallbacks));
   const facet = chosen !== null && recordable(cat, chosen, options.implied) ? facetOf(cat, chosen) : null;
+  const match = facet === null ? null : facet.code === exact ? "exact" : "broad";
+  const branchEntered = steps.some(
+    (step) =>
+      step.match === "exact" ||
+      step.match === "broad" ||
+      (Array.isArray(step.classifications) &&
+        (step.classifications as Array<{ match?: unknown }>).some(
+          (c) => c.match === "exact" || c.match === "broad"
+        ))
+  );
   return {
     facet,
+    match,
+    branchEntered,
     detail: {
       phrase,
       via: "source_walk",
       header: F01,
       recall,
       resolved: facet?.code ?? null,
-      ...(facet !== null ? { name: facet.name } : {}),
+      ...(facet !== null ? { name: facet.name, match } : {}),
       ...(ambiguous ? { ambiguousExact: true } : {}),
+      branchEntered,
       steps,
     },
   };

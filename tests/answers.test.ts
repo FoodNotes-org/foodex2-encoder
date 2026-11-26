@@ -9,6 +9,7 @@ import {
   parseClassifications,
   pickAllowedCode,
   pickAllowedCodes,
+  pickOriginMatches,
 } from "../src/encode/answers.js";
 import { LADDER_LABELS } from "../src/encode/classify-ladder.js";
 
@@ -40,6 +41,38 @@ describe("pickAllowedCodes", () => {
     assert.deepEqual(pickAllowedCodes({ code: "A0B92" }, allowed), []);
     assert.deepEqual(pickAllowedCodes({ codes: ["A0B95", "A0B95", "nope"] }, allowed), ["A0B95"]);
     assert.deepEqual(pickAllowedCodes(null, allowed), []);
+  });
+});
+
+describe("pickOriginMatches", () => {
+  it("reads each picked term with its match", () => {
+    assert.deepEqual(
+      pickOriginMatches(
+        { terms: [{ code: "A0B95", match: "exact" }, { code: "a0b9a", match: "broad" }] },
+        allowed,
+        true
+      ),
+      [
+        { code: "A0B95", match: "exact" },
+        { code: "A0B9A", match: "broad" },
+      ]
+    );
+    assert.deepEqual(pickOriginMatches({ code: "A0B93", match: "broad" }, allowed, false), [
+      { code: "A0B93", match: "broad" },
+    ]);
+  });
+
+  it("keeps a code with a missing or unknown match, and drops unknown and repeated codes", () => {
+    assert.deepEqual(
+      pickOriginMatches(
+        { terms: [{ code: "A0B95", match: "close" }, { code: "A0B95" }, { code: "nope", match: "exact" }] },
+        allowed,
+        true
+      ),
+      [{ code: "A0B95", match: null }]
+    );
+    assert.deepEqual(pickOriginMatches({ code: null, match: null }, allowed, false), []);
+    assert.deepEqual(pickOriginMatches(null, allowed, true), []);
   });
 });
 

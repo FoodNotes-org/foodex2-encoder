@@ -34,6 +34,33 @@ export function pickAllowedCodes(content: unknown, allowed: ReadonlySet<string>)
   return out;
 }
 
+export type OriginMatch = "exact" | "broad";
+
+/**
+ * Origin pick reply: `{"terms": [{"code", "match"}]}` (many) or
+ * `{"code", "match"}` (one) → allowed codes in order, deduped, each with its
+ * match, or null when the label is missing or unknown.
+ */
+export function pickOriginMatches(
+  content: unknown,
+  allowed: ReadonlySet<string>,
+  many: boolean
+): Array<{ code: string; match: OriginMatch | null }> {
+  const body = asRecord(content);
+  if (body === null) return [];
+  const rows = many ? (Array.isArray(body.terms) ? body.terms : []) : [body];
+  const out: Array<{ code: string; match: OriginMatch | null }> = [];
+  for (const item of rows) {
+    const row = asRecord(item);
+    if (row === null) continue;
+    const code = allowedCode(row.code, allowed);
+    if (code === null || out.some((entry) => entry.code === code)) continue;
+    const match = row.match === "exact" || row.match === "broad" ? row.match : null;
+    out.push({ code, match });
+  }
+  return out;
+}
+
 /**
  * `{"classifications": [{"code", <key>}]}` → label per allowed code. Rows with
  * an unknown code or label are skipped. Null when the reply has no
